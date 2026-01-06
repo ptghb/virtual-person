@@ -8,7 +8,6 @@
 import { CubismMatrix44 } from '@framework/math/cubismmatrix44';
 import { ACubismMotion } from '@framework/motion/acubismmotion';
 import { csmVector } from '@framework/type/csmvector';
-import { CubismWebGLOffscreenManager } from '@framework/rendering/cubismoffscreenmanager';
 
 import * as LAppDefine from './lappdefine';
 import { LAppModel } from './lappmodel';
@@ -16,29 +15,22 @@ import { LAppPal } from './lapppal';
 import { LAppSubdelegate } from './lappsubdelegate';
 
 /**
- * サンプルアプリケーションにおいてCubismModelを管理するクラス
- * モデル生成と破棄、タップイベントの処理、モデル切り替えを行う。
+ * 在示例应用程序中管理 CubismModel 的类
+ * 处理模型的生成和销毁、点击事件处理、模型切换。
  */
 export class LAppLive2DManager {
   /**
-   * 現在のシーンで保持しているすべてのモデルを解放する
+   * 释放当前场景中保存的所有模型
    */
   private releaseAllModel(): void {
     this._models.clear();
   }
 
-  public setOffscreenSize(width: number, height: number): void {
-    for (let i = 0; i < this._models.getSize(); i++) {
-      const model: LAppModel = this._models.at(i);
-      model?.setRenderTargetSize(width, height);
-    }
-  }
-
   /**
-   * 画面をドラッグした時の処理
+   * 拖动屏幕时的处理
    *
-   * @param x 画面のX座標
-   * @param y 画面のY座標
+   * @param x 屏幕的X坐标
+   * @param y 屏幕的Y坐标
    */
   public onDrag(x: number, y: number): void {
     const model: LAppModel = this._models.at(0);
@@ -48,10 +40,10 @@ export class LAppLive2DManager {
   }
 
   /**
-   * 画面をタップした時の処理
+   * 点击屏幕时的处理
    *
-   * @param x 画面のX座標
-   * @param y 画面のY座標
+   * @param x 屏幕的X坐标
+   * @param y 屏幕的Y坐标
    */
   public onTap(x: number, y: number): void {
     if (LAppDefine.DebugLogEnable) {
@@ -81,14 +73,10 @@ export class LAppLive2DManager {
   }
 
   /**
-   * 画面を更新するときの処理
-   * モデルの更新処理及び描画処理を行う
+   * 更新屏幕时的处理
+   * 执行模型的更新处理和绘制处理
    */
   public onUpdate(): void {
-    // 全てのモデルの描画処理開始前に、フレームごとのリセットフラグをクリアする
-    const gl = this._subdelegate.getGl();
-    CubismWebGLOffscreenManager.getInstance().resetPreviousActiveCount(gl);
-
     const { width, height } = this._subdelegate.getCanvas();
 
     const projection: CubismMatrix44 = new CubismMatrix44();
@@ -96,43 +84,35 @@ export class LAppLive2DManager {
 
     if (model.getModel()) {
       if (model.getModel().getCanvasWidth() > 1.0 && width < height) {
-        // 横に長いモデルを縦長ウィンドウに表示する際モデルの横サイズでscaleを算出する
+        // 当在纵向窗口中显示横向较长的模型时，根据模型的横向尺寸计算缩放比例
         model.getModelMatrix().setWidth(2.0);
         projection.scale(1.0, width / height);
       } else {
         projection.scale(height / width, 1.0);
       }
 
-      // 必要があればここで乗算
+      // 如有需要，在此处进行乘法运算
       if (this._viewMatrix != null) {
         projection.multiplyByMatrix(this._viewMatrix);
       }
     }
 
     model.update();
-    model.draw(projection); // 参照渡しなのでprojectionは変質する。
+    model.draw(projection); // 由于是引用传递，projection 会发生变化。
   }
 
   /**
-   * 次のシーンに切りかえる
-   * サンプルアプリケーションではモデルセットの切り替えを行う。
+   * 切换到下一个场景
+   * 在示例应用程序中进行模型集的切换。
    */
   public nextScene(): void {
     const no: number = (this._sceneIndex + 1) % LAppDefine.ModelDirSize;
     this.changeScene(no);
-
-    // 不要なオフスクリーン描画用のレンダーテクスチャを解放する
-    const gl = this._subdelegate.getGl();
-    CubismWebGLOffscreenManager.getInstance().clearPreviousActiveRenderTextureCountResetFlag(
-      gl
-    );
-    CubismWebGLOffscreenManager.getInstance().resetPreviousActiveCount(gl);
-    CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl);
   }
 
   /**
-   * シーンを切り替える
-   * サンプルアプリケーションではモデルセットの切り替えを行う。
+   * 切换场景
+   * 在示例应用程序中进行模型集的切换。
    * @param index
    */
   private changeScene(index: number): void {
@@ -142,9 +122,9 @@ export class LAppLive2DManager {
       LAppPal.printMessage(`[APP]model index: ${this._sceneIndex}`);
     }
 
-    // ModelDir[]に保持したディレクトリ名から
-    // model3.jsonのパスを決定する。
-    // ディレクトリ名とmodel3.jsonの名前を一致させておくこと。
+    // 从 ModelDir[] 中保存的目录名
+    // 确定 model3.json 的路径。
+    // 请确保目录名与 model3.json 的名称一致。
     const model: string = LAppDefine.ModelDir[index];
     const modelPath: string = LAppDefine.ResourcesPath + model + '/';
     let modelJsonName: string = LAppDefine.ModelDir[index];
@@ -164,7 +144,7 @@ export class LAppLive2DManager {
   }
 
   /**
-   * モデルの追加
+   * 添加模型
    */
   public addModel(sceneIndex: number = 0): void {
     this._sceneIndex = sceneIndex;
@@ -172,7 +152,7 @@ export class LAppLive2DManager {
   }
 
   /**
-   * コンストラクタ
+   * 构造函数
    */
   public constructor() {
     this._subdelegate = null;
@@ -182,12 +162,12 @@ export class LAppLive2DManager {
   }
 
   /**
-   * 解放する。
+   * 释放资源。
    */
   public release(): void {}
 
   /**
-   * 初期化する。
+   * 初始化。
    * @param subdelegate
    */
   public initialize(subdelegate: LAppSubdelegate): void {
@@ -196,20 +176,20 @@ export class LAppLive2DManager {
   }
 
   /**
-   * 自身が所属するSubdelegate
+   * 自身所属的 Subdelegate
    */
   private _subdelegate: LAppSubdelegate;
 
-  _viewMatrix: CubismMatrix44; // モデル描画に用いるview行列
-  _models: csmVector<LAppModel>; // モデルインスタンスのコンテナ
-  private _sceneIndex: number; // 表示するシーンのインデックス値
+  _viewMatrix: CubismMatrix44; // 用于模型绘制的视图矩阵
+  _models: csmVector<LAppModel>; // 模型实例的容器
+  private _sceneIndex: number; // 要显示的场景索引值
 
-  // モーション再生開始のコールバック関数
+  // 动画播放开始的回调函数
   beganMotion = (self: ACubismMotion): void => {
     LAppPal.printMessage('Motion Began:');
     console.log(self);
   };
-  // モーション再生終了のコールバック関数
+  // 动画播放结束的回调函数
   finishedMotion = (self: ACubismMotion): void => {
     LAppPal.printMessage('Motion Finished:');
     console.log(self);

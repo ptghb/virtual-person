@@ -9,19 +9,19 @@ import { csmVector, iterator } from '@framework/type/csmvector';
 import { LAppGlManager } from './lappglmanager';
 
 /**
- * テクスチャ管理クラス
- * 画像読み込み、管理を行うクラス。
+ * 纹理管理类
+ * 处理图像加载、管理的类。
  */
 export class LAppTextureManager {
   /**
-   * コンストラクタ
+   * 构造函数
    */
   public constructor() {
     this._textures = new csmVector<TextureInfo>();
   }
 
   /**
-   * 解放する。
+   * 释放资源。
    */
   public release(): void {
     for (
@@ -35,11 +35,11 @@ export class LAppTextureManager {
   }
 
   /**
-   * 画像読み込み
+   * 图像加载
    *
-   * @param fileName 読み込む画像ファイルパス名
-   * @param usePremultiply Premult処理を有効にするか
-   * @return 画像情報、読み込み失敗時はnullを返す
+   * @param fileName 要加载的图像文件路径名
+   * @param usePremultiply 是否启用 Premult 处理
+   * @return 图像信息，加载失败时返回 null
    */
   public createTextureFromPngFile(
     fileName: string,
@@ -56,9 +56,9 @@ export class LAppTextureManager {
         ite.ptr().fileName == fileName &&
         ite.ptr().usePremultply == usePremultiply
       ) {
-        // 2回目以降はキャッシュが使用される(待ち時間なし)
-        // WebKitでは同じImageのonloadを再度呼ぶには再インスタンスが必要
-        // 詳細：https://stackoverflow.com/a/5024181
+        // 第二次及以后使用缓存（无等待时间）
+        // 在 WebKit 中，要再次调用相同 Image 的 onload 需要重新实例化
+        // 详情：https://stackoverflow.com/a/5024181
         ite.ptr().img = new Image();
         ite
           .ptr()
@@ -70,20 +70,20 @@ export class LAppTextureManager {
       }
     }
 
-    // データのオンロードをトリガーにする
+    // 以数据加载为触发
     const img = new Image();
     img.addEventListener(
       'load',
       (): void => {
-        // テクスチャオブジェクトの作成
+        // 创建纹理对象
         const tex: WebGLTexture = this._glManager.getGl().createTexture();
 
-        // テクスチャを選択
+        // 选择纹理
         this._glManager
           .getGl()
           .bindTexture(this._glManager.getGl().TEXTURE_2D, tex);
 
-        // テクスチャにピクセルを書き込む
+        // 将像素写入纹理
         this._glManager
           .getGl()
           .texParameteri(
@@ -99,7 +99,7 @@ export class LAppTextureManager {
             this._glManager.getGl().LINEAR
           );
 
-        // Premult処理を行わせる
+        // 进行 Premult 处理
         if (usePremultiply) {
           this._glManager
             .getGl()
@@ -109,7 +109,7 @@ export class LAppTextureManager {
             );
         }
 
-        // テクスチャにピクセルを書き込む
+        // 将像素写入纹理
         this._glManager
           .getGl()
           .texImage2D(
@@ -121,12 +121,12 @@ export class LAppTextureManager {
             img
           );
 
-        // ミップマップを生成
+        // 生成多级渐远纹理
         this._glManager
           .getGl()
           .generateMipmap(this._glManager.getGl().TEXTURE_2D);
 
-        // テクスチャをバインド
+        // 绑定纹理
         this._glManager
           .getGl()
           .bindTexture(this._glManager.getGl().TEXTURE_2D, null);
@@ -152,9 +152,9 @@ export class LAppTextureManager {
   }
 
   /**
-   * 画像の解放
+   * 释放图像
    *
-   * 配列に存在する画像全てを解放する。
+   * 释放数组中存在的所有图像。
    */
   public releaseTextures(): void {
     for (let i = 0; i < this._textures.getSize(); i++) {
@@ -166,10 +166,10 @@ export class LAppTextureManager {
   }
 
   /**
-   * 画像の解放
+   * 释放图像
    *
-   * 指定したテクスチャの画像を解放する。
-   * @param texture 解放するテクスチャ
+   * 释放指定纹理的图像。
+   * @param texture 要释放的纹理
    */
   public releaseTextureByTexture(texture: WebGLTexture): void {
     for (let i = 0; i < this._textures.getSize(); i++) {
@@ -185,10 +185,10 @@ export class LAppTextureManager {
   }
 
   /**
-   * 画像の解放
+   * 释放图像
    *
-   * 指定した名前の画像を解放する。
-   * @param fileName 解放する画像ファイルパス名
+   * 释放指定名称的图像。
+   * @param fileName 要释放的图像文件路径名
    */
   public releaseTextureByFilePath(fileName: string): void {
     for (let i = 0; i < this._textures.getSize(); i++) {
@@ -214,13 +214,13 @@ export class LAppTextureManager {
 }
 
 /**
- * 画像情報構造体
+ * 图像信息结构体
  */
 export class TextureInfo {
-  img: HTMLImageElement; // 画像
-  id: WebGLTexture = null; // テクスチャ
-  width = 0; // 横幅
-  height = 0; // 高さ
-  usePremultply: boolean; // Premult処理を有効にするか
-  fileName: string; // ファイル名
+  img: HTMLImageElement; // 图像
+  id: WebGLTexture = null; // 纹理
+  width = 0; // 宽度
+  height = 0; // 高度
+  usePremultply: boolean; // 是否启用 Premult 处理
+  fileName: string; // 文件名
 }

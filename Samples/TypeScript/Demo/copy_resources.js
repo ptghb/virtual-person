@@ -8,9 +8,8 @@
 "use strict";
 const fs = require('fs');
 const publicResources = [
-  {src: '../../../Core', dst: './public/Core'},
-  {src: '../../Resources', dst: './public/Resources'},
-  {src: '../../../Framework/Shaders', dst: './public/Framework/Shaders'},
+  {src: '../../../Core', dst: './public/Core'}, // Core 目录
+  {src: '../../Resources', dst: './public/Resources'}, // Resources 目录
 ];
 
 publicResources.forEach((e)=>{if (fs.existsSync(e.dst)) fs.rmSync(e.dst, { recursive: true })});

@@ -13,11 +13,11 @@ import { LAppTextureManager } from './lapptexturemanager';
 import { LAppView } from './lappview';
 
 /**
- * Canvasに関連する操作を取りまとめるクラス
+ * 汇总与 Canvas 相关操作的类
  */
 export class LAppSubdelegate {
   /**
-   * コンストラクタ
+   * 构造函数
    */
   public constructor() {
     this._canvas = null;
@@ -30,7 +30,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * デストラクタ相当の処理
+   * 相当于析构函数的处理
    */
   public release(): void {
     this._resizeObserver.unobserve(this._canvas);
@@ -51,7 +51,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * APPに必要な物を初期化する。
+   * 初始化应用程序所需的内容。
    */
   public initialize(canvas: HTMLCanvasElement): boolean {
     if (!this._glManager.initialize(canvas)) {
@@ -75,19 +75,12 @@ export class LAppSubdelegate {
       this._frameBuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);
     }
 
-    // 透過設定
+    // 透明度设置
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // AppViewの初期化
+    // 初始化 AppView
     this._view.initialize(this);
-
-    // フレームバッファサイズの設定
-    this._live2dManager.setOffscreenSize(
-      this._canvas.width,
-      this._canvas.height
-    );
-
     this._view.initializeSprite();
 
     this._live2dManager.initialize(this);
@@ -120,14 +113,14 @@ export class LAppSubdelegate {
   }
 
   /**
-   * ループ処理
+   * 循环处理
    */
   public update(): void {
     if (this._glManager.getGl().isContextLost()) {
       return;
     }
 
-    // キャンバスのサイズが変わっている場合はリサイズに必要な処理をする。
+    // 如果画布尺寸发生变化，则进行必要的调整处理。
     if (this._needResize) {
       this.onResize();
       this._needResize = false;
@@ -135,34 +128,34 @@ export class LAppSubdelegate {
 
     const gl = this._glManager.getGl();
 
-    // 画面の初期化
+    // 屏幕初始化
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
-    // 深度テストを有効化
+    // 启用深度测试
     gl.enable(gl.DEPTH_TEST);
 
-    // 近くにある物体は、遠くにある物体を覆い隠す
+    // 近处的物体遮挡远处的物体
     gl.depthFunc(gl.LEQUAL);
 
-    // カラーバッファや深度バッファをクリアする
+    // 清除颜色缓冲区和深度缓冲区
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.clearDepth(1.0);
 
-    // 透過設定
+    // 透明度设置
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    // 描画更新
+    // 绘制更新
     this._view.render();
   }
 
   /**
-   * シェーダーを登録する。
+   * 注册着色器。
    */
   public createShader(): WebGLProgram {
     const gl = this._glManager.getGl();
 
-    // バーテックスシェーダーのコンパイル
+    // 编译顶点着色器
     const vertexShaderId = gl.createShader(gl.VERTEX_SHADER);
 
     if (vertexShaderId == null) {
@@ -184,7 +177,7 @@ export class LAppSubdelegate {
     gl.shaderSource(vertexShaderId, vertexShader);
     gl.compileShader(vertexShaderId);
 
-    // フラグメントシェーダのコンパイル
+    // 编译片段着色器
     const fragmentShaderId = gl.createShader(gl.FRAGMENT_SHADER);
 
     if (fragmentShaderId == null) {
@@ -204,7 +197,7 @@ export class LAppSubdelegate {
     gl.shaderSource(fragmentShaderId, fragmentShader);
     gl.compileShader(fragmentShaderId);
 
-    // プログラムオブジェクトの作成
+    // 创建程序对象
     const programId = gl.createProgram();
     gl.attachShader(programId, vertexShaderId);
     gl.attachShader(programId, fragmentShaderId);
@@ -212,7 +205,7 @@ export class LAppSubdelegate {
     gl.deleteShader(vertexShaderId);
     gl.deleteShader(fragmentShaderId);
 
-    // リンク
+    // 链接
     gl.linkProgram(programId);
     gl.useProgram(programId);
 
@@ -235,10 +228,6 @@ export class LAppSubdelegate {
     return this._glManager;
   }
 
-  public getGl(): WebGLRenderingContext | WebGL2RenderingContext {
-    return this._glManager.getGl();
-  }
-
   public getLive2DManager(): LAppLive2DManager {
     return this._live2dManager;
   }
@@ -256,7 +245,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * マウスダウン、タッチダウンしたときに呼ばれる。
+   * 鼠标按下、触摸按下时调用。
    */
   public onPointBegan(pageX: number, pageY: number): void {
     if (!this._view) {
@@ -272,7 +261,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * マウスポインタが動いたら呼ばれる。
+   * 鼠标指针移动时调用。
    */
   public onPointMoved(pageX: number, pageY: number): void {
     if (!this._captured) {
@@ -286,7 +275,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * クリックが終了したら呼ばれる。
+   * 点击结束时调用。
    */
   public onPointEnded(pageX: number, pageY: number): void {
     this._captured = false;
@@ -303,7 +292,7 @@ export class LAppSubdelegate {
   }
 
   /**
-   * タッチがキャンセルされると呼ばれる。
+   * 触摸取消时调用。
    */
   public onTouchCancel(pageX: number, pageY: number): void {
     this._captured = false;
@@ -326,12 +315,12 @@ export class LAppSubdelegate {
   private _canvas: HTMLCanvasElement;
 
   /**
-   * View情報
+   * 视图信息
    */
   private _view: LAppView;
 
   /**
-   * テクスチャマネージャー
+   * 纹理管理器
    */
   private _textureManager: LAppTextureManager;
   private _frameBuffer: WebGLFramebuffer;
@@ -344,7 +333,7 @@ export class LAppSubdelegate {
   private _resizeObserver: ResizeObserver;
 
   /**
-   * クリックしているか
+   * 是否正在点击
    */
   private _captured: boolean;
 

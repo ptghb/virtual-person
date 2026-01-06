@@ -6,7 +6,7 @@
  */
 
 /**
- * Cubism SDKのサンプルで使用するWebGLを管理するクラス
+ * 管理 Cubism SDK 示例中使用的 WebGL 的类
  */
 export class LAppGlManager {
   public constructor() {
@@ -14,11 +14,11 @@ export class LAppGlManager {
   }
 
   public initialize(canvas: HTMLCanvasElement): boolean {
-    // glコンテキストを初期化
+    // 初始化 gl 上下文
     this._gl = canvas.getContext('webgl2');
 
     if (!this._gl) {
-      // gl初期化失敗
+      // gl 初始化失败
       alert('Cannot initialize WebGL. This browser does not support.');
       this._gl = null;
       // document.body.innerHTML =
@@ -29,7 +29,7 @@ export class LAppGlManager {
   }
 
   /**
-   * 解放する。
+   * 释放资源。
    */
   public release(): void {}
 

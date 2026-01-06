@@ -15,15 +15,15 @@ import { CubismLogError } from '@framework/utils/cubismdebug';
 export let s_instance: LAppDelegate = null;
 
 /**
- * アプリケーションクラス。
- * Cubism SDKの管理を行う。
+ * 应用程序类。
+ * 管理 Cubism SDK。
  */
 export class LAppDelegate {
   /**
-   * クラスのインスタンス（シングルトン）を返す。
-   * インスタンスが生成されていない場合は内部でインスタンスを生成する。
+   * 返回类的实例（单例）。
+   * 如果实例尚未生成，则在内部生成实例。
    *
-   * @return クラスのインスタンス
+   * @return 类的实例
    */
   public static getInstance(): LAppDelegate {
     if (s_instance == null) {
@@ -34,7 +34,7 @@ export class LAppDelegate {
   }
 
   /**
-   * クラスのインスタンス（シングルトン）を解放する。
+   * 释放类的实例（单例）。
    */
   public static releaseInstance(): void {
     if (s_instance != null) {
@@ -45,7 +45,7 @@ export class LAppDelegate {
   }
 
   /**
-   * ポインタがアクティブになるときに呼ばれる。
+   * 当指针激活时调用。
    */
   private onPointerBegan(e: PointerEvent): void {
     for (
@@ -58,7 +58,7 @@ export class LAppDelegate {
   }
 
   /**
-   * ポインタが動いたら呼ばれる。
+   * 当指针移动时调用。
    */
   private onPointerMoved(e: PointerEvent): void {
     for (
@@ -71,7 +71,7 @@ export class LAppDelegate {
   }
 
   /**
-   * ポインタがアクティブでなくなったときに呼ばれる。
+   * 当指针不再激活时调用。
    */
   private onPointerEnded(e: PointerEvent): void {
     for (
@@ -84,7 +84,7 @@ export class LAppDelegate {
   }
 
   /**
-   * ポインタがキャンセルされると呼ばれる。
+   * 当指针取消时调用。
    */
   private onPointerCancel(e: PointerEvent): void {
     for (
@@ -106,44 +106,44 @@ export class LAppDelegate {
   }
 
   /**
-   * 実行処理。
+   * 执行处理。
    */
   public run(): void {
-    // メインループ
+    // 主循环
     const loop = (): void => {
-      // インスタンスの有無の確認
+      // 检查实例是否存在
       if (s_instance == null) {
         return;
       }
 
-      // 時間更新
+      // 更新时间
       LAppPal.updateTime();
 
       for (let i = 0; i < this._subdelegates.getSize(); i++) {
         this._subdelegates.at(i).update();
       }
 
-      // ループのために再帰呼び出し
+      // 为了循环进行递归调用
       requestAnimationFrame(loop);
     };
     loop();
   }
 
   /**
-   * 解放する。
+   * 释放资源。
    */
   private release(): void {
     this.releaseEventListener();
     this.releaseSubdelegates();
 
-    // Cubism SDKの解放
+    // 释放 Cubism SDK
     CubismFramework.dispose();
 
     this._cubismOption = null;
   }
 
   /**
-   * イベントリスナーを解除する。
+   * 移除事件监听器。
    */
   private releaseEventListener(): void {
     document.removeEventListener('pointerup', this.pointBeganEventListener);
@@ -157,7 +157,7 @@ export class LAppDelegate {
   }
 
   /**
-   * Subdelegate を解放する
+   * 释放 Subdelegate
    */
   private releaseSubdelegates(): void {
     for (
@@ -173,10 +173,10 @@ export class LAppDelegate {
   }
 
   /**
-   * APPに必要な物を初期化する。
+   * 初始化应用程序所需的内容。
    */
   public initialize(): boolean {
-    // Cubism SDKの初期化
+    // 初始化 Cubism SDK
     this.initializeCubism();
 
     this.initializeSubdelegates();
@@ -186,7 +186,7 @@ export class LAppDelegate {
   }
 
   /**
-   * イベントリスナーを設定する。
+   * 设置事件监听器。
    */
   private initializeEventListener(): void {
     this.pointBeganEventListener = this.onPointerBegan.bind(this);
@@ -194,7 +194,7 @@ export class LAppDelegate {
     this.pointEndedEventListener = this.onPointerEnded.bind(this);
     this.pointCancelEventListener = this.onPointerCancel.bind(this);
 
-    // ポインタ関連コールバック関数登録
+    // 注册指针相关回调函数
     document.addEventListener('pointerdown', this.pointBeganEventListener, {
       passive: true
     });
@@ -210,22 +210,22 @@ export class LAppDelegate {
   }
 
   /**
-   * Cubism SDKの初期化
+   * 初始化 Cubism SDK
    */
   private initializeCubism(): void {
     LAppPal.updateTime();
 
-    // setup cubism
+    // 设置 cubism
     this._cubismOption.logFunction = LAppPal.printMessage;
     this._cubismOption.loggingLevel = LAppDefine.CubismLoggingLevel;
     CubismFramework.startUp(this._cubismOption);
 
-    // initialize cubism
+    // 初始化 cubism
     CubismFramework.initialize();
   }
 
   /**
-   * Canvasを生成配置、Subdelegateを初期化する
+   * 生成并配置 Canvas，初始化 Subdelegate
    */
   private initializeSubdelegates(): void {
     let width: number = 100;
@@ -247,7 +247,7 @@ export class LAppDelegate {
       canvas.style.width = `${width}vw`;
       canvas.style.height = `${height}vh`;
 
-      // キャンバスを DOM に追加
+      // 将画布添加到 DOM
       document.body.appendChild(canvas);
     }
 
@@ -267,7 +267,7 @@ export class LAppDelegate {
   }
 
   /**
-   * Privateなコンストラクタ
+   * 私有构造函数
    */
   private constructor() {
     this._cubismOption = new Option();
@@ -276,12 +276,12 @@ export class LAppDelegate {
   }
 
   /**
-   * Cubism SDK Option
+   * Cubism SDK 选项
    */
   private _cubismOption: Option;
 
   /**
-   * 操作対象のcanvas要素
+   * 操作目标的 canvas 元素
    */
   private _canvases: csmVector<HTMLCanvasElement>;
 
@@ -291,7 +291,7 @@ export class LAppDelegate {
   private _subdelegates: csmVector<LAppSubdelegate>;
 
   /**
-   * 登録済みイベントリスナー 関数オブジェクト
+   * 已注册的事件监听器函数对象
    */
   private pointBeganEventListener: (this: Document, ev: PointerEvent) => void;
 

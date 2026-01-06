@@ -9,7 +9,7 @@ import { LAppDelegate } from './lappdelegate';
 import * as LAppDefine from './lappdefine';
 
 /**
- * ブラウザロード後の処理
+ * 浏览器加载后的处理
  */
 window.addEventListener(
   'load',
@@ -25,7 +25,7 @@ window.addEventListener(
 );
 
 /**
- * 終了時の処理
+ * 结束时的处理
  */
 window.addEventListener(
   'beforeunload',
