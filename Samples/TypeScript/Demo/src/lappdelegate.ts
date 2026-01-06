@@ -288,7 +288,7 @@ export class LAppDelegate {
   /**
    * Subdelegate
    */
-  private _subdelegates: csmVector<LAppSubdelegate>;
+  _subdelegates: csmVector<LAppSubdelegate>;
 
   /**
    * 已注册的事件监听器函数对象

@@ -13,6 +13,7 @@ import * as LAppDefine from './lappdefine';
 import { LAppModel } from './lappmodel';
 import { LAppPal } from './lapppal';
 import { LAppSubdelegate } from './lappsubdelegate';
+import { LAppAudioManager } from './lappaudiomanager';
 
 /**
  * 在示例应用程序中管理 CubismModel 的类
@@ -159,12 +160,17 @@ export class LAppLive2DManager {
     this._viewMatrix = new CubismMatrix44();
     this._models = new csmVector<LAppModel>();
     this._sceneIndex = 0;
+    this._audioManager = new LAppAudioManager();
   }
 
   /**
    * 释放资源。
    */
-  public release(): void {}
+  public release(): void {
+    if (this._audioManager) {
+      this._audioManager.release();
+    }
+  }
 
   /**
    * 初始化。
@@ -173,6 +179,12 @@ export class LAppLive2DManager {
   public initialize(subdelegate: LAppSubdelegate): void {
     this._subdelegate = subdelegate;
     this.changeScene(this._sceneIndex);
+
+    // 将音频管理器设置到模型中
+    const model: LAppModel = this._models.at(0);
+    if (model && this._audioManager) {
+      model.setAudioManager(this._audioManager);
+    }
   }
 
   /**
@@ -183,6 +195,7 @@ export class LAppLive2DManager {
   _viewMatrix: CubismMatrix44; // 用于模型绘制的视图矩阵
   _models: csmVector<LAppModel>; // 模型实例的容器
   private _sceneIndex: number; // 要显示的场景索引值
+  _audioManager: LAppAudioManager; // 音频管理器
 
   // 动画播放开始的回调函数
   beganMotion = (self: ACubismMotion): void => {
@@ -194,4 +207,12 @@ export class LAppLive2DManager {
     LAppPal.printMessage('Motion Finished:');
     console.log(self);
   };
+
+  /**
+   * 获取音频管理器
+   * @returns 音频管理器实例
+   */
+  public getAudioManager(): LAppAudioManager {
+    return this._audioManager;
+  }
 }

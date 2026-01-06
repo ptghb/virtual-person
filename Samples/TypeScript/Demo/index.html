@@ -21,6 +21,47 @@
       width: 100vw;
       height: 100vh;
     }
+    #audio-controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 10px;
+      color: white;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #audio-controls label {
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+    #audio-controls input[type="file"] {
+      color: white;
+      font-size: 12px;
+    }
+    #audio-controls button {
+      padding: 8px 16px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #audio-controls button:hover {
+      background: #45a049;
+    }
+    #audio-controls button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    #audio-status {
+      font-size: 12px;
+      color: #aaa;
+    }
   </style>
   <!-- Live2DCubismCore script -->
   <script src = "./Core/live2dcubismcore.js"></script>
@@ -28,5 +69,12 @@
   <script src = "./src/main.ts" type="module"></script>
 </head>
 <body>
+  <div id="audio-controls">
+    <label for="audio-upload">上传音频文件:</label>
+    <input type="file" id="audio-upload" accept="audio/*">
+    <button id="play-audio" disabled>播放音频</button>
+    <button id="stop-audio" disabled>停止音频</button>
+    <div id="audio-status">未加载音频</div>
+  </div>
 </body>
 </html>

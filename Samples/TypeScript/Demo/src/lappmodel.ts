@@ -41,6 +41,7 @@ import * as LAppDefine from './lappdefine';
 import { LAppPal } from './lapppal';
 import { TextureInfo } from './lapptexturemanager';
 import { LAppWavFileHandler } from './lappwavfilehandler';
+import { LAppAudioManager } from './lappaudiomanager';
 import { CubismMoc } from '@framework/model/cubismmoc';
 import { LAppDelegate } from './lappdelegate';
 import { LAppSubdelegate } from './lappsubdelegate';
@@ -570,8 +571,14 @@ export class LAppModel extends CubismUserModel {
     if (this._lipsync) {
       let value = 0.0; // 如果进行实时口型同步，则从系统获取音量，输入 0~1 范围的值。
 
-      this._wavFileHandler.update(deltaTimeSeconds);
-      value = this._wavFileHandler.getRms();
+      // 优先使用外部音频管理器
+      if (this._audioManager && this._audioManager.isPlaying()) {
+        value = this._audioManager.getRms();
+      } else {
+        // 否则使用原有的wav文件处理器
+        this._wavFileHandler.update(deltaTimeSeconds);
+        value = this._wavFileHandler.getRms();
+      }
 
       for (let i = 0; i < this._lipSyncIds.getSize(); ++i) {
         this._model.addParameterValueById(this._lipSyncIds.at(i), value, 0.8);
@@ -932,6 +939,22 @@ export class LAppModel extends CubismUserModel {
   }
 
   /**
+   * 设置外部音频管理器
+   * @param audioManager 音频管理器实例
+   */
+  public setAudioManager(audioManager: LAppAudioManager): void {
+    this._audioManager = audioManager;
+  }
+
+  /**
+   * 获取外部音频管理器
+   * @returns 音频管理器实例
+   */
+  public getAudioManager(): LAppAudioManager | null {
+    return this._audioManager;
+  }
+
+  /**
    * 构造函数
    */
   public constructor() {
@@ -983,6 +1006,7 @@ export class LAppModel extends CubismUserModel {
     this._motionCount = 0;
     this._allMotionCount = 0;
     this._wavFileHandler = new LAppWavFileHandler();
+    this._audioManager = null;
     this._consistency = false;
   }
 
@@ -1014,5 +1038,6 @@ export class LAppModel extends CubismUserModel {
   _motionCount: number; // 动画数据计数
   _allMotionCount: number; // 动画总数
   _wavFileHandler: LAppWavFileHandler; // wav 文件处理器
+  _audioManager: LAppAudioManager | null; // 外部音频管理器
   _consistency: boolean; // MOC3 一致性检查管理用
 }
