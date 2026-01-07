@@ -134,6 +134,7 @@ export class LAppLive2DManager {
     this.releaseAllModel();
     const instance = new LAppModel();
     instance.setSubdelegate(this._subdelegate);
+    instance.setAudioManager(this._audioManager);
     instance.loadAssets(modelPath, modelJsonName);
     this._models.pushBack(instance);
   }
