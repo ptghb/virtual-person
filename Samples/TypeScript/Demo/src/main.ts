@@ -45,9 +45,22 @@ function initializeAudioControls(): void {
   ) as HTMLInputElement;
   const playButton = document.getElementById('play-audio') as HTMLButtonElement;
   const stopButton = document.getElementById('stop-audio') as HTMLButtonElement;
+  const startRecordingButton = document.getElementById(
+    'start-recording'
+  ) as HTMLButtonElement;
+  const stopRecordingButton = document.getElementById(
+    'stop-recording'
+  ) as HTMLButtonElement;
   const statusDiv = document.getElementById('audio-status') as HTMLDivElement;
 
-  if (!audioUpload || !playButton || !stopButton || !statusDiv) {
+  if (
+    !audioUpload ||
+    !playButton ||
+    !stopButton ||
+    !statusDiv ||
+    !startRecordingButton ||
+    !stopRecordingButton
+  ) {
     console.error('Audio control elements not found');
     return;
   }
@@ -148,10 +161,60 @@ function initializeAudioControls(): void {
 
     audioManager.setOnEndCallback(() => {
       statusDiv.textContent = '播放结束';
-      playButton.disabled = false;
-      stopButton.disabled = true;
     });
   } catch (error) {
-    console.error('Error setting audio callbacks:', error);
+    console.error('Error setting up audio callbacks:', error);
   }
+
+  // 开始录音按钮处理
+  startRecordingButton.addEventListener('click', () => {
+    (async () => {
+      try {
+        const audioManager = LAppDelegate.getInstance()
+          ._subdelegates.at(0)
+          .getLive2DManager()
+          .getAudioManager();
+
+        statusDiv.textContent = '正在请求麦克风权限...';
+
+        const success = await audioManager.startRecording();
+
+        if (success) {
+          statusDiv.textContent = '正在录音...';
+          startRecordingButton.disabled = true;
+          stopRecordingButton.disabled = false;
+          playButton.disabled = true;
+          stopButton.disabled = true;
+        } else {
+          statusDiv.textContent = '录音启动失败';
+        }
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        statusDiv.textContent = '录音启动出错';
+      }
+    })();
+  });
+
+  // 停止录音按钮处理
+  stopRecordingButton.addEventListener('click', () => {
+    try {
+      const audioManager = LAppDelegate.getInstance()
+        ._subdelegates.at(0)
+        .getLive2DManager()
+        .getAudioManager();
+
+      audioManager.stopRecording();
+      statusDiv.textContent = '录音已停止';
+      startRecordingButton.disabled = false;
+      stopRecordingButton.disabled = true;
+
+      // 如果有加载的音频文件，恢复播放按钮状态
+      if (audioManager.isLoaded()) {
+        playButton.disabled = false;
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      statusDiv.textContent = '停止录音出错';
+    }
+  });
 }

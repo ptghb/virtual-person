@@ -572,10 +572,16 @@ export class LAppModel extends CubismUserModel {
       let value = 0.0; // 如果进行实时口型同步，则从系统获取音量，输入 0~1 范围的值。
 
       // 优先使用外部音频管理器
-      if (this._audioManager && this._audioManager.isPlaying()) {
-        value = this._audioManager.getRms();
-      } else {
-        // 否则使用原有的wav文件处理器
+      if (this._audioManager) {
+        if (this._audioManager.isPlaying()) {
+          value = this._audioManager.getRms();
+        } else if (this._audioManager.isRecording()) {
+          value = this._audioManager.getRecordingRms();
+        }
+      }
+
+      // 如果没有外部音频管理器，使用原有的wav文件处理器
+      if (value === 0.0) {
         this._wavFileHandler.update(deltaTimeSeconds);
         value = this._wavFileHandler.getRms();
       }

@@ -20,6 +20,9 @@ export class LAppAudioManager {
   private _onPlayCallback: (() => void) | null;
   private _onStopCallback: (() => void) | null;
   private _onEndCallback: (() => void) | null;
+  private _mediaStream: MediaStream | null;
+  private _mediaStreamSource: MediaStreamAudioSourceNode | null;
+  private _isRecording: boolean;
 
   constructor() {
     this._audioContext = new (window.AudioContext ||
@@ -35,6 +38,9 @@ export class LAppAudioManager {
     this._onPlayCallback = null;
     this._onStopCallback = null;
     this._onEndCallback = null;
+    this._mediaStream = null;
+    this._mediaStreamSource = null;
+    this._isRecording = false;
   }
 
   /**
@@ -213,9 +219,92 @@ export class LAppAudioManager {
    */
   public release(): void {
     this.stop();
+    this.stopRecording();
     this._audioBuffer = null;
     if (this._audioContext.state !== 'closed') {
       this._audioContext.close();
     }
+  }
+
+  /**
+   * 开始麦克风录音
+   * @returns Promise<boolean> 录音是否成功启动
+   */
+  public async startRecording(): Promise<boolean> {
+    try {
+      // 如果正在播放音频，先停止
+      if (this._isPlaying) {
+        this.stop();
+      }
+
+      // 获取麦克风权限
+      this._mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+      // 创建媒体流源节点
+      this._mediaStreamSource = this._audioContext.createMediaStreamSource(
+        this._mediaStream
+      );
+
+      // 连接到分析器（不连接到destination，避免听到自己的声音）
+      this._mediaStreamSource.connect(this._analyser);
+
+      this._isRecording = true;
+      return true;
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 停止麦克风录音
+   */
+  public stopRecording(): void {
+    if (this._mediaStreamSource) {
+      this._mediaStreamSource.disconnect();
+      this._mediaStreamSource = null;
+    }
+
+    if (this._mediaStream) {
+      this._mediaStream.getTracks().forEach(track => track.stop());
+      this._mediaStream = null;
+    }
+
+    this._isRecording = false;
+  }
+
+  /**
+   * 检查是否正在录音
+   * @returns 是否正在录音
+   */
+  public isRecording(): boolean {
+    return this._isRecording;
+  }
+
+  /**
+   * 获取录音时的RMS值（均方根值），用于口型同步
+   * @returns RMS值（0-1范围）
+   */
+  public getRecordingRms(): number {
+    if (!this._isRecording) {
+      return 0.0;
+    }
+
+    const bufferLength = this._analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    this._analyser.getByteTimeDomainData(dataArray);
+
+    // 计算RMS值
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      const x = (dataArray[i] - 128) / 128.0;
+      sum += x * x;
+    }
+    const rms = Math.sqrt(sum / bufferLength);
+
+    // 放大RMS值以获得更好的口型效果
+    return Math.min(rms * 3.0, 1.0);
   }
 }
