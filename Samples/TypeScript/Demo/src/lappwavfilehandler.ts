@@ -81,7 +81,8 @@ export class LAppWavFileHandler {
           (goalOffset - this._sampleOffset))
     );
 
-    this._lastRms = rms;
+    // 放大RMS值以获得更好的口型效果
+    this._lastRms = Math.min(rms * 5.0, 1.0);
     this._sampleOffset = goalOffset;
     return true;
   }

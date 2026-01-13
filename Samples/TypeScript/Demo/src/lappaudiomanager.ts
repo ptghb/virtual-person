@@ -152,7 +152,7 @@ export class LAppAudioManager {
     const rms = Math.sqrt(sum / bufferLength);
 
     // 放大RMS值以获得更好的口型效果
-    return Math.min(rms * 3.0, 1.0);
+    return Math.min(rms * 5.0, 1.0);
   }
 
   /**
@@ -305,6 +305,6 @@ export class LAppAudioManager {
     const rms = Math.sqrt(sum / bufferLength);
 
     // 放大RMS值以获得更好的口型效果
-    return Math.min(rms * 3.0, 1.0);
+    return Math.min(rms * 5.0, 1.0);
   }
 }
