@@ -185,6 +185,16 @@ export class LAppLive2DManager {
     const model: LAppModel = this._models.at(0);
     if (model && this._audioManager) {
       model.setAudioManager(this._audioManager);
+
+      // 设置音频播放时停止动画的回调
+      this._audioManager.setOnMotionStopCallback(() => {
+        model.stopAllMotions();
+      });
+
+      // 设置音频停止时重启动画的回调
+      this._audioManager.setOnMotionRestartCallback(() => {
+        model.restartIdleMotion();
+      });
     }
   }
 
@@ -215,5 +225,39 @@ export class LAppLive2DManager {
    */
   public getAudioManager(): LAppAudioManager {
     return this._audioManager;
+  }
+
+  /**
+   * 启用所有模型的动画播放
+   */
+  public enableMotion(): void {
+    const model: LAppModel = this._models.at(0);
+    if (model) {
+      model.enableMotion();
+    }
+  }
+
+  /**
+   * 禁用所有模型的动画播放
+   */
+  public disableMotion(): void {
+    const model: LAppModel = this._models.at(0);
+    if (model) {
+      model.disableMotion();
+    }
+  }
+
+  /**
+   * 切换动画播放状态
+   */
+  public toggleMotion(): void {
+    const model: LAppModel = this._models.at(0);
+    if (model) {
+      if (model.isMotionEnabled()) {
+        model.disableMotion();
+      } else {
+        model.enableMotion();
+      }
+    }
   }
 }

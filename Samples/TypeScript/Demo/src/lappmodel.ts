@@ -511,17 +511,19 @@ export class LAppModel extends CubismUserModel {
 
     //--------------------------------------------------------------------------
     this._model.loadParameters(); // 加载上次保存的状态
-    if (this._motionManager.isFinished()) {
-      // 如果没有动画播放，则从待机动画中随机播放
-      this.startRandomMotion(
-        LAppDefine.MotionGroupIdle,
-        LAppDefine.PriorityIdle
-      );
-    } else {
-      motionUpdated = this._motionManager.updateMotion(
-        this._model,
-        deltaTimeSeconds
-      ); // 更新动画
+    if (this._isMotionEnabled) {
+      if (this._motionManager.isFinished()) {
+        // 如果没有动画播放，则从待机动画中随机播放
+        this.startRandomMotion(
+          LAppDefine.MotionGroupIdle,
+          LAppDefine.PriorityIdle
+        );
+      } else {
+        motionUpdated = this._motionManager.updateMotion(
+          this._model,
+          deltaTimeSeconds
+        ); // 更新动画
+      }
     }
     this._model.saveParameters(); // 保存状态
     //--------------------------------------------------------------------------
@@ -961,6 +963,44 @@ export class LAppModel extends CubismUserModel {
   }
 
   /**
+   * 停止所有动画播放
+   */
+  public stopAllMotions(): void {
+    this._motionManager.stopAllMotions();
+  }
+
+  /**
+   * 重新启动待机动画
+   */
+  public restartIdleMotion(): void {
+    // 播放随机待机动画
+    this.startRandomMotion(LAppDefine.MotionGroupIdle, LAppDefine.PriorityIdle);
+  }
+
+  /**
+   * 启用动画播放
+   */
+  public enableMotion(): void {
+    this._isMotionEnabled = true;
+  }
+
+  /**
+   * 禁用动画播放
+   */
+  public disableMotion(): void {
+    this._isMotionEnabled = false;
+    this.stopAllMotions();
+  }
+
+  /**
+   * 获取动画播放状态
+   * @returns 是否启用动画播放
+   */
+  public isMotionEnabled(): boolean {
+    return this._isMotionEnabled;
+  }
+
+  /**
    * 构造函数
    */
   public constructor() {
@@ -1014,6 +1054,7 @@ export class LAppModel extends CubismUserModel {
     this._wavFileHandler = new LAppWavFileHandler();
     this._audioManager = null;
     this._consistency = false;
+    this._isMotionEnabled = false; // 默认不播放动画
   }
 
   private _subdelegate: LAppSubdelegate;
@@ -1046,4 +1087,5 @@ export class LAppModel extends CubismUserModel {
   _wavFileHandler: LAppWavFileHandler; // wav 文件处理器
   _audioManager: LAppAudioManager | null; // 外部音频管理器
   _consistency: boolean; // MOC3 一致性检查管理用
+  _isMotionEnabled: boolean; // 动画播放控制标志
 }

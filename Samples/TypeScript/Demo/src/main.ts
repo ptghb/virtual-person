@@ -217,4 +217,31 @@ function initializeAudioControls(): void {
       statusDiv.textContent = '停止录音出错';
     }
   });
+
+  // 动画控制按钮处理
+  const toggleMotionButton = document.getElementById(
+    'toggle-motion'
+  ) as HTMLButtonElement;
+
+  if (toggleMotionButton) {
+    toggleMotionButton.addEventListener('click', () => {
+      try {
+        const live2DManager = LAppDelegate.getInstance()
+          ._subdelegates.at(0)
+          .getLive2DManager();
+
+        live2DManager.toggleMotion();
+
+        // 更新按钮文本
+        const model = live2DManager._models.at(0);
+        if (model && model.isMotionEnabled()) {
+          toggleMotionButton.textContent = '停止动画';
+        } else {
+          toggleMotionButton.textContent = '播放动画';
+        }
+      } catch (error) {
+        console.error('Error toggling motion:', error);
+      }
+    });
+  }
 }

@@ -20,6 +20,8 @@ export class LAppAudioManager {
   private _onPlayCallback: (() => void) | null;
   private _onStopCallback: (() => void) | null;
   private _onEndCallback: (() => void) | null;
+  private _onMotionStopCallback: (() => void) | null;
+  private _onMotionRestartCallback: (() => void) | null;
   private _mediaStream: MediaStream | null;
   private _mediaStreamSource: MediaStreamAudioSourceNode | null;
   private _isRecording: boolean;
@@ -99,6 +101,10 @@ export class LAppAudioManager {
       if (this._onEndCallback) {
         this._onEndCallback();
       }
+      // 音频自然播放结束时也重启动画
+      if (this._onMotionRestartCallback) {
+        this._onMotionRestartCallback();
+      }
     };
 
     this._startTime = this._audioContext.currentTime - this._pauseTime;
@@ -107,6 +113,11 @@ export class LAppAudioManager {
 
     if (this._onPlayCallback) {
       this._onPlayCallback();
+    }
+
+    // 播放音频时停止动画
+    if (this._onMotionStopCallback) {
+      this._onMotionStopCallback();
     }
   }
 
@@ -127,6 +138,11 @@ export class LAppAudioManager {
 
     if (this._onStopCallback) {
       this._onStopCallback();
+    }
+
+    // 停止音频时重启动画
+    if (this._onMotionRestartCallback) {
+      this._onMotionRestartCallback();
     }
   }
 
@@ -212,6 +228,22 @@ export class LAppAudioManager {
    */
   public setOnEndCallback(callback: () => void): void {
     this._onEndCallback = callback;
+  }
+
+  /**
+   * 设置动画停止回调
+   * @param callback 播放音频时停止动画的回调函数
+   */
+  public setOnMotionStopCallback(callback: () => void): void {
+    this._onMotionStopCallback = callback;
+  }
+
+  /**
+   * 设置动画重启回调
+   * @param callback 停止音频时重启动画的回调函数
+   */
+  public setOnMotionRestartCallback(callback: () => void): void {
+    this._onMotionRestartCallback = callback;
   }
 
   /**
