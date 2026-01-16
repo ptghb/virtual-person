@@ -7,6 +7,7 @@
 
 import { LAppDelegate } from './lappdelegate';
 import * as LAppDefine from './lappdefine';
+import { WebSocketManager, Message, ConnectionState } from './websocketmanager';
 
 /**
  * 浏览器加载后的处理
@@ -22,6 +23,9 @@ window.addEventListener(
     // 初始化音频控制UI
     initializeAudioControls();
 
+    // 初始化WebSocket控制UI
+    initializeWebSocketControls();
+
     LAppDelegate.getInstance().run();
   },
   { passive: true }
@@ -32,7 +36,10 @@ window.addEventListener(
  */
 window.addEventListener(
   'beforeunload',
-  (): void => LAppDelegate.releaseInstance(),
+  (): void => {
+    LAppDelegate.releaseInstance();
+    WebSocketManager.releaseInstance();
+  },
   { passive: true }
 );
 
@@ -244,4 +251,137 @@ function initializeAudioControls(): void {
       }
     });
   }
+}
+
+/**
+ * 初始化WebSocket控制UI
+ */
+function initializeWebSocketControls(): void {
+  const wsManager = WebSocketManager.getInstance();
+
+  const container = document.getElementById(
+    'websocket-container'
+  ) as HTMLDivElement;
+  const statusDot = document.getElementById('status-dot') as HTMLSpanElement;
+  const statusText = document.getElementById('status-text') as HTMLSpanElement;
+  const statusDiv = document.getElementById(
+    'websocket-status'
+  ) as HTMLDivElement;
+  const messagesDiv = document.getElementById(
+    'websocket-messages'
+  ) as HTMLDivElement;
+  const messageInput = document.getElementById(
+    'ws-message-input'
+  ) as HTMLInputElement;
+  const sendButton = document.getElementById(
+    'ws-send-button'
+  ) as HTMLButtonElement;
+
+  if (
+    !container ||
+    !statusDot ||
+    !statusText ||
+    !statusDiv ||
+    !messagesDiv ||
+    !messageInput ||
+    !sendButton
+  ) {
+    console.error('WebSocket control elements not found');
+    return;
+  }
+
+  // 设置状态变化回调
+  wsManager.onStateChange((state: ConnectionState) => {
+    statusDiv.classList.remove('disconnected', 'connecting');
+
+    switch (state) {
+      case 'connected':
+        statusDot.style.color = '#4CAF50';
+        statusText.textContent = '已连接';
+        sendButton.disabled = false;
+        break;
+      case 'connecting':
+        statusDiv.classList.add('connecting');
+        statusDot.style.color = '#ff9800';
+        statusText.textContent = '连接中...';
+        sendButton.disabled = true;
+        break;
+      case 'disconnected':
+        statusDiv.classList.add('disconnected');
+        statusDot.style.color = '#f44336';
+        statusText.textContent = '未连接';
+        sendButton.disabled = true;
+        break;
+      case 'error':
+        statusDiv.classList.add('disconnected');
+        statusDot.style.color = '#f44336';
+        statusText.textContent = '连接错误';
+        sendButton.disabled = true;
+        break;
+    }
+  });
+
+  // 设置消息回调
+  wsManager.onMessage((message: Message) => {
+    const messageElement = document.createElement('div');
+    messageElement.className = `websocket-message ${message.type}`;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'message-time';
+    timeSpan.textContent = formatTime(message.timestamp);
+
+    const contentSpan = document.createElement('span');
+    contentSpan.textContent = message.content;
+
+    messageElement.appendChild(timeSpan);
+    messageElement.appendChild(contentSpan);
+
+    messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  });
+
+  // 发送按钮处理
+  sendButton.addEventListener('click', () => {
+    const message = messageInput.value.trim();
+    if (message) {
+      if (wsManager.send(message)) {
+        messageInput.value = '';
+      }
+    }
+  });
+
+  // 回车键发送
+  messageInput.addEventListener('keypress', (event: KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      sendButton.click();
+    }
+  });
+
+  // 初始化状态
+  statusDiv.classList.add('disconnected');
+  sendButton.disabled = true;
+
+  // 自动连接到WebSocket服务器
+  // 生成唯一的client_id
+  const clientId =
+    'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  const wsUrl = `ws://localhost:8000/ws/${clientId}`;
+  wsManager.connect(wsUrl);
+
+  // 添加初始提示消息
+  const initialMessage = document.createElement('div');
+  initialMessage.className = 'websocket-message received';
+  initialMessage.style.color = '#888';
+  initialMessage.innerHTML = `<span class="message-time">系统</span>WebSocket功能已就绪，客户端ID: ${clientId}`;
+  messagesDiv.appendChild(initialMessage);
+}
+
+/**
+ * 格式化时间
+ */
+function formatTime(date: Date): string {
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
 }

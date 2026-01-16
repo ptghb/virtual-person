@@ -1,8 +1,8 @@
-import { defineConfig, UserConfig, ConfigEnv } from 'vite';
-import path from 'path';
+import {ConfigEnv, defineConfig, UserConfig} from 'vite';
+import * as path from 'path';
 
 export default defineConfig((env: ConfigEnv): UserConfig => {
-  let common: UserConfig = {
+  return {
     server: {
       port: 5000,
     },
@@ -19,8 +19,7 @@ export default defineConfig((env: ConfigEnv): UserConfig => {
       target: 'modules',
       assetsDir: 'assets',
       outDir: './dist',
-      sourcemap: env.mode == 'development' ? true : false,
+      sourcemap: env.mode == 'development',
     },
   };
-  return common;
 });
