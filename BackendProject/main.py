@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 import os
+import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
@@ -42,8 +43,19 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
+    async def send_personal_message(self, message: str, websocket: WebSocket, msg_type: int = 1):
+        """发送个人消息，支持多种类型
+
+        Args:
+            message: 消息内容（文字或URL）
+            websocket: WebSocket连接
+            msg_type: 消息类型（1:文字，2:图片，3:音频）
+        """
+        message_obj = {
+            "type": msg_type,
+            "content": message
+        }
+        await websocket.send_text(json.dumps(message_obj))
 
     async def broadcast(self, message: str):
         for connection in self.active_connections:
@@ -83,7 +95,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket)
     try:
         # 发送欢迎消息
-        await manager.send_personal_message("你好，我是你的好朋友，小凡...", websocket)
+        await manager.send_personal_message("你好，我是你的好朋友，小凡...", websocket, msg_type=1)
 
         while True:
             data = await websocket.receive_text()
@@ -121,10 +133,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
                 # 发送 AI 回复
-                await manager.send_personal_message(f"小凡: {ai_response}", websocket)
+                await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1)
 
             except Exception as e:
-                await manager.send_personal_message(f"AI 错误: {str(e)}", websocket)
+                await manager.send_personal_message(f"AI 错误: {str(e)}", websocket, msg_type=1)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

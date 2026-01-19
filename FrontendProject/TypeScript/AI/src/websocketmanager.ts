@@ -11,10 +11,13 @@ export type ConnectionState =
 
 export type MessageType = 'received' | 'sent' | 'error' | 'system';
 
+export type ContentType = 'text' | 'image' | 'audio';
+
 export interface Message {
   type: MessageType;
   content: string;
   timestamp: Date;
+  contentType?: ContentType; // 消息内容类型：文字、图片、音频
 }
 
 export class WebSocketManager {
@@ -72,17 +75,47 @@ export class WebSocketManager {
       };
 
       this._ws.onmessage = (event: MessageEvent) => {
-        const message: Message = {
-          type: 'received',
-          content: event.data,
-          timestamp: new Date()
-        };
-        this._messages.push(message);
-        if (this._messages.length > this._maxMessages) {
-          this._messages.shift();
-        }
-        if (this._messageCallback) {
-          this._messageCallback(message);
+        try {
+          // 尝试解析JSON格式的消息
+          const parsedData = JSON.parse(event.data);
+
+          // 根据type字段确定内容类型
+          let contentType: ContentType = 'text';
+          if (parsedData.type === 2) {
+            contentType = 'image';
+          } else if (parsedData.type === 3) {
+            contentType = 'audio';
+          }
+
+          const message: Message = {
+            type: 'received',
+            content: parsedData.content,
+            timestamp: new Date(),
+            contentType: contentType
+          };
+          this._messages.push(message);
+          if (this._messages.length > this._maxMessages) {
+            this._messages.shift();
+          }
+          if (this._messageCallback) {
+            this._messageCallback(message);
+          }
+        } catch (error) {
+          // 如果不是JSON格式，按纯文本处理
+          console.warn('Failed to parse message as JSON, treating as plain text:', error);
+          const message: Message = {
+            type: 'received',
+            content: event.data,
+            timestamp: new Date(),
+            contentType: 'text'
+          };
+          this._messages.push(message);
+          if (this._messages.length > this._maxMessages) {
+            this._messages.shift();
+          }
+          if (this._messageCallback) {
+            this._messageCallback(message);
+          }
         }
       };
 

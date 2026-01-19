@@ -7,7 +7,7 @@
 
 import { LAppDelegate } from './lappdelegate';
 import * as LAppDefine from './lappdefine';
-import { WebSocketManager, Message, ConnectionState } from './websocketmanager';
+import { WebSocketManager, Message, ConnectionState, ContentType } from './websocketmanager';
 
 /**
  * 浏览器加载后的处理
@@ -331,11 +331,33 @@ function initializeWebSocketControls(): void {
     timeSpan.className = 'message-time';
     timeSpan.textContent = formatTime(message.timestamp);
 
-    const contentSpan = document.createElement('span');
-    contentSpan.textContent = message.content;
-
     messageElement.appendChild(timeSpan);
-    messageElement.appendChild(contentSpan);
+
+    // 根据消息内容类型显示不同的内容
+    if (message.contentType === 'image') {
+      // 图片消息
+      const imgElement = document.createElement('img');
+      imgElement.src = message.content;
+      imgElement.alt = '图片消息';
+      imgElement.style.maxWidth = '100%';
+      imgElement.style.height = 'auto';
+      imgElement.style.borderRadius = '4px';
+      imgElement.style.marginTop = '5px';
+      messageElement.appendChild(imgElement);
+    } else if (message.contentType === 'audio') {
+      // 音频消息
+      const audioElement = document.createElement('audio');
+      audioElement.src = message.content;
+      audioElement.controls = true;
+      audioElement.style.width = '100%';
+      audioElement.style.marginTop = '5px';
+      messageElement.appendChild(audioElement);
+    } else {
+      // 文字消息（默认）
+      const contentSpan = document.createElement('span');
+      contentSpan.textContent = message.content;
+      messageElement.appendChild(contentSpan);
+    }
 
     messagesDiv.appendChild(messageElement);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
