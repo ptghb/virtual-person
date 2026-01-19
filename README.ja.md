@@ -63,7 +63,7 @@ Coreディレクトリのファイルをコピーしてください。
 1. ブラウザの URL 欄に `http://localhost:5000` と入力してアクセスします
 1. コマンドパレットから `>Tasks: Terminate Task` を入力して `npm: serve` を選択すると簡易サーバが終了します
 
-その他のタスクに関してはサンプルプロジェクトの [README.md](Samples/TypeScript/README.ja.md) を参照ください。
+その他のタスクに関してはサンプルプロジェクトの [README.md](FrontendProject/TypeScript/README.ja.md) を参照ください。
 
 NOTE: デバック用の設定は、`.vscode/tasks.json` に記述しています。
 

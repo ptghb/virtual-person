@@ -64,7 +64,7 @@ Enter `>Tasks: Run Task` in the command palette (*View > Command Palette...*) to
 1. Enter `http://localhost:5000` in the URL field of your browser to access it
 1. Enter `>Tasks: Terminate Task` from the command palette and select `npm: serve` to terminate the simple server
 
-For other tasks, see [README.md](Samples/TypeScript/README.md) of the sample project.
+For other tasks, see [README.md](FrontendProject/TypeScript/README.md) of the sample project.
 
 NOTE: Settings for debugging are described in `.vscode/tasks.json`.
 
