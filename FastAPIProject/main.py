@@ -66,25 +66,39 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket)
     try:
         # 发送欢迎消息
-        await manager.send_personal_message("已连接到 AI 助手，请开始对话...", websocket)
-        
+        await manager.send_personal_message("欢迎跟我聊天～，我是你的好朋友，小凡...", websocket)
+
         while True:
             data = await websocket.receive_text()
-            
+
             # 发送用户消息回显
             await manager.send_personal_message(f"你: {data}", websocket)
-            
+
             try:
                 # 使用 LangChain 调用 OpenAI
-                response = await llm.ainvoke([HumanMessage(content=data)])
+                system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
+                    你的性格特点：
+                    - 温柔体贴，善于倾听
+                    - 说话亲切自然，像好朋友一样聊天
+                    - 能够理解对方的情绪，给予安慰和支持
+                    - 回复时使用轻松活泼的语气，适当使用表情符号
+                    - 避免过于正式或机械的表达
+
+                   请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
+                   不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
+                   请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。"""
+                response = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=data)
+                ])
                 ai_response = response.content
-                
+
                 # 发送 AI 回复
                 await manager.send_personal_message(f"AI: {ai_response}", websocket)
-                
+
             except Exception as e:
                 await manager.send_personal_message(f"AI 错误: {str(e)}", websocket)
-                
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         await manager.broadcast(f"Client {client_id} left the chat")
