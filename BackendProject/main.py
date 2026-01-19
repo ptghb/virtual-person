@@ -1,10 +1,10 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from typing import List, Dict
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 
 # 加载环境变量
 load_dotenv()
@@ -32,6 +32,8 @@ app.add_middleware(
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        # 存储每个客户端的消息历史记录
+        self.message_history: Dict[str, List[BaseMessage]] = {}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -46,6 +48,21 @@ class ConnectionManager:
     async def broadcast(self, message: str):
         for connection in self.active_connections:
             await connection.send_text(message)
+
+    def add_message_to_history(self, client_id: str, message: BaseMessage):
+        """添加消息到指定客户端的历史记录"""
+        if client_id not in self.message_history:
+            self.message_history[client_id] = []
+        self.message_history[client_id].append(message)
+
+    def get_message_history(self, client_id: str) -> List[BaseMessage]:
+        """获取指定客户端的消息历史记录"""
+        return self.message_history.get(client_id, [])
+
+    def clear_message_history(self, client_id: str):
+        """清除指定客户端的消息历史记录"""
+        if client_id in self.message_history:
+            del self.message_history[client_id]
 
 
 manager = ConnectionManager()
@@ -87,11 +104,21 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                    请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
                    不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
                    请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。"""
-                response = await llm.ainvoke([
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=data)
-                ])
+
+                # 获取历史消息
+                message_history = manager.get_message_history(client_id)
+
+                # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
+                messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
+                messages.extend(message_history)
+                messages.append(HumanMessage(content=data))
+
+                response = await llm.ainvoke(messages)
                 ai_response = response.content
+
+                # 将用户消息和AI回复添加到历史记录
+                manager.add_message_to_history(client_id, HumanMessage(content=data))
+                manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
                 # 发送 AI 回复
                 await manager.send_personal_message(f"AI: {ai_response}", websocket)
