@@ -121,7 +121,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
                 # 发送 AI 回复
-                await manager.send_personal_message(f"AI: {ai_response}", websocket)
+                await manager.send_personal_message(f"小凡: {ai_response}", websocket)
 
             except Exception as e:
                 await manager.send_personal_message(f"AI 错误: {str(e)}", websocket)
