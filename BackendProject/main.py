@@ -66,7 +66,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket)
     try:
         # 发送欢迎消息
-        await manager.send_personal_message("欢迎跟我聊天～，我是你的好朋友，小凡...", websocket)
+        await manager.send_personal_message("你好，我是你的好朋友，小凡...", websocket)
 
         while True:
             data = await websocket.receive_text()
