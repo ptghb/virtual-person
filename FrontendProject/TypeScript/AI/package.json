@@ -8,7 +8,7 @@
     "test": "tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "serve": "vite preview --port 5000 --host",
+    "serve": "vite preview --port 80 --host",
     "clean": "rimraf dist"
   },
   "devDependencies": {
