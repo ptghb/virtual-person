@@ -71,8 +71,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         while True:
             data = await websocket.receive_text()
 
-            # 发送用户消息回显
-            await manager.send_personal_message(f"你: {data}", websocket)
+            # # 发送用户消息回显
+            # await manager.send_personal_message(f"你: {data}", websocket)
 
             try:
                 # 使用 LangChain 调用 OpenAI
