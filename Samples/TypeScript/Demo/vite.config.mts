@@ -6,6 +6,9 @@ export default defineConfig((env: ConfigEnv): UserConfig => {
     server: {
       port: 5000,
     },
+    preview: {
+      allowedHosts: ['xiaofan.laogeworld.cn'],
+    },
     root: './',
     base: '/',
     publicDir: './public',
