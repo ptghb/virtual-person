@@ -706,11 +706,10 @@ export class LAppModel extends CubismUserModel {
     if (this._modelSetting.getMotionCount(group) == 0) {
       return InvalidMotionQueueEntryHandleValue;
     }
-
     const no: number = Math.floor(
       Math.random() * this._modelSetting.getMotionCount(group)
     );
-
+    console.log(`[APP]start motion: [${group}_${no}]`);
     return this.startMotion(
       group,
       no,
@@ -982,6 +981,13 @@ export class LAppModel extends CubismUserModel {
    */
   public enableMotion(): void {
     this._isMotionEnabled = true;
+  }
+
+  /**
+   * 禁用动画播放
+   */
+  public stopMotion(): void {
+    this._isMotionEnabled = false;
   }
 
   /**

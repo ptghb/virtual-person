@@ -464,7 +464,7 @@ function triggerRandomMotion(): void {
       ._subdelegates.at(0)
       .getLive2DManager();
     const model = live2DManager._models.at(0);
-    model._isMotionEnabled = true;
+    model.enableMotion();
   } catch (error) {
     console.error('Error triggering random motion:', error);
   }
@@ -479,7 +479,7 @@ function stopMotion(): void {
       ._subdelegates.at(0)
       .getLive2DManager();
     const model = live2DManager._models.at(0);
-    model._isMotionEnabled = false;
+    model.stopMotion();
   } catch (error) {
     console.error('Error stopping motion:', error);
   }
