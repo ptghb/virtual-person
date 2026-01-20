@@ -1030,6 +1030,14 @@ export class LAppModel extends CubismUserModel {
   }
 
   /**
+   * 检查模型是否已完成初始化
+   * @returns 是否已完成初始化
+   */
+  public isInitialized(): boolean {
+    return this._state == LoadStep.CompleteSetup && this._modelSetting != null;
+  }
+
+  /**
    * 构造函数
    */
   public constructor() {

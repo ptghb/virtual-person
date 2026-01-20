@@ -267,33 +267,41 @@ function initializeAudioControls(): void {
   ) as HTMLSelectElement;
 
   if (toggleMotionNoButton && motionNoSelect) {
-    // 初始化选择框选项
-    try {
-      const live2DManager = LAppDelegate.getInstance()
-        ._subdelegates.at(0)
-        .getLive2DManager();
-      const model = live2DManager._models.at(0);
+    // 初始化选择框选项 - 等待模型初始化完成
+    const initMotionSelect = () => {
+      try {
+        const live2DManager = LAppDelegate.getInstance()
+          ._subdelegates.at(0)
+          .getLive2DManager();
+        const model = live2DManager._models.at(0);
 
-      if (model && model._modelSetting) {
-        // 获取Idle组的动画数量
-        const motionCount = model._modelSetting.getMotionCount(
-          LAppDefine.MotionGroupIdle
-        );
+        if (model && model.isInitialized()) {
+          // 获取Idle组的动画数量
+          const motionCount = model._modelSetting.getMotionCount(
+            LAppDefine.MotionGroupIdle
+          );
 
-        // 清空现有选项
-        motionNoSelect.innerHTML = '';
+          // 清空现有选项
+          motionNoSelect.innerHTML = '';
 
-        // 添加从0开始的选项
-        for (let i = 0; i < motionCount; i++) {
-          const option = document.createElement('option');
-          option.value = i.toString();
-          option.textContent = i.toString();
-          motionNoSelect.appendChild(option);
+          // 添加从0开始的选项
+          for (let i = 0; i < motionCount; i++) {
+            const option = document.createElement('option');
+            option.value = i.toString();
+            option.textContent = i.toString();
+            motionNoSelect.appendChild(option);
+          }
+        } else {
+          // 如果模型还未初始化完成，延迟100ms后重试
+          setTimeout(initMotionSelect, 100);
         }
+      } catch (error) {
+        console.error('Error initializing motion select:', error);
       }
-    } catch (error) {
-      console.error('Error initializing motion select:', error);
-    }
+    };
+
+    // 开始初始化
+    initMotionSelect();
 
     // 点击按钮播放指定序号的动画
     toggleMotionNoButton.addEventListener('click', () => {
