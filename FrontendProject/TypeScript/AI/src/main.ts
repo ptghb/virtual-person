@@ -365,8 +365,11 @@ function initializeWebSocketControls(): void {
 
       // 如果是接收到的消息，使用打字机效果并触发随机动画
       if (message.type === 'received') {
-        typeWriterEffect(contentSpan, message.content, 50);
         triggerRandomMotion();
+        typeWriterEffect(contentSpan, message.content, 50, () => {
+          // 打字结束后停止动画
+          stopMotion();
+        });
       } else {
         contentSpan.textContent = message.content;
       }
@@ -427,11 +430,13 @@ function formatTime(date: Date): string {
  * @param element 目标DOM元素
  * @param text 要显示的文字
  * @param speed 打字速度（毫秒）
+ * @param onComplete 打字完成时的回调函数
  */
 function typeWriterEffect(
   element: HTMLElement,
   text: string,
-  speed: number = 50
+  speed: number = 50,
+  onComplete?: () => void
 ): void {
   let index = 0;
   element.textContent = '';
@@ -441,6 +446,9 @@ function typeWriterEffect(
       element.textContent += text.charAt(index);
       index++;
       setTimeout(type, speed);
+    } else if (onComplete) {
+      // 打字完成时调用回调函数
+      onComplete();
     }
   }
 
@@ -455,16 +463,24 @@ function triggerRandomMotion(): void {
     const live2DManager = LAppDelegate.getInstance()
       ._subdelegates.at(0)
       .getLive2DManager();
-
     const model = live2DManager._models.at(0);
-    if (model && model.isMotionEnabled()) {
-      // 触发随机动画
-      model.startRandomMotion(
-        LAppDefine.MotionGroupIdle,
-        LAppDefine.PriorityIdle
-      );
-    }
+    model._isMotionEnabled = true;
   } catch (error) {
     console.error('Error triggering random motion:', error);
+  }
+}
+
+/**
+ * 停止Live2D动画
+ */
+function stopMotion(): void {
+  try {
+    const live2DManager = LAppDelegate.getInstance()
+      ._subdelegates.at(0)
+      .getLive2DManager();
+    const model = live2DManager._models.at(0);
+    model._isMotionEnabled = false;
+  } catch (error) {
+    console.error('Error stopping motion:', error);
   }
 }
