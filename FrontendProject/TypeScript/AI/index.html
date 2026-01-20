@@ -187,11 +187,13 @@
 <!--    <button id="start-recording">开始录音</button>-->
 <!--    <button id="stop-recording" disabled>停止录音</button>-->
 
+    <div style="display: flex; gap: 10px;">
+      <button id="toggle-motion-no" style="width: 120px;">循环播放指定动画</button>
+      <select id="motion-no-select" style="width: 120px;">
+        <option value="0">0</option>
+      </select>
+    </div>
     <button id="toggle-motion">循环播放动画</button>
-    <button id="toggle-motion-no">播放指定动画</button>
-    <select id="motion-no-select">
-      <option value="0">0</option>
-    </select>
   </div>
 
   <!-- WebSocket控制面板 -->
