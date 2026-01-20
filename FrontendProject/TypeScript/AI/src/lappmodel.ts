@@ -526,11 +526,18 @@ export class LAppModel extends CubismUserModel {
       }
     }
     if (this._motionNo) {
-      this.startMotion(
-        LAppDefine.MotionGroupIdle,
-        this._motionNo,
-        LAppDefine.PriorityIdle
-      );
+      if (this._motionManager.isFinished()) {
+        this.startMotion(
+          LAppDefine.MotionGroupIdle,
+          this._motionNo,
+          LAppDefine.PriorityIdle
+        );
+      } else {
+        motionUpdated = this._motionManager.updateMotion(
+          this._model,
+          deltaTimeSeconds
+        ); // 更新动画
+      }
     }
     this._model.saveParameters(); // 保存状态
     //--------------------------------------------------------------------------
