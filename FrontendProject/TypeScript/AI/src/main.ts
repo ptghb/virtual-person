@@ -248,6 +248,33 @@ function initializeAudioControls(): void {
         // 更新按钮文本
         const model = live2DManager._models.at(0);
         if (model && model.isMotionEnabled()) {
+          toggleMotionButton.textContent = '停止循环播放动画';
+        } else {
+          toggleMotionButton.textContent = '循环播放动画';
+        }
+      } catch (error) {
+        console.error('Error toggling motion:', error);
+      }
+    });
+  }
+
+  // 动画控制按钮处理
+  const toggleMotionNoButton = document.getElementById(
+    'toggle-motion-no'
+  ) as HTMLButtonElement;
+
+  if (toggleMotionNoButton) {
+    toggleMotionButton.addEventListener('click', () => {
+      try {
+        const live2DManager = LAppDelegate.getInstance()
+          ._subdelegates.at(0)
+          .getLive2DManager();
+
+        live2DManager.toggleMotion();
+
+        // 更新按钮文本
+        const model = live2DManager._models.at(0);
+        if (model && model.isMotionEnabled()) {
           toggleMotionButton.textContent = '停止动画';
         } else {
           toggleMotionButton.textContent = '播放动画';

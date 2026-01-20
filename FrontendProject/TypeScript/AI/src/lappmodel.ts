@@ -525,6 +525,13 @@ export class LAppModel extends CubismUserModel {
         ); // 更新动画
       }
     }
+    if (this._motionNo) {
+      this.startMotion(
+        LAppDefine.MotionGroupIdle,
+        this._motionNo,
+        LAppDefine.PriorityIdle
+      );
+    }
     this._model.saveParameters(); // 保存状态
     //--------------------------------------------------------------------------
 
@@ -1094,4 +1101,5 @@ export class LAppModel extends CubismUserModel {
   _audioManager: LAppAudioManager | null; // 外部音频管理器
   _consistency: boolean; // MOC3 一致性检查管理用
   _isMotionEnabled: boolean; // 动画播放控制标志
+  _motionNo: number; // 播放的动画的序号
 }
