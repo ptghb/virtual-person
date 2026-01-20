@@ -77,7 +77,10 @@ export class WebSocketManager {
       this._ws.onmessage = (event: MessageEvent) => {
         try {
           // 尝试解析JSON格式的消息
-          const parsedData = JSON.parse(event.data);
+          const parsedData = JSON.parse(event.data as string) as {
+            type?: number;
+            content?: unknown;
+          };
 
           // 根据type字段确定内容类型
           let contentType: ContentType = 'text';
@@ -89,9 +92,18 @@ export class WebSocketManager {
 
           const message: Message = {
             type: 'received',
-            content: parsedData.content,
+            content:
+              typeof parsedData.content === 'string'
+                ? parsedData.content
+                : typeof parsedData.content === 'object' &&
+                    parsedData.content !== null
+                  ? JSON.stringify(parsedData.content)
+                  : typeof parsedData.content === 'number' ||
+                      typeof parsedData.content === 'boolean'
+                    ? String(parsedData.content)
+                    : '',
             timestamp: new Date(),
-            contentType: contentType
+            contentType
           };
           this._messages.push(message);
           if (this._messages.length > this._maxMessages) {
@@ -102,10 +114,14 @@ export class WebSocketManager {
           }
         } catch (error) {
           // 如果不是JSON格式，按纯文本处理
-          console.warn('Failed to parse message as JSON, treating as plain text:', error);
+          console.warn(
+            'Failed to parse message as JSON, treating as plain text:',
+            error
+          );
           const message: Message = {
             type: 'received',
-            content: event.data,
+            content:
+              typeof event.data === 'string' ? event.data : String(event.data),
             timestamp: new Date(),
             contentType: 'text'
           };

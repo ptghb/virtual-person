@@ -7,7 +7,12 @@
 
 import { LAppDelegate } from './lappdelegate';
 import * as LAppDefine from './lappdefine';
-import { WebSocketManager, Message, ConnectionState, ContentType } from './websocketmanager';
+import {
+  WebSocketManager,
+  Message,
+  ConnectionState,
+  ContentType
+} from './websocketmanager';
 
 /**
  * 浏览器加载后的处理
@@ -353,10 +358,18 @@ function initializeWebSocketControls(): void {
       audioElement.style.marginTop = '5px';
       messageElement.appendChild(audioElement);
     } else {
-      // 文字消息（默认）
+      // 文字消息（默认）- 使用打字机效果显示
       const contentSpan = document.createElement('span');
-      contentSpan.textContent = message.content;
+      contentSpan.className = 'message-content';
       messageElement.appendChild(contentSpan);
+
+      // 如果是接收到的消息，使用打字机效果并触发随机动画
+      if (message.type === 'received') {
+        typeWriterEffect(contentSpan, message.content, 50);
+        triggerRandomMotion();
+      } else {
+        contentSpan.textContent = message.content;
+      }
     }
 
     messagesDiv.appendChild(messageElement);
@@ -407,4 +420,51 @@ function formatTime(date: Date): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 打字机效果显示文字
+ * @param element 目标DOM元素
+ * @param text 要显示的文字
+ * @param speed 打字速度（毫秒）
+ */
+function typeWriterEffect(
+  element: HTMLElement,
+  text: string,
+  speed: number = 50
+): void {
+  let index = 0;
+  element.textContent = '';
+
+  function type(): void {
+    if (index < text.length) {
+      element.textContent += text.charAt(index);
+      index++;
+      setTimeout(type, speed);
+    }
+  }
+
+  type();
+}
+
+/**
+ * 触发Live2D随机动画
+ */
+function triggerRandomMotion(): void {
+  try {
+    const live2DManager = LAppDelegate.getInstance()
+      ._subdelegates.at(0)
+      .getLive2DManager();
+
+    const model = live2DManager._models.at(0);
+    if (model && model.isMotionEnabled()) {
+      // 触发随机动画
+      model.startRandomMotion(
+        LAppDefine.MotionGroupIdle,
+        LAppDefine.PriorityIdle
+      );
+    }
+  } catch (error) {
+    console.error('Error triggering random motion:', error);
+  }
 }
