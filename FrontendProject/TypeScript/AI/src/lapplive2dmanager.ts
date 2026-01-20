@@ -260,4 +260,18 @@ export class LAppLive2DManager {
       }
     }
   }
+
+  /**
+   * 播放指定序号的动画
+   * @param motionNo 动画序号
+   */
+  public playMotionByNo(motionNo: number): void {
+    const model: LAppModel = this._models.at(0);
+    if (model) {
+      // 停止动画播放
+      model.stopMotion();
+      // 设置动画序号
+      model.setMotionNo(motionNo);
+    }
+  }
 }

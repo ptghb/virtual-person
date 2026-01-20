@@ -262,25 +262,50 @@ function initializeAudioControls(): void {
   const toggleMotionNoButton = document.getElementById(
     'toggle-motion-no'
   ) as HTMLButtonElement;
+  const motionNoSelect = document.getElementById(
+    'motion-no-select'
+  ) as HTMLSelectElement;
 
-  if (toggleMotionNoButton) {
-    toggleMotionButton.addEventListener('click', () => {
+  if (toggleMotionNoButton && motionNoSelect) {
+    // 初始化选择框选项
+    try {
+      const live2DManager = LAppDelegate.getInstance()
+        ._subdelegates.at(0)
+        .getLive2DManager();
+      const model = live2DManager._models.at(0);
+
+      if (model && model._modelSetting) {
+        // 获取Idle组的动画数量
+        const motionCount = model._modelSetting.getMotionCount(
+          LAppDefine.MotionGroupIdle
+        );
+
+        // 清空现有选项
+        motionNoSelect.innerHTML = '';
+
+        // 添加从0开始的选项
+        for (let i = 0; i < motionCount; i++) {
+          const option = document.createElement('option');
+          option.value = i.toString();
+          option.textContent = i.toString();
+          motionNoSelect.appendChild(option);
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing motion select:', error);
+    }
+
+    // 点击按钮播放指定序号的动画
+    toggleMotionNoButton.addEventListener('click', () => {
       try {
+        const motionNo = parseInt(motionNoSelect.value, 10);
         const live2DManager = LAppDelegate.getInstance()
           ._subdelegates.at(0)
           .getLive2DManager();
 
-        live2DManager.toggleMotion();
-
-        // 更新按钮文本
-        const model = live2DManager._models.at(0);
-        if (model && model.isMotionEnabled()) {
-          toggleMotionButton.textContent = '停止动画';
-        } else {
-          toggleMotionButton.textContent = '播放动画';
-        }
+        live2DManager.playMotionByNo(motionNo);
       } catch (error) {
-        console.error('Error toggling motion:', error);
+        console.error('Error playing motion by no:', error);
       }
     });
   }

@@ -1014,6 +1014,22 @@ export class LAppModel extends CubismUserModel {
   }
 
   /**
+   * 设置要播放的动画序号
+   * @param motionNo 动画序号
+   */
+  public setMotionNo(motionNo: number): void {
+    this._motionNo = motionNo;
+  }
+
+  /**
+   * 获取当前设置的动画序号
+   * @returns 动画序号
+   */
+  public getMotionNo(): number {
+    return this._motionNo;
+  }
+
+  /**
    * 构造函数
    */
   public constructor() {
