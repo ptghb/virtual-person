@@ -250,7 +250,7 @@ function initializeAudioControls(): void {
         if (model && model.isMotionEnabled()) {
           toggleMotionButton.textContent = '停止循环播放动画';
         } else {
-          toggleMotionButton.textContent = '循环播放动画';
+          toggleMotionButton.textContent = '循环播放随机动画';
         }
       } catch (error) {
         console.error('Error toggling motion:', error);
@@ -312,6 +312,14 @@ function initializeAudioControls(): void {
           .getLive2DManager();
 
         live2DManager.playMotionByNo(motionNo);
+
+        // 更新按钮文本
+        const model = live2DManager._models.at(0);
+        if (model && model.isMotionEnabled()) {
+          toggleMotionButton.textContent = '停止循环播放动画';
+        } else {
+          toggleMotionButton.textContent = '循环播放随机动画';
+        }
       } catch (error) {
         console.error('Error playing motion by no:', error);
       }

@@ -253,8 +253,8 @@ export class LAppLive2DManager {
   public toggleMotion(): void {
     const model: LAppModel = this._models.at(0);
     if (model) {
-      if (model.isMotionEnabled()) {
-        model.disableMotion();
+      if (model.isMotionEnabled() || model._motionNo != null) {
+        model.stopMotion();
       } else {
         model.enableMotion();
       }

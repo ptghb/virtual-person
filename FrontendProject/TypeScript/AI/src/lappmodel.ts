@@ -525,7 +525,7 @@ export class LAppModel extends CubismUserModel {
         ); // 更新动画
       }
     }
-    if (this._motionNo) {
+    if (this._motionNo != null) {
       if (this._motionManager.isFinished()) {
         this.startMotion(
           LAppDefine.MotionGroupIdle,
@@ -1002,6 +1002,7 @@ export class LAppModel extends CubismUserModel {
    */
   public stopMotion(): void {
     this._isMotionEnabled = false;
+    this._motionNo = null;
   }
 
   /**
@@ -1009,6 +1010,7 @@ export class LAppModel extends CubismUserModel {
    */
   public disableMotion(): void {
     this._isMotionEnabled = false;
+    this._motionNo = null;
     this.stopAllMotions();
   }
 
@@ -1017,7 +1019,7 @@ export class LAppModel extends CubismUserModel {
    * @returns 是否启用动画播放
    */
   public isMotionEnabled(): boolean {
-    return this._isMotionEnabled;
+    return this._isMotionEnabled || this._motionNo != null;
   }
 
   /**
