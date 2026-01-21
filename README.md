@@ -58,7 +58,7 @@ CubismWebSamples/
 │           └── vite.config.mts             # Vite配置
 ├── Core/                        # Live2D Cubism Core
 ├── Framework/                   # Live2D Framework
-└── README_CN.md                 # 中文说明文档
+└── README.md                 # 中文说明文档
 ```
 
 ## 功能特性
@@ -144,17 +144,17 @@ cd FrontendProject/TypeScript/AI
 npm install
 ```
 
-3. 复制资源文件：
+3. 构建开发版本：
 ```bash
-npm run copy_resources
+npm run build
 ```
 
 4. 启动开发服务器：
 ```bash
-npm start
+npm run start
 ```
 
-前端服务将在 `http://localhost:5173` 启动
+前端服务将在 `http://localhost:80` 启动
 
 ### 构建生产版本
 
@@ -163,6 +163,12 @@ npm run build:prod
 ```
 
 构建产物将输出到 `dist` 目录
+
+### 部署
+
+```bash
+npm run serve
+```
 
 ## 使用说明
 
