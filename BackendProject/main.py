@@ -149,45 +149,47 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
                 print(f"AI 回复: {ai_response}", flush=True)
 
-                # 将用户消息和AI回复添加到历史记录
-                manager.add_message_to_history(client_id, HumanMessage(content=text))
-                manager.add_message_to_history(client_id, AIMessage(content=ai_response))
-
-                system_prompt = """根据聊天内容的气氛来选择使用哪种live2d的动画。
+                system_prompt = f"""根据聊天内容的气氛来选择使用哪种live2d的动画。
+                   现在的live2d的模型名称是 {model}
                    - 如果聊天氛围轻松愉快
-                     1. 如果是Hiyori，可以使用1,2
-                     2. 如果是Haru，可以使用1,2
-                     3. 如果是Mark，可以使用3,4
-                     4. 如果Natori，可以使用5,6
-                     5. 如果Rice，可以使用2
-                     6. 如果Mao，可以使用4
-                     7. 如果Wanko，可以使用1
+                     - 如果是Hiyori，可以使用1,2
+                     - 如果是Haru，可以使用1,2
+                     - 如果是Mark，可以使用3,4
+                     - 如果Natori，可以使用5,6
+                     - 如果Rice，可以使用2
+                     - 如果Mao，可以使用4
+                     - 如果Wanko，可以使用1
                    - 如果对话氛围比较严肃
-                     1. 如果是Hiyori，可以使用3
-                     2. 如果是Haru，可以使用1，2
-                     3. 如果是Mark，可以使用3，4
-                     4. 如果Natori，可以使用5，6
-                     5. 如果Rice，可以使用3
-                     6. 如果Mao，可以使用3
-                     7. 如果Wanko，可以使用3
+                     - 如果是Hiyori，可以使用3
+                     - 如果是Haru，可以使用1，2
+                     - 如果是Mark，可以使用3，4
+                     - 如果Natori，可以使用5，6
+                     - 如果Rice，可以使用3
+                     - 如果Mao，可以使用3
+                     - 如果Wanko，可以使用3
                    - 如果对话氛围比较悲伤
-                     1. 如果是Hiyori，可以使用7，8
-                     2. 如果是Haru，可以使用1，2
-                     3. 如果是Mark，可以使用3，4
-                     4. 如果Natori，可以使用5，6
-                     5. 如果Rice，可以使用1
-                     6. 如果Mao，可以使用2
-                     7. 如果Wanko，可以使用2
+                     - 如果是Hiyori，可以使用7，8
+                     - 如果是Haru，可以使用1，2
+                     - 如果是Mark，可以使用3，4
+                     - 如果Natori，可以使用5，6
+                     - 如果Rice，可以使用1
+                     - 如果Mao，可以使用2
+                     - 如果Wanko，可以使用2
                    输出数字作为结果，不要输出其他任何内容，不要输出文字，不要输出表情符号。
                    """
                 # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
                 messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
                 messages.extend(message_history)
                 messages.append(HumanMessage(content=text))
+
                 response = await llm.ainvoke(messages)
                 animation_index = response.content
 
                 print(f"animation_index 值: {animation_index}", flush=True)
+
+                # 将用户消息和AI回复添加到历史记录
+                manager.add_message_to_history(client_id, HumanMessage(content=text))
+                manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
                 # 发送 AI 回复
                 await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1, animation_index=int(animation_index))
