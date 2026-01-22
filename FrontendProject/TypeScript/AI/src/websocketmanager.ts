@@ -213,7 +213,7 @@ export class WebSocketManager {
       this._ws.send(jsonString);
       const msg: Message = {
         type: 'sent',
-        content: jsonString,
+        content: data.text || '', // 只保存文字内容用于显示
         timestamp: new Date()
       };
       this._messages.push(msg);
