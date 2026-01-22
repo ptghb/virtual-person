@@ -193,19 +193,27 @@ export class WebSocketManager {
   }
 
   /**
-   * 发送消息
+   * 发送结构化数据（JSON格式）
+   * @param data 要发送的数据对象
+   * @returns 发送是否成功
    */
-  public send(message: string): boolean {
+  public send(data: {
+    text?: string; // 文字内容
+    img?: string; // 图片内容（base64）
+    audio?: string; // 音频内容（base64）
+    model?: string; // Live2D模型名称（如：Hiyori、Haru、Rice等）
+  }): boolean {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
       this.addMessage('error', '未连接到服务器，无法发送消息');
       return false;
     }
 
     try {
-      this._ws.send(message);
+      const jsonString = JSON.stringify(data);
+      this._ws.send(jsonString);
       const msg: Message = {
         type: 'sent',
-        content: message,
+        content: jsonString,
         timestamp: new Date()
       };
       this._messages.push(msg);
@@ -217,7 +225,7 @@ export class WebSocketManager {
       }
       return true;
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error('Failed to send data:', error);
       this.addMessage(
         'error',
         `发送失败: ${error instanceof Error ? error.message : '未知错误'}`

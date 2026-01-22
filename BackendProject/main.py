@@ -43,18 +43,21 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def send_personal_message(self, message: str, websocket: WebSocket, msg_type: int = 1):
+    async def send_personal_message(self, message: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None):
         """发送个人消息，支持多种类型
 
         Args:
             message: 消息内容（文字或URL）
             websocket: WebSocket连接
             msg_type: 消息类型（1:文字，2:图片，3:音频）
+            animation_index: 动画序号（可选）
         """
         message_obj = {
             "type": msg_type,
             "content": message
         }
+        if animation_index is not None:
+            message_obj["animation_index"] = animation_index
         await websocket.send_text(json.dumps(message_obj))
 
     async def broadcast(self, message: str):
@@ -100,10 +103,24 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         while True:
             data = await websocket.receive_text()
 
-            # # 发送用户消息回显
-            # await manager.send_personal_message(f"你: {data}", websocket)
-
             try:
+                # 解析 JSON 格式的消息
+                message_data = json.loads(data)
+                print(f"接收到的原始数据: {data}")
+                print(f"解析后的 message_data: {message_data}")
+                text = message_data.get("text", "")
+                img = message_data.get("img", "")
+                audio = message_data.get("audio", "")
+                model = message_data.get("model", "Hiyori")
+                print(f"model 值: {model}", flush=True)
+
+                # 如果没有文字内容，跳过处理
+                if not text and not img and not audio:
+                    continue
+
+                # # 发送用户消息回显
+                # await manager.send_personal_message(f"你: {data}", websocket)
+
                 # 使用 LangChain 调用 OpenAI
                 system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
                     你的性格特点：
@@ -123,18 +140,20 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
                 messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
                 messages.extend(message_history)
-                messages.append(HumanMessage(content=data))
+                messages.append(HumanMessage(content=text))
 
                 response = await llm.ainvoke(messages)
                 ai_response = response.content
 
                 # 将用户消息和AI回复添加到历史记录
-                manager.add_message_to_history(client_id, HumanMessage(content=data))
+                manager.add_message_to_history(client_id, HumanMessage(content=text))
                 manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
                 # 发送 AI 回复
                 await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1)
 
+            except json.JSONDecodeError:
+                await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", websocket, msg_type=1)
             except Exception as e:
                 await manager.send_personal_message(f"AI 错误: {str(e)}", websocket, msg_type=1)
 

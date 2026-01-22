@@ -451,7 +451,13 @@ function initializeWebSocketControls(): void {
   sendButton.addEventListener('click', () => {
     const message = messageInput.value.trim();
     if (message) {
-      if (wsManager.send(message)) {
+      // 获取当前Live2D模型名称
+      const live2DManager = LAppDelegate.getInstance()
+        ._subdelegates.at(0)
+        .getLive2DManager();
+      const modelName = live2DManager.getCurrentModelName();
+
+      if (wsManager.send({ text: message, model: modelName })) {
         messageInput.value = '';
       }
     }

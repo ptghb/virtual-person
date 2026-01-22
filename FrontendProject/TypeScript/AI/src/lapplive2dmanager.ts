@@ -274,4 +274,15 @@ export class LAppLive2DManager {
       model.setMotionNo(motionNo);
     }
   }
+
+  /**
+   * 获取当前模型的名称
+   * @returns 当前模型名称，如果没有模型则返回空字符串
+   */
+  public getCurrentModelName(): string {
+    if (this._sceneIndex >= 0 && this._sceneIndex < LAppDefine.ModelDirSize) {
+      return LAppDefine.ModelDir[this._sceneIndex];
+    }
+    return '';
+  }
 }
