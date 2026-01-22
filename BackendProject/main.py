@@ -108,7 +108,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # 解析 JSON 格式的消息
                 message_data = json.loads(data)
                 print(f"接收到的原始数据: {data}")
-                print(f"解析后的 message_data: {message_data}")
                 text = message_data.get("text", "")
                 img = message_data.get("img", "")
                 audio = message_data.get("audio", "")
@@ -133,7 +132,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
                    请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
                    不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
-                   请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。"""
+                   请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
+
+                   """
 
                 # 获取历史消息
                 message_history = manager.get_message_history(client_id)
@@ -146,12 +147,50 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 response = await llm.ainvoke(messages)
                 ai_response = response.content
 
+                print(f"AI 回复: {ai_response}", flush=True)
+
                 # 将用户消息和AI回复添加到历史记录
                 manager.add_message_to_history(client_id, HumanMessage(content=text))
                 manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
+                system_prompt = """根据聊天内容的气氛来选择使用哪种live2d的动画。
+                   - 如果聊天氛围轻松愉快
+                     1. 如果是Hiyori，可以使用1,2
+                     2. 如果是Haru，可以使用1,2
+                     3. 如果是Mark，可以使用3,4
+                     4. 如果Natori，可以使用5,6
+                     5. 如果Rice，可以使用2
+                     6. 如果Mao，可以使用4
+                     7. 如果Wanko，可以使用1
+                   - 如果对话氛围比较严肃
+                     1. 如果是Hiyori，可以使用3
+                     2. 如果是Haru，可以使用1，2
+                     3. 如果是Mark，可以使用3，4
+                     4. 如果Natori，可以使用5，6
+                     5. 如果Rice，可以使用3
+                     6. 如果Mao，可以使用3
+                     7. 如果Wanko，可以使用3
+                   - 如果对话氛围比较悲伤
+                     1. 如果是Hiyori，可以使用7，8
+                     2. 如果是Haru，可以使用1，2
+                     3. 如果是Mark，可以使用3，4
+                     4. 如果Natori，可以使用5，6
+                     5. 如果Rice，可以使用1
+                     6. 如果Mao，可以使用2
+                     7. 如果Wanko，可以使用2
+                   输出数字作为结果，不要输出其他任何内容，不要输出文字，不要输出表情符号。
+                   """
+                # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
+                messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
+                messages.extend(message_history)
+                messages.append(HumanMessage(content=text))
+                response = await llm.ainvoke(messages)
+                animation_index = response.content
+
+                print(f"animation_index 值: {animation_index}", flush=True)
+
                 # 发送 AI 回复
-                await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1)
+                await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1, animation_index=int(animation_index))
 
             except json.JSONDecodeError:
                 await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", websocket, msg_type=1)

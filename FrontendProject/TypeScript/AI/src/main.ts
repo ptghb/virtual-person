@@ -431,9 +431,25 @@ function initializeWebSocketControls(): void {
       contentSpan.className = 'message-content';
       messageElement.appendChild(contentSpan);
 
+      console.log(message.animation_index);
+
       // 如果是接收到的消息，使用打字机效果并触发随机动画
       if (message.type === 'received') {
-        triggerRandomMotion();
+        // 如果指定了动画序号，播放指定动画；否则播放随机动画
+        if (message.animation_index !== undefined) {
+          try {
+            const live2DManager = LAppDelegate.getInstance()
+              ._subdelegates.at(0)
+              .getLive2DManager();
+            live2DManager.playMotionByNo(message.animation_index);
+          } catch (error) {
+            console.error('Error playing motion by index:', error);
+            // 如果播放失败，回退到随机动画
+            // triggerRandomMotion();
+          }
+        } else {
+          // triggerRandomMotion();
+        }
         typeWriterEffect(contentSpan, message.content, 50, () => {
           // 打字结束后停止动画
           stopMotion();

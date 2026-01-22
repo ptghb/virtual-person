@@ -18,6 +18,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   contentType?: ContentType; // 消息内容类型：文字、图片、音频
+  animation_index?: number; // 动画索引
 }
 
 export class WebSocketManager {
@@ -80,6 +81,7 @@ export class WebSocketManager {
           const parsedData = JSON.parse(event.data as string) as {
             type?: number;
             content?: unknown;
+            animation_index?: number;
           };
 
           // 根据type字段确定内容类型
@@ -103,7 +105,8 @@ export class WebSocketManager {
                     ? String(parsedData.content)
                     : '',
             timestamp: new Date(),
-            contentType
+            contentType,
+            animation_index: parsedData.animation_index
           };
           this._messages.push(message);
           if (this._messages.length > this._maxMessages) {
