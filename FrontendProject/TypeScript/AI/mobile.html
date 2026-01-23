@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>小凡AI - 手机端</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    #app {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Live2D模型区域 */
+    #live2d-container {
+      flex: 1;
+      position: relative;
+      background: linear-gradient(180deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%);
+      overflow: hidden;
+    }
+    
+    #live2d-container canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    
+    /* 对话区域 */
+    #chat-container {
+      height: 40%;
+      background: rgba(255, 255, 255, 0.95);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    #chat-header {
+      padding: 12px 16px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    #chat-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    #connection-status {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f44336;
+    }
+    
+    #status-dot.connected {
+      background: #4CAF50;
+    }
+    
+    #status-dot.connecting {
+      background: #ff9800;
+    }
+    
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      background: #f5f5f5;
+    }
+    
+    .chat-message {
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 80%;
+      word-wrap: break-word;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .chat-message.received {
+      background: white;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .chat-message.sent {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-bottom-right-radius: 4px;
+      margin-left: auto;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    .chat-message.error {
+      background: #ffebee;
+      color: #c62828;
+      border-left: 3px solid #f44336;
+    }
+    
+    .message-time {
+      font-size: 10px;
+      color: #999;
+      margin-top: 4px;
+    }
+    
+    .chat-message.sent .message-time {
+      color: rgba(255, 255, 255, 0.8);
+    }
+    
+    #chat-input-area {
+      padding: 12px 16px;
+      background: white;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    #chat-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    
+    #chat-input:focus {
+      border-color: #667eea;
+    }
+    
+    #send-button {
+      padding: 10px 20px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    
+    #send-button:active {
+      transform: scale(0.95);
+    }
+    
+    #send-button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    /* 底部控制区域 */
+    #bottom-controls {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid #e0e0e0;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+    }
+    
+    .control-button {
+      padding: 12px 24px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .control-button:active {
+      transform: scale(0.95);
+      box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* 动画控制面板 */
+    #motion-controls {
+      position: fixed;
+      bottom: 70px;
+      left: 16px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.98);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      display: none;
+      z-index: 999;
+    }
+    
+    #motion-controls.show {
+      display: block;
+      animation: slideUp 0.3s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    #motion-controls h4 {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    
+    .motion-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    
+    .motion-button {
+      padding: 12px 8px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    
+    .motion-button:active {
+      transform: scale(0.95);
+    }
+    
+    .motion-button.playing {
+      background: linear-gradient(90deg, #4CAF50 0%, #45a049 100%);
+    }
+    
+    /* 隐藏滚动条但保留功能 */
+    #chat-messages::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    #chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    #chat-messages::-webkit-scrollbar-thumb {
+      background: #ddd;
+      border-radius: 2px;
+    }
+  </style>
+  <!-- Live2DCubismCore script -->
+  <script src = "./Core/live2dcubismcore.js"></script>
+  <!-- Build script -->
+  <script src = "./src/mobile.ts" type="module"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Live2D模型区域 -->
+    <div id="live2d-container">
+      <!-- Canvas will be created here -->
+    </div>
+    
+    <!-- 对话区域 -->
+    <div id="chat-container">
+      <div id="chat-header">
+        <h3>小凡AI</h3>
+        <div id="connection-status">
+          <span id="status-dot"></span>
+          <span id="status-text">未连接</span>
+        </div>
+      </div>
+      
+      <div id="chat-messages">
+        <!-- 消息将在这里显示 -->
+      </div>
+      
+      <div id="chat-input-area">
+        <input type="text" id="chat-input" placeholder="和小凡聊聊天...">
+        <button id="send-button">发送</button>
+      </div>
+    </div>
+    
+    <!-- 底部控制按钮 -->
+    <div id="bottom-controls">
+      <button id="toggle-motion-panel" class="control-button">动画控制</button>
+    </div>
+    
+    <!-- 动画控制面板 -->
+    <div id="motion-controls">
+      <h4>选择动画</h4>
+      <div class="motion-grid" id="motion-buttons">
+        <!-- 动画按钮将在这里动态生成 -->
+      </div>
+    </div>
+  </div>
+</body>
+</html>
