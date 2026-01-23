@@ -325,6 +325,62 @@ function initializeAudioControls(): void {
       }
     });
   }
+
+  // 镜头拉近/推远控制按钮处理
+  const zoomInButton = document.getElementById('zoom-in') as HTMLButtonElement;
+  const zoomOutButton = document.getElementById(
+    'zoom-out'
+  ) as HTMLButtonElement;
+
+  if (zoomInButton && zoomOutButton) {
+    // 镜头拉近按钮
+    zoomInButton.addEventListener('click', () => {
+      try {
+        const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
+        const view = subdelegate['_view'];
+        const viewMatrix = view['_viewMatrix'];
+
+        // 获取当前缩放比例
+        const currentScale = viewMatrix.getScaleX();
+        const maxScale = viewMatrix.getMaxScale();
+
+        // 如果未达到最大缩放比例，则放大
+        if (currentScale < maxScale) {
+          // 以屏幕中心为基准进行缩放
+          const centerX = 0;
+          const centerY = 0;
+          const scaleFactor = 1.1; // 每次放大10%
+          viewMatrix.adjustScale(centerX, centerY, scaleFactor);
+        }
+      } catch (error) {
+        console.error('Error zooming in:', error);
+      }
+    });
+
+    // 镜头推远按钮
+    zoomOutButton.addEventListener('click', () => {
+      try {
+        const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
+        const view = subdelegate['_view'];
+        const viewMatrix = view['_viewMatrix'];
+
+        // 获取当前缩放比例
+        const currentScale = viewMatrix.getScaleX();
+        const minScale = viewMatrix.getMinScale();
+
+        // 如果未达到最小缩放比例，则缩小
+        if (currentScale > minScale) {
+          // 以屏幕中心为基准进行缩放
+          const centerX = 0;
+          const centerY = 0;
+          const scaleFactor = 0.9; // 每次缩小10%
+          viewMatrix.adjustScale(centerX, centerY, scaleFactor);
+        }
+      } catch (error) {
+        console.error('Error zooming out:', error);
+      }
+    });
+  }
 }
 
 /**
