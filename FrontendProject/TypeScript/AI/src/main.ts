@@ -328,6 +328,53 @@ function initializeAudioControls(): void {
 
   // 镜头缩放滑块控制
   const zoomSlider = document.getElementById('zoom-slider') as HTMLInputElement;
+  const zoomDecreaseButton = document.getElementById(
+    'zoom-decrease'
+  ) as HTMLButtonElement;
+  const zoomIncreaseButton = document.getElementById(
+    'zoom-increase'
+  ) as HTMLButtonElement;
+
+  // 缩放调整函数
+  function adjustZoom(delta: number): void {
+    try {
+      const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
+      const view = subdelegate['_view'];
+      const viewMatrix = view['_viewMatrix'];
+
+      // 获取最小和最大缩放比例
+      const minScale = viewMatrix.getMinScale();
+      const maxScale = viewMatrix.getMaxScale();
+
+      // 获取当前滑块值并调整
+      let currentValue = parseInt(zoomSlider.value, 10);
+      currentValue = Math.max(0, Math.min(100, currentValue + delta));
+      zoomSlider.value = currentValue.toString();
+
+      // 滑块值(0-100)映射到缩放比例
+      const sliderValue = currentValue;
+      const normalizedValue = sliderValue / 100; // 0 到 1
+
+      // 使用对数缩放，使滑块移动更自然
+      const logMin = Math.log(minScale);
+      const logMax = Math.log(maxScale);
+      const logMid = (logMin + logMax) / 2;
+
+      // 计算目标缩放比例
+      let targetScale: number;
+      if (normalizedValue < 0.5) {
+        const leftNormalized = normalizedValue * 2;
+        targetScale = Math.exp(logMin + leftNormalized * (logMid - logMin));
+      } else {
+        const rightNormalized = (normalizedValue - 0.5) * 2;
+        targetScale = Math.exp(logMid + rightNormalized * (logMax - logMid));
+      }
+
+      viewMatrix.scale(targetScale, targetScale);
+    } catch (error) {
+      console.error('Error adjusting zoom:', error as Error);
+    }
+  }
 
   if (zoomSlider) {
     zoomSlider.addEventListener('input', () => {
@@ -336,42 +383,90 @@ function initializeAudioControls(): void {
         const view = subdelegate['_view'];
         const viewMatrix = view['_viewMatrix'];
 
-        // 获取最小和最大缩放比例
         const minScale = viewMatrix.getMinScale();
         const maxScale = viewMatrix.getMaxScale();
 
-        // 滑块值(0-100)映射到缩放比例
-        // 0 -> minScale (推远)
-        // 50 -> 中间值
-        // 100 -> maxScale (拉近)
         const sliderValue = parseInt(zoomSlider.value, 10);
-        const normalizedValue = sliderValue / 100; // 0 到 1
+        const normalizedValue = sliderValue / 100;
 
-        // 使用对数缩放，使滑块移动更自然
-        // 当滑块在中间(50)时，缩放比例为1.0
         const logMin = Math.log(minScale);
         const logMax = Math.log(maxScale);
         const logMid = (logMin + logMax) / 2;
-        const logRange = logMax - logMin;
 
-        // 计算目标缩放比例
         let targetScale: number;
         if (normalizedValue < 0.5) {
-          // 左半部分：从minScale到1.0
-          const leftNormalized = normalizedValue * 2; // 0 到 1
+          const leftNormalized = normalizedValue * 2;
           targetScale = Math.exp(logMin + leftNormalized * (logMid - logMin));
         } else {
-          // 右半部分：从1.0到maxScale
-          const rightNormalized = (normalizedValue - 0.5) * 2; // 0 到 1
+          const rightNormalized = (normalizedValue - 0.5) * 2;
           targetScale = Math.exp(logMid + rightNormalized * (logMax - logMid));
         }
 
-        // 直接设置缩放比例
         viewMatrix.scale(targetScale, targetScale);
       } catch (error) {
         console.error('Error adjusting zoom:', error as Error);
       }
     });
+  }
+
+  // 减号按钮（推远）- 长按连续调整
+  if (zoomDecreaseButton) {
+    let decreaseInterval: number | null = null;
+
+    const startDecrease = (): void => {
+      adjustZoom(-1); // 立即调整一次
+      decreaseInterval = window.setInterval(() => {
+        adjustZoom(-1); // 每50ms调整一次
+      }, 50);
+    };
+
+    const stopDecrease = (): void => {
+      if (decreaseInterval !== null) {
+        clearInterval(decreaseInterval);
+        decreaseInterval = null;
+      }
+    };
+
+    zoomDecreaseButton.addEventListener('mousedown', startDecrease);
+    zoomDecreaseButton.addEventListener('mouseup', stopDecrease);
+    zoomDecreaseButton.addEventListener('mouseleave', stopDecrease);
+
+    // 触摸事件支持
+    zoomDecreaseButton.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startDecrease();
+    });
+    zoomDecreaseButton.addEventListener('touchend', stopDecrease);
+  }
+
+  // 加号按钮（拉近）- 长按连续调整
+  if (zoomIncreaseButton) {
+    let increaseInterval: number | null = null;
+
+    const startIncrease = (): void => {
+      adjustZoom(1); // 立即调整一次
+      increaseInterval = window.setInterval(() => {
+        adjustZoom(1); // 每50ms调整一次
+      }, 50);
+    };
+
+    const stopIncrease = (): void => {
+      if (increaseInterval !== null) {
+        clearInterval(increaseInterval);
+        increaseInterval = null;
+      }
+    };
+
+    zoomIncreaseButton.addEventListener('mousedown', startIncrease);
+    zoomIncreaseButton.addEventListener('mouseup', stopIncrease);
+    zoomIncreaseButton.addEventListener('mouseleave', stopIncrease);
+
+    // 触摸事件支持
+    zoomIncreaseButton.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startIncrease();
+    });
+    zoomIncreaseButton.addEventListener('touchend', stopIncrease);
   }
 }
 

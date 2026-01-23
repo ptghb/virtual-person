@@ -196,10 +196,14 @@
     <button id="toggle-motion">循环播放动画</button>
     <div style="margin-top: 10px;">
       <label for="zoom-slider" style="font-size: 14px; margin-bottom: 5px; display: block;">镜头缩放:</label>
-      <input type="range" id="zoom-slider" min="0" max="100" value="50" style="width: 100%; cursor: pointer;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button id="zoom-decrease" style="padding: 4px 6px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold; min-width: 20px;">-</button>
+        <input type="range" id="zoom-slider" min="0" max="100" value="50" style="flex: 1; cursor: pointer;">
+        <button id="zoom-increase" style="padding: 4px 6px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold; min-width: 20px;">+</button>
+      </div>
       <div style="display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-top: 5px;">
-        <span>推远</span>
-        <span>拉近</span>
+        <span>镜头推远</span>
+        <span>镜头拉近</span>
       </div>
     </div>
   </div>
