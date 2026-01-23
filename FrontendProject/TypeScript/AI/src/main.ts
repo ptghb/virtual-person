@@ -108,7 +108,7 @@ function initializeAudioControls(): void {
         }
       })
       .catch(error => {
-        console.error('Error loading audio:', error);
+        console.error('Error loading audio:', error as Error);
         statusDiv.textContent = '音频加载出错';
         playButton.disabled = true;
         stopButton.disabled = true;
@@ -130,7 +130,7 @@ function initializeAudioControls(): void {
         stopButton.disabled = false;
       }
     } catch (error) {
-      console.error('Error playing audio:', error);
+      console.error('Error playing audio:', error as Error);
       statusDiv.textContent = '播放出错';
     }
   });
@@ -148,7 +148,7 @@ function initializeAudioControls(): void {
       playButton.disabled = false;
       stopButton.disabled = true;
     } catch (error) {
-      console.error('Error stopping audio:', error);
+      console.error('Error stopping audio:', error as Error);
       statusDiv.textContent = '停止出错';
     }
   });
@@ -176,7 +176,7 @@ function initializeAudioControls(): void {
       statusDiv.textContent = '播放结束';
     });
   } catch (error) {
-    console.error('Error setting up audio callbacks:', error);
+    console.error('Error setting up audio callbacks:', error as Error);
   }
 
   // // 开始录音按钮处理
@@ -253,7 +253,7 @@ function initializeAudioControls(): void {
           toggleMotionButton.textContent = '循环播放随机动画';
         }
       } catch (error) {
-        console.error('Error toggling motion:', error);
+        console.error('Error toggling motion:', error as Error);
       }
     });
   }
@@ -296,7 +296,7 @@ function initializeAudioControls(): void {
           setTimeout(initMotionSelect, 100);
         }
       } catch (error) {
-        console.error('Error initializing motion select:', error);
+        console.error('Error initializing motion select:', error as Error);
       }
     };
 
@@ -321,63 +321,55 @@ function initializeAudioControls(): void {
           toggleMotionButton.textContent = '循环播放随机动画';
         }
       } catch (error) {
-        console.error('Error playing motion by no:', error);
+        console.error('Error playing motion by no:', error as Error);
       }
     });
   }
 
-  // 镜头拉近/推远控制按钮处理
-  const zoomInButton = document.getElementById('zoom-in') as HTMLButtonElement;
-  const zoomOutButton = document.getElementById(
-    'zoom-out'
-  ) as HTMLButtonElement;
+  // 镜头缩放滑块控制
+  const zoomSlider = document.getElementById('zoom-slider') as HTMLInputElement;
 
-  if (zoomInButton && zoomOutButton) {
-    // 镜头拉近按钮
-    zoomInButton.addEventListener('click', () => {
+  if (zoomSlider) {
+    zoomSlider.addEventListener('input', () => {
       try {
         const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
         const view = subdelegate['_view'];
         const viewMatrix = view['_viewMatrix'];
 
-        // 获取当前缩放比例
-        const currentScale = viewMatrix.getScaleX();
+        // 获取最小和最大缩放比例
+        const minScale = viewMatrix.getMinScale();
         const maxScale = viewMatrix.getMaxScale();
 
-        // 如果未达到最大缩放比例，则放大
-        if (currentScale < maxScale) {
-          // 以屏幕中心为基准进行缩放
-          const centerX = 0;
-          const centerY = 0;
-          const scaleFactor = 1.1; // 每次放大10%
-          viewMatrix.adjustScale(centerX, centerY, scaleFactor);
+        // 滑块值(0-100)映射到缩放比例
+        // 0 -> minScale (推远)
+        // 50 -> 中间值
+        // 100 -> maxScale (拉近)
+        const sliderValue = parseInt(zoomSlider.value, 10);
+        const normalizedValue = sliderValue / 100; // 0 到 1
+
+        // 使用对数缩放，使滑块移动更自然
+        // 当滑块在中间(50)时，缩放比例为1.0
+        const logMin = Math.log(minScale);
+        const logMax = Math.log(maxScale);
+        const logMid = (logMin + logMax) / 2;
+        const logRange = logMax - logMin;
+
+        // 计算目标缩放比例
+        let targetScale: number;
+        if (normalizedValue < 0.5) {
+          // 左半部分：从minScale到1.0
+          const leftNormalized = normalizedValue * 2; // 0 到 1
+          targetScale = Math.exp(logMin + leftNormalized * (logMid - logMin));
+        } else {
+          // 右半部分：从1.0到maxScale
+          const rightNormalized = (normalizedValue - 0.5) * 2; // 0 到 1
+          targetScale = Math.exp(logMid + rightNormalized * (logMax - logMid));
         }
+
+        // 直接设置缩放比例
+        viewMatrix.scale(targetScale, targetScale);
       } catch (error) {
-        console.error('Error zooming in:', error);
-      }
-    });
-
-    // 镜头推远按钮
-    zoomOutButton.addEventListener('click', () => {
-      try {
-        const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
-        const view = subdelegate['_view'];
-        const viewMatrix = view['_viewMatrix'];
-
-        // 获取当前缩放比例
-        const currentScale = viewMatrix.getScaleX();
-        const minScale = viewMatrix.getMinScale();
-
-        // 如果未达到最小缩放比例，则缩小
-        if (currentScale > minScale) {
-          // 以屏幕中心为基准进行缩放
-          const centerX = 0;
-          const centerY = 0;
-          const scaleFactor = 0.9; // 每次缩小10%
-          viewMatrix.adjustScale(centerX, centerY, scaleFactor);
-        }
-      } catch (error) {
-        console.error('Error zooming out:', error);
+        console.error('Error adjusting zoom:', error as Error);
       }
     });
   }
@@ -499,7 +491,7 @@ function initializeWebSocketControls(): void {
               .getLive2DManager();
             live2DManager.playMotionByNo(message.animation_index);
           } catch (error) {
-            console.error('Error playing motion by index:', error);
+            console.error('Error playing motion by index:', error as Error);
             // 如果播放失败，回退到随机动画
             // triggerRandomMotion();
           }
@@ -612,7 +604,7 @@ function triggerRandomMotion(): void {
     const model = live2DManager._models.at(0);
     model.enableMotion();
   } catch (error) {
-    console.error('Error triggering random motion:', error);
+    console.error('Error triggering random motion:', error as Error);
   }
 }
 
@@ -627,6 +619,6 @@ function stopMotion(): void {
     const model = live2DManager._models.at(0);
     model.stopMotion();
   } catch (error) {
-    console.error('Error stopping motion:', error);
+    console.error('Error stopping motion:', error as Error);
   }
 }
