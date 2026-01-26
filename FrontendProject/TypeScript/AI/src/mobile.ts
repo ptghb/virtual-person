@@ -25,6 +25,9 @@ window.addEventListener(
       return;
     }
 
+    // 将Live2D画布移动到指定容器
+    moveCanvasToContainer();
+
     // 初始化手机端UI
     initializeMobileUI();
 
@@ -79,6 +82,15 @@ function initializeWebSocket(): void {
     console.error('Chat elements not found');
     return;
   }
+
+  // 自动连接到WebSocket服务器
+  // 生成唯一的client_id
+  const clientId =
+    'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  const wsUrl = `ws://47.121.30.160:8000/ws/${clientId}`;
+  wsManager.connect(wsUrl);
+
+  console.log('正在连接到WebSocket服务器:', wsUrl);
 
   // 更新连接状态
   wsManager.onStateChange((state: ConnectionState): void => {
@@ -258,6 +270,34 @@ function initializeMotionControls(): void {
 }
 
 /**
+ * 将Live2D画布移动到指定容器
+ */
+function moveCanvasToContainer(): void {
+  const container = document.getElementById(
+    'live2d-container'
+  ) as HTMLDivElement;
+  if (!container) {
+    console.error('Live2D container not found');
+    return;
+  }
+
+  // 获取LAppDelegate创建的所有canvas
+  const appDelegate = LAppDelegate.getInstance();
+  const canvases = document.querySelectorAll('body > canvas');
+
+  // 将所有canvas移动到容器中
+  canvases.forEach((canvas: HTMLCanvasElement) => {
+    // 重置canvas样式以适应容器
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    container.appendChild(canvas);
+  });
+}
+
+/**
  * 初始化聊天输入
  */
 function initializeChatInput(): void {
@@ -265,10 +305,47 @@ function initializeChatInput(): void {
   const sendButton = document.getElementById(
     'send-button'
   ) as HTMLButtonElement;
+  const messagesDiv = document.getElementById(
+    'chat-messages'
+  ) as HTMLDivElement;
 
-  if (!chatInput || !sendButton) {
+  if (!chatInput || !sendButton || !messagesDiv) {
+    console.error('Chat input elements not found');
     return;
   }
+
+  const wsManager = WebSocketManager.getInstance();
+
+  // 发送消息
+  const sendMessage = (): void => {
+    const content = chatInput.value.trim();
+    if (!content) {
+      return;
+    }
+
+    // 显示发送的消息
+    addChatMessage(content, 'sent', new Date().toISOString());
+
+    // 发送到WebSocket服务器
+    wsManager.send({
+      text: content
+    });
+
+    // 清空输入框
+    chatInput.value = '';
+  };
+
+  // 点击发送按钮
+  sendButton.addEventListener('click', (): void => {
+    sendMessage();
+  });
+
+  // 按回车键发送
+  chatInput.addEventListener('keypress', (event: KeyboardEvent): void => {
+    if (event.key === 'Enter') {
+      sendMessage();
+    }
+  });
 
   // 输入框获得焦点时，隐藏动画控制面板
   chatInput.addEventListener('focus', (): void => {
@@ -284,4 +361,34 @@ function initializeChatInput(): void {
       toggleButton.textContent = '动画控制';
     }
   });
+
+  // 自动滚动到底部
+  const scrollToBottom = (): void => {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  };
+
+  // 添加消息到聊天区域
+  function addChatMessage(
+    content: string,
+    type: 'received' | 'sent' | 'error',
+    timestamp?: string
+  ): void {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+
+    const contentDiv = document.createElement('div');
+    contentDiv.textContent = content;
+    messageDiv.appendChild(contentDiv);
+
+    if (timestamp) {
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'message-time';
+      const date = new Date(timestamp);
+      timeDiv.textContent = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      messageDiv.appendChild(timeDiv);
+    }
+
+    messagesDiv.appendChild(messageDiv);
+    scrollToBottom();
+  }
 }

@@ -220,13 +220,21 @@
   <script src = "./Core/live2dcubismcore.js"></script>
   <!-- Build script -->
   <script src = "./src/main.ts" type="module"></script>
+</head>
+<body>
+  <!-- 移动端重定向提示 -->
+  <div id="mobile-redirect">
+    <h2>检测到移动设备</h2>
+    <p>正在跳转到手机端页面...</p>
+    <div class="spinner"></div>
+  </div>
 
   <!-- 移动端重定向脚本 -->
   <script>
     (function() {
       // 检测是否为移动设备
       function isMobileDevice() {
-        const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
 
         // 移动设备关键词
         const mobileKeywords = [
@@ -249,34 +257,29 @@
         return isMobileUA || (isMobileWidth && hasTouch);
       }
 
-      // 执行重定向
-      if (isMobileDevice()) {
-        // 显示重定向提示
-        const redirectDiv = document.createElement('div');
-        redirectDiv.id = 'mobile-redirect';
-        redirectDiv.className = 'show';
-        redirectDiv.innerHTML = `
-          <h2>检测到移动设备</h2>
-          <p>正在跳转到手机端页面...</p>
-          <div class="spinner"></div>
-        `;
-        document.body.appendChild(redirectDiv);
+      // 等待DOM加载完成后执行重定向
+      document.addEventListener('DOMContentLoaded', function() {
+        // 执行重定向
+        if (isMobileDevice()) {
+          console.log('检测到移动设备，准备跳转...');
 
-        // 延迟跳转，让用户看到提示
-        setTimeout(() => {
-          window.location.href = './mobile.html';
-        }, 800);
-      }
+          // 显示重定向提示
+          const redirectDiv = document.getElementById('mobile-redirect');
+          if (redirectDiv) {
+            redirectDiv.className = 'show';
+          }
+
+          // 延迟跳转，让用户看到提示
+          setTimeout(function() {
+            console.log('正在跳转到 mobile.html');
+            window.location.href = './mobile.html';
+          }, 800);
+        } else {
+          console.log('检测到桌面设备，不跳转');
+        }
+      });
     })();
   </script>
-</head>
-<body>
-  <!-- 移动端重定向提示 -->
-  <div id="mobile-redirect">
-    <h2>检测到移动设备</h2>
-    <p>正在跳转到手机端页面...</p>
-    <div class="spinner"></div>
-  </div>
 
   <div id="audio-controls">
     <label for="audio-upload">上传音频文件:</label>
