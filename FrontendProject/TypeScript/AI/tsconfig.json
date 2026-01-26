@@ -13,10 +13,13 @@
       "@framework/*": ["../../../Framework/src/*"]
     },
     "noImplicitAny": true,
-    "useUnknownInCatchVariables": true
+    "useUnknownInCatchVariables": true,
+    "jsx": "react-jsx",
+    "lib": ["es6", "dom", "dom.iterable"]
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.tsx",
     "../../../Core/*.ts"
   ],
   "exclude": [

@@ -2,6 +2,7 @@
   "private": true,
   "scripts": {
     "start": "node copy_resources.js && vite --host",
+    "dev": "node copy_resources.js && vite --host",
     "build": "tsc --noEmit && node copy_resources.js && vite build --mode development",
     "build:prod": "node copy_resources.js && vite build",
     "copy_resources": "node copy_resources.js",
@@ -25,5 +26,11 @@
   },
   "optionalDependencies": {
     "fsevents": "*"
+  },
+  "dependencies": {
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   }
 }

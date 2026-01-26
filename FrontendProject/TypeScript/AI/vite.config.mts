@@ -13,10 +13,20 @@ export default defineConfig((env: ConfigEnv): UserConfig => {
     base: '/',
     publicDir: './public',
     resolve: {
-      extensions: ['.ts', '.js'],
+      extensions: ['.ts', '.tsx', '.js', '.jsx'],
       alias: {
         '@framework': path.resolve(__dirname, '../../../Framework/src'),
       }
+    },
+    esbuild: {
+      jsx: 'automatic',
+      jsxImportSource: 'react',
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        jsx: 'automatic',
+        jsxImportSource: 'react',
+      },
     },
     build: {
       target: 'modules',
