@@ -22,50 +22,7 @@
       height: 100vh;
     }
 
-    /* 移动端重定向提示 */
-    #mobile-redirect {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      z-index: 9999;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      color: white;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
 
-    #mobile-redirect.show {
-      display: flex;
-    }
-
-    #mobile-redirect h2 {
-      font-size: 24px;
-      margin-bottom: 16px;
-    }
-
-    #mobile-redirect p {
-      font-size: 16px;
-      margin-bottom: 24px;
-      opacity: 0.9;
-    }
-
-    #mobile-redirect .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
     #audio-controls {
       position: fixed;
       top: 20px;
@@ -222,64 +179,7 @@
   <script src = "./src/main.ts" type="module"></script>
 </head>
 <body>
-  <!-- 移动端重定向提示 -->
-  <div id="mobile-redirect">
-    <h2>检测到移动设备</h2>
-    <p>正在跳转到手机端页面...</p>
-    <div class="spinner"></div>
-  </div>
 
-  <!-- 移动端重定向脚本 -->
-  <script>
-    (function() {
-      // 检测是否为移动设备
-      function isMobileDevice() {
-        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-
-        // 移动设备关键词
-        const mobileKeywords = [
-          'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry',
-          'Windows Phone', 'webOS', 'Opera Mini', 'IEMobile',
-          'Mobile', 'Tablet', 'Touch'
-        ];
-
-        // 检查用户代理
-        const isMobileUA = mobileKeywords.some(keyword =>
-          userAgent.includes(keyword)
-        );
-
-        // 检查屏幕宽度（小于768px认为是移动设备）
-        const isMobileWidth = window.innerWidth <= 768;
-
-        // 检查触摸支持
-        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
-        return isMobileUA || (isMobileWidth && hasTouch);
-      }
-
-      // 等待DOM加载完成后执行重定向
-      document.addEventListener('DOMContentLoaded', function() {
-        // 执行重定向
-        if (isMobileDevice()) {
-          console.log('检测到移动设备，准备跳转...');
-
-          // 显示重定向提示
-          const redirectDiv = document.getElementById('mobile-redirect');
-          if (redirectDiv) {
-            redirectDiv.className = 'show';
-          }
-
-          // 延迟跳转，让用户看到提示
-          setTimeout(function() {
-            console.log('正在跳转到 mobile.html');
-            window.location.href = './mobile.html';
-          }, 800);
-        } else {
-          console.log('检测到桌面设备，不跳转');
-        }
-      });
-    })();
-  </script>
 
   <div id="audio-controls">
     <label for="audio-upload">上传音频文件:</label>
