@@ -246,6 +246,11 @@ export class LAppDelegate {
       this._canvases.pushBack(canvas);
       canvas.style.width = `${width}vw`;
       canvas.style.height = `${height}vh`;
+      canvas.style.position = 'fixed';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.zIndex = '0';
+      canvas.style.pointerEvents = 'none';
 
       // 将画布添加到 DOM
       document.body.appendChild(canvas);
