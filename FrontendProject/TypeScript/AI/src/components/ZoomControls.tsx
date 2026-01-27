@@ -7,6 +7,10 @@
 
 import React, { useState, useRef } from 'react';
 import { LAppDelegate } from '../lappdelegate';
+import { Button, Slider, Card, Typography } from 'antd';
+import { ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons';
+
+const { Text } = Typography;
 
 const ZoomControls: React.FC = () => {
   const [zoomValue, setZoomValue] = useState<number>(50);
@@ -53,7 +57,7 @@ const ZoomControls: React.FC = () => {
     }
   };
 
-  const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleSliderChange = (value: number): void => {
     try {
       const subdelegate = LAppDelegate.getInstance()._subdelegates.at(0);
       const view = subdelegate['_view'];
@@ -62,7 +66,7 @@ const ZoomControls: React.FC = () => {
       const minScale = viewMatrix.getMinScale();
       const maxScale = viewMatrix.getMaxScale();
 
-      const sliderValue = parseInt(event.target.value, 10);
+      const sliderValue = value;
       setZoomValue(sliderValue);
 
       const normalizedValue = sliderValue / 100;
@@ -115,24 +119,13 @@ const ZoomControls: React.FC = () => {
   };
 
   return (
-    <>
-      <label htmlFor="zoom-slider" style={{ fontSize: '14px', marginBottom: '5px', display: 'block' }}>
-        镜头缩放:
-      </label>
+    <Card title="镜头控制" size="small">
+      <div style={{ marginBottom: '10px' }}>
+        <Text type="secondary">镜头缩放:</Text>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button
-          id="zoom-decrease"
-          style={{
-            padding: '4px 6px',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            minWidth: '20px',
-          }}
+        <Button
+          icon={<ZoomOutOutlined />}
           onMouseDown={startDecrease}
           onMouseUp={stopDecrease}
           onMouseLeave={stopDecrease}
@@ -140,32 +133,17 @@ const ZoomControls: React.FC = () => {
             e.preventDefault();
             startDecrease();
           }}
-          onTouchEnd={stopIncrease}
-        >
-          -
-        </button>
-        <input
-          type="range"
-          id="zoom-slider"
-          min="0"
-          max="100"
+          onTouchEnd={stopDecrease}
+        />
+        <Slider
+          min={0}
+          max={100}
           value={zoomValue}
           onChange={handleSliderChange}
-          style={{ flex: 1, cursor: 'pointer' }}
+          style={{ flex: 1 }}
         />
-        <button
-          id="zoom-increase"
-          style={{
-            padding: '4px 6px',
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            minWidth: '20px',
-          }}
+        <Button
+          icon={<ZoomInOutlined />}
           onMouseDown={startIncrease}
           onMouseUp={stopIncrease}
           onMouseLeave={stopIncrease}
@@ -174,9 +152,7 @@ const ZoomControls: React.FC = () => {
             startIncrease();
           }}
           onTouchEnd={stopIncrease}
-        >
-          +
-        </button>
+        />
       </div>
       <div
         style={{
@@ -187,10 +163,10 @@ const ZoomControls: React.FC = () => {
           marginTop: '5px',
         }}
       >
-        <span>镜头推远</span>
-        <span>镜头拉近</span>
+        <Text type="secondary">镜头推远</Text>
+        <Text type="secondary">镜头拉近</Text>
       </div>
-    </>
+    </Card>
   );
 };
 

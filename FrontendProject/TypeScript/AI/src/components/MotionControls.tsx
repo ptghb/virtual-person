@@ -8,11 +8,17 @@
 import React, { useState, useEffect } from 'react';
 import { LAppDelegate } from '../lappdelegate';
 import * as LAppDefine from '../lappdefine';
+import { Button, Select, Card } from 'antd';
+import { PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
+import type { SelectProps } from 'antd';
+
+const { Option } = Select;
 
 const MotionControls: React.FC = () => {
   const [toggleMotionText, setToggleMotionText] = useState<string>('循环播放随机动画');
   const [motionOptions, setMotionOptions] = useState<number[]>([0]);
   const [selectedMotionNo, setSelectedMotionNo] = useState<number>(0);
+  const [isMotionEnabled, setIsMotionEnabled] = useState<boolean>(false);
 
   useEffect(() => {
     // 初始化选择框选项 - 等待模型初始化完成
@@ -53,12 +59,14 @@ const MotionControls: React.FC = () => {
 
       live2DManager.toggleMotion();
 
-      // 更新按钮文本
+      // 更新按钮文本和状态
       const model = live2DManager._models.at(0);
       if (model && model.isMotionEnabled()) {
         setToggleMotionText('停止循环播放动画');
+        setIsMotionEnabled(true);
       } else {
         setToggleMotionText('循环播放随机动画');
+        setIsMotionEnabled(false);
       }
     } catch (error) {
       console.error('Error toggling motion:', error as Error);
@@ -73,12 +81,14 @@ const MotionControls: React.FC = () => {
 
       live2DManager.playMotionByNo(selectedMotionNo);
 
-      // 更新按钮文本
+      // 更新按钮文本和状态
       const model = live2DManager._models.at(0);
       if (model && model.isMotionEnabled()) {
         setToggleMotionText('停止循环播放动画');
+        setIsMotionEnabled(true);
       } else {
         setToggleMotionText('循环播放随机动画');
+        setIsMotionEnabled(false);
       }
     } catch (error) {
       console.error('Error playing motion by no:', error as Error);
@@ -86,26 +96,39 @@ const MotionControls: React.FC = () => {
   };
 
   return (
-    <>
-      <button id="toggle-motion-no" style={{ width: '120px' }} onClick={handlePlayMotionByNo}>
-        循环播放指定动画
-      </button>
-      <select
-        id="motion-no-select"
-        style={{ width: '120px' }}
-        value={selectedMotionNo}
-        onChange={e => setSelectedMotionNo(parseInt(e.target.value, 10))}
-      >
-        {motionOptions.map(option => (
-            <option key={option} value={option}>
-              {option}
-            </option>
+    <Card title="动画控制" size="small" style={{ marginBottom: '10px' }}>
+      <div style={{ marginBottom: '10px' }}>
+        <Button
+          type="primary"
+          icon={<PlayCircleOutlined />}
+          onClick={handlePlayMotionByNo}
+          block
+        >
+          播放指定动画
+        </Button>
+      </div>
+      <div style={{ marginBottom: '10px' }}>
+        <Select
+          value={selectedMotionNo}
+          onChange={(value) => setSelectedMotionNo(value as number)}
+          style={{ width: '100%' }}
+        >
+          {motionOptions.map(option => (
+            <Option key={option} value={option}>
+              动画 {option}
+            </Option>
           ))}
-        </select>
-      <button id="toggle-motion" onClick={handleToggleMotion}>
+        </Select>
+      </div>
+      <Button
+        type={isMotionEnabled ? 'default' : 'primary'}
+        icon={isMotionEnabled ? <StopOutlined /> : <PlayCircleOutlined />}
+        onClick={handleToggleMotion}
+        block
+      >
         {toggleMotionText}
-      </button>
-    </>
+      </Button>
+    </Card>
   );
 };
 

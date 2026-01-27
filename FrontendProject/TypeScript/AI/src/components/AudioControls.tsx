@@ -7,6 +7,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { LAppDelegate } from '../lappdelegate';
+import { Button, Upload, Card, Typography } from 'antd';
+import { UploadOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
+import type { UploadProps } from 'antd';
+
+const { Text } = Typography;
 
 const AudioControls: React.FC = () => {
   const [audioStatus, setAudioStatus] = useState<string>('未加载音频');
@@ -45,8 +50,7 @@ const AudioControls: React.FC = () => {
     }
   }, []);
 
-  const handleAudioUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleAudioUpload = (file: File) => {
     if (!file) {
       return;
     }
@@ -106,23 +110,46 @@ const AudioControls: React.FC = () => {
     }
   };
 
+  const uploadProps: UploadProps = {
+    beforeUpload: (file) => {
+      handleAudioUpload(file as File);
+      return false;
+    },
+    showUploadList: false,
+    accept: 'audio/*',
+  };
+
   return (
-    <>
-      <label htmlFor="audio-upload">上传音频文件:</label>
-      <input
-        type="file"
-        id="audio-upload"
-        accept="audio/*"
-        onChange={handleAudioUpload}
-      />
-      <button id="play-audio" disabled={playDisabled} onClick={handlePlayAudio}>
-        播放音频
-      </button>
-      <button id="stop-audio" disabled={stopDisabled} onClick={handleStopAudio}>
-        停止音频
-      </button>
-      <div id="audio-status">{audioStatus}</div>
-    </>
+    <Card title="音频控制" size="small" style={{ marginBottom: '10px' }}>
+      <Upload {...uploadProps}>
+        <Button icon={<UploadOutlined />} block>
+          上传音频文件
+        </Button>
+      </Upload>
+      <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+        <Button
+          type="primary"
+          icon={<PlayCircleOutlined />}
+          disabled={playDisabled}
+          onClick={handlePlayAudio}
+          style={{ flex: 1 }}
+        >
+          播放
+        </Button>
+        <Button
+          danger
+          icon={<StopOutlined />}
+          disabled={stopDisabled}
+          onClick={handleStopAudio}
+          style={{ flex: 1 }}
+        >
+          停止
+        </Button>
+      </div>
+      <div style={{ marginTop: '10px' }}>
+        <Text type="secondary">状态: {audioStatus}</Text>
+      </div>
+    </Card>
   );
 };
 
