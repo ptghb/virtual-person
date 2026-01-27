@@ -14,9 +14,11 @@ import ZoomControls from './components/ZoomControls';
 const App: React.FC = () => {
   return (
     <>
-      <AudioControls />
-      <MotionControls />
-      <ZoomControls />
+      <div id="controls-container">
+        <AudioControls />
+        <MotionControls />
+        <ZoomControls />
+      </div>
       <WebSocketPanel />
     </>
   );

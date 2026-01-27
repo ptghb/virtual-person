@@ -107,7 +107,7 @@ const AudioControls: React.FC = () => {
   };
 
   return (
-    <div id="audio-controls">
+    <>
       <label htmlFor="audio-upload">上传音频文件:</label>
       <input
         type="file"
@@ -122,7 +122,7 @@ const AudioControls: React.FC = () => {
         停止音频
       </button>
       <div id="audio-status">{audioStatus}</div>
-    </div>
+    </>
   );
 };
 

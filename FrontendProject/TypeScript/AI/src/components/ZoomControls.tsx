@@ -115,7 +115,7 @@ const ZoomControls: React.FC = () => {
   };
 
   return (
-    <div style={{ marginTop: '10px' }}>
+    <>
       <label htmlFor="zoom-slider" style={{ fontSize: '14px', marginBottom: '5px', display: 'block' }}>
         镜头缩放:
       </label>
@@ -190,7 +190,7 @@ const ZoomControls: React.FC = () => {
         <span>镜头推远</span>
         <span>镜头拉近</span>
       </div>
-    </div>
+    </>
   );
 };
 

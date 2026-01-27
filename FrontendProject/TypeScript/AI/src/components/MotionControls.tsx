@@ -87,23 +87,21 @@ const MotionControls: React.FC = () => {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <button id="toggle-motion-no" style={{ width: '120px' }} onClick={handlePlayMotionByNo}>
-          循环播放指定动画
-        </button>
-        <select
-          id="motion-no-select"
-          style={{ width: '120px' }}
-          value={selectedMotionNo}
-          onChange={e => setSelectedMotionNo(parseInt(e.target.value, 10))}
-        >
-          {motionOptions.map(option => (
+      <button id="toggle-motion-no" style={{ width: '120px' }} onClick={handlePlayMotionByNo}>
+        循环播放指定动画
+      </button>
+      <select
+        id="motion-no-select"
+        style={{ width: '120px' }}
+        value={selectedMotionNo}
+        onChange={e => setSelectedMotionNo(parseInt(e.target.value, 10))}
+      >
+        {motionOptions.map(option => (
             <option key={option} value={option}>
               {option}
             </option>
           ))}
         </select>
-      </div>
       <button id="toggle-motion" onClick={handleToggleMotion}>
         {toggleMotionText}
       </button>
