@@ -10,6 +10,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { LAppDelegate } from './lappdelegate';
 import { WebSocketManager } from './websocketmanager';
+import { LAppLive2DManager } from './lapplive2dmanager';
+import * as LAppDefine from './lappdefine';
+
 
 /**
  * 浏览器加载后的处理

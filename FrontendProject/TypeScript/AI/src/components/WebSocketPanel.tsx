@@ -23,20 +23,22 @@ const WebSocketPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState<string>('');
   const [sendDisabled, setSendDisabled] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageIdCounter = useRef<number>(0);
 
   const wsManager = WebSocketManager.getInstance();
 
   useEffect(() => {
     // 设置状态变化回调
-    wsManager.onStateChange((state: ConnectionState) => {
+    const handleStateChange = (state: ConnectionState) => {
       setConnectionState(state);
       setSendDisabled(state !== 'connected');
-    });
+    };
+    wsManager.onStateChange(handleStateChange);
 
     // 设置消息回调
-    wsManager.onMessage((message: Message) => {
+    const handleMessage = (message: Message) => {
       const newMessage: MessageDisplay = {
-        id: Date.now(),
+        id: ++messageIdCounter.current,
         type: message.type,
         timestamp: message.timestamp,
         content: message.content,
@@ -59,24 +61,29 @@ const WebSocketPanel: React.FC = () => {
           }
         }
       }
-    });
-
-    // 自动连接到WebSocket服务器
-    const clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    const wsUrl = `ws://47.121.30.160:8000/ws/${clientId}`;
-    wsManager.connect(wsUrl);
-
-    // 添加初始提示消息
-    const initialMessage: MessageDisplay = {
-      id: Date.now(),
-      type: 'received',
-      timestamp: new Date(),
-      content: `WebSocket功能已就绪，客户端ID: ${clientId}`,
     };
-    setMessages([initialMessage]);
+    wsManager.onMessage(handleMessage);
+
+    // 延迟连接到WebSocket服务器，给后端足够的启动时间
+    const connectTimer = setTimeout(() => {
+      const clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const wsUrl = `ws://47.121.30.160:8000/ws/${clientId}`;
+      wsManager.connect(wsUrl);
+
+      // 添加初始提示消息
+      const initialMessage: MessageDisplay = {
+        id: ++messageIdCounter.current,
+        type: 'received',
+        timestamp: new Date(),
+        content: `WebSocket功能已就绪，客户端ID: ${clientId}`,
+      };
+      setMessages([initialMessage]);
+    }, 2000); // 延迟2秒连接
 
     return () => {
-      WebSocketManager.releaseInstance();
+      clearTimeout(connectTimer);
+      // 不释放 WebSocketManager 实例，保持单例
+      // WebSocketManager.releaseInstance();
     };
   }, []);
 
@@ -86,17 +93,37 @@ const WebSocketPanel: React.FC = () => {
   }, [messages]);
 
   const handleSendMessage = () => {
+    console.log('发送按钮被点击');
     const message = inputValue.trim();
-    if (message) {
+    console.log('输入内容:', message);
+    console.log('连接状态:', connectionState);
+
+    if (!message) {
+      console.log('消息为空，不发送');
+      return;
+    }
+
+    if (connectionState !== 'connected') {
+      console.log('WebSocket未连接，无法发送');
+      return;
+    }
+
+    try {
       // 获取当前Live2D模型名称
       const live2DManager = LAppDelegate.getInstance()
         ._subdelegates.at(0)
         .getLive2DManager();
       const modelName = live2DManager.getCurrentModelName();
+      console.log('模型名称:', modelName);
 
-      if (wsManager.send({ text: message, model: modelName })) {
+      const sendResult = wsManager.send({ text: message, model: modelName });
+      console.log('发送结果:', sendResult);
+
+      if (sendResult) {
         setInputValue('');
       }
+    } catch (error) {
+      console.error('发送消息时出错:', error);
     }
   };
 
