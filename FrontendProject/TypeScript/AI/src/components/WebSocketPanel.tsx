@@ -56,20 +56,31 @@ const WebSocketPanel: React.FC = () => {
 
       // 如果是接收到的消息，使用打字机效果并触发动画
       if (message.type === 'received' && (message.contentType === 'text' || message.contentType === undefined)) {
-        // 如果有音频URL，播放音频
+        // 如果有音频URL，使用 LAppAudioManager 播放音频并控制口型同步
         if (message.audioUrl) {
           try {
-            if (audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current = null;
-            }
-            const audio = new Audio(message.audioUrl);
-            audioRef.current = audio;
-            audio.play().catch(error => {
-              console.error('播放音频失败:', error);
-            });
+            // 获取 Live2D 音频管理器
+            const live2DManager = LAppDelegate.getInstance()
+              ._subdelegates.at(0)
+              .getLive2DManager();
+            const audioManager = live2DManager.getAudioManager();
+
+            // 从URL获取音频ArrayBuffer
+            fetch(message.audioUrl)
+              .then(response => response.arrayBuffer())
+              .then(arrayBuffer => {
+                // 加载音频到音频管理器
+                return audioManager.loadAudioFromArrayBuffer(arrayBuffer);
+              })
+              .then(() => {
+                // 播放音频（会自动触发口型同步）
+                audioManager.play();
+              })
+              .catch(error => {
+                console.error('播放音频失败:', error);
+              });
           } catch (error) {
-            console.error('创建音频对象失败:', error);
+            console.error('使用 LAppAudioManager 播放音频失败:', error);
           }
         }
 
