@@ -182,16 +182,6 @@ const WebSocketPanel: React.FC = () => {
       console.log('发送结果:', sendResult);
 
       if (sendResult) {
-        // 添加发送的消息到消息列表
-        const sentMessage: MessageDisplay = {
-          id: ++messageIdCounter.current,
-          type: 'sent',
-          timestamp: new Date(),
-          content: message,
-          contentType: 'text',
-          isTyping: false,
-        };
-        setMessages(prev => [...prev, sentMessage]);
         setInputValue('');
       }
     } catch (error) {
