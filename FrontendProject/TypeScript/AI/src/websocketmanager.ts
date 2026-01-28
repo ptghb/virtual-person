@@ -19,6 +19,7 @@ export interface Message {
   timestamp: Date;
   contentType?: ContentType; // 消息内容类型：文字、图片、音频
   animation_index?: number; // 动画索引
+  audioUrl?: string; // 音频URL
 }
 
 export class WebSocketManager {
@@ -109,6 +110,7 @@ export class WebSocketManager {
             type?: number;
             content?: unknown;
             animation_index?: number;
+            audio?: string;
           };
 
           // 根据type字段确定内容类型
@@ -133,7 +135,8 @@ export class WebSocketManager {
                     : '',
             timestamp: new Date(),
             contentType,
-            animation_index: parsedData.animation_index
+            animation_index: parsedData.animation_index,
+            audioUrl: parsedData.audio
           };
           this._messages.push(message);
           if (this._messages.length > this._maxMessages) {
@@ -251,6 +254,7 @@ export class WebSocketManager {
     img?: string; // 图片内容（base64）
     audio?: string; // 音频内容（base64）
     model?: string; // Live2D模型名称（如：Hiyori、Haru、Rice等）
+    isAudio?: boolean; // 是否需要语音回复
   }): boolean {
     console.log('[WebSocketManager.send] 开始发送消息');
     console.log('[WebSocketManager.send] _ws 存在:', !!this._ws);

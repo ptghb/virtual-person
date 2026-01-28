@@ -15,6 +15,9 @@ interface MessageDisplay {
   timestamp: Date;
   content: string;
   contentType?: 'text' | 'image' | 'audio';
+  audioUrl?: string;
+  displayedContent?: string; // 用于打字机效果的显示内容
+  isTyping?: boolean; // 是否正在打字
 }
 
 const WebSocketPanel: React.FC = () => {
@@ -22,8 +25,10 @@ const WebSocketPanel: React.FC = () => {
   const [messages, setMessages] = useState<MessageDisplay[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
   const [sendDisabled, setSendDisabled] = useState<boolean>(true);
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const wsManager = WebSocketManager.getInstance();
 
@@ -42,13 +47,32 @@ const WebSocketPanel: React.FC = () => {
         type: message.type,
         timestamp: message.timestamp,
         content: message.content,
-        contentType: message.contentType,
+        contentType: message.contentType || 'text',
+        audioUrl: message.audioUrl,
+        isTyping: false,
       };
 
       setMessages(prev => [...prev, newMessage]);
 
       // 如果是接收到的消息，使用打字机效果并触发动画
-      if (message.type === 'received' && message.contentType === 'text') {
+      if (message.type === 'received' && (message.contentType === 'text' || message.contentType === undefined)) {
+        // 如果有音频URL，播放音频
+        if (message.audioUrl) {
+          try {
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current = null;
+            }
+            const audio = new Audio(message.audioUrl);
+            audioRef.current = audio;
+            audio.play().catch(error => {
+              console.error('播放音频失败:', error);
+            });
+          } catch (error) {
+            console.error('创建音频对象失败:', error);
+          }
+        }
+
         // 如果指定了动画序号，播放指定动画
         if (message.animation_index !== undefined) {
           try {
@@ -60,6 +84,38 @@ const WebSocketPanel: React.FC = () => {
             console.error('Error playing motion by index:', error as Error);
           }
         }
+
+        // 打字机效果
+        let currentIndex = 0;
+        const fullText = message.content;
+        const typeSpeed = 50; // 每个字符的显示间隔（毫秒）
+
+        const typeNextChar = () => {
+          if (currentIndex < fullText.length) {
+            currentIndex++;
+            const displayedText = fullText.substring(0, currentIndex);
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === newMessage.id
+                  ? { ...msg, displayedContent: displayedText, isTyping: currentIndex < fullText.length }
+                  : msg
+              )
+            );
+            setTimeout(typeNextChar, typeSpeed);
+          } else {
+            // 打字完成，清除 displayedContent，使用 content 显示
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === newMessage.id
+                  ? { ...msg, isTyping: false, displayedContent: undefined }
+                  : msg
+              )
+            );
+          }
+        };
+
+        // 开始打字
+        setTimeout(typeNextChar, 100);
       }
     };
     wsManager.onMessage(handleMessage);
@@ -67,7 +123,7 @@ const WebSocketPanel: React.FC = () => {
     // 延迟连接到WebSocket服务器，给后端足够的启动时间
     const connectTimer = setTimeout(() => {
       const clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-      const wsUrl = `ws://47.121.30.160:8000/ws/${clientId}`;
+      const wsUrl = `ws://localhost:8000/ws/${clientId}`;
       wsManager.connect(wsUrl);
 
       // 添加初始提示消息
@@ -76,6 +132,8 @@ const WebSocketPanel: React.FC = () => {
         type: 'received',
         timestamp: new Date(),
         content: `WebSocket功能已就绪，客户端ID: ${clientId}`,
+        contentType: 'text',
+        isTyping: false,
       };
       setMessages([initialMessage]);
     }, 2000); // 延迟2秒连接
@@ -116,10 +174,24 @@ const WebSocketPanel: React.FC = () => {
       const modelName = live2DManager.getCurrentModelName();
       console.log('模型名称:', modelName);
 
-      const sendResult = wsManager.send({ text: message, model: modelName });
+      const sendResult = wsManager.send({
+        text: message,
+        model: modelName,
+        isAudio: audioEnabled
+      });
       console.log('发送结果:', sendResult);
 
       if (sendResult) {
+        // 添加发送的消息到消息列表
+        const sentMessage: MessageDisplay = {
+          id: ++messageIdCounter.current,
+          type: 'sent',
+          timestamp: new Date(),
+          content: message,
+          contentType: 'text',
+          isTyping: false,
+        };
+        setMessages(prev => [...prev, sentMessage]);
         setInputValue('');
       }
     } catch (error) {
@@ -180,6 +252,18 @@ const WebSocketPanel: React.FC = () => {
           <span id="status-text">{getStatusText()}</span>
         </div>
       </div>
+      <div id="websocket-audio-toggle">
+        <label className="audio-toggle-label">
+          <input
+            type="checkbox"
+            checked={audioEnabled}
+            onChange={(e) => setAudioEnabled(e.target.checked)}
+            className="audio-toggle-checkbox"
+          />
+          <span className="audio-toggle-slider"></span>
+          <span className="audio-toggle-text">语音</span>
+        </label>
+      </div>
       <div id="websocket-messages">
         {messages.map(msg => (
           <div key={msg.id} className={`websocket-message ${msg.type}`}>
@@ -197,7 +281,10 @@ const WebSocketPanel: React.FC = () => {
                 style={{ width: '100%', marginTop: '5px' }}
               />
             ) : (
-              <span className="message-content">{msg.content}</span>
+              <span className="message-content">
+                {msg.displayedContent !== undefined ? msg.displayedContent : msg.content}
+                {msg.isTyping && <span className="typing-cursor">|</span>}
+              </span>
             )}
           </div>
         ))}

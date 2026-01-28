@@ -4,9 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 import os
 import json
+import httpx
+import re
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+import emoji
 
 # 加载环境变量
 load_dotenv()
@@ -44,7 +47,7 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def send_personal_message(self, message: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None):
+    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None):
         """发送个人消息，支持多种类型
 
         Args:
@@ -55,7 +58,8 @@ class ConnectionManager:
         """
         message_obj = {
             "type": msg_type,
-            "content": message
+            "content": message,
+            "audio": audio
         }
         if animation_index is not None:
             message_obj["animation_index"] = animation_index
@@ -81,6 +85,17 @@ class ConnectionManager:
             del self.message_history[client_id]
 
 
+def remove_emojis(text: str) -> str:
+    """
+    移除文本中的表情符号
+    :param text: 原始文本
+    :return: 移除了表情符号的文本
+    """
+    """使用 emoji 库移除表情符号"""
+    newtext = emoji.replace_emoji(text, replace='')
+    newtext = newtext.replace('（*^^*）','');
+    return newtext
+
 manager = ConnectionManager()
 
 
@@ -99,7 +114,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket)
     try:
         # 发送欢迎消息
-        await manager.send_personal_message("你好，我是你的好朋友，小凡...", websocket, msg_type=1)
+        await manager.send_personal_message("你好，我是你的好朋友，小凡...", "", websocket, msg_type=1)
 
         while True:
             data = await websocket.receive_text()
@@ -112,6 +127,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 img = message_data.get("img", "")
                 audio = message_data.get("audio", "")
                 model = message_data.get("model", "Hiyori")
+                isAudio = message_data.get("isAudio", False)
                 print(f"model 值: {model}", flush=True)
 
                 # 如果没有文字内容，跳过处理
@@ -191,13 +207,47 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 manager.add_message_to_history(client_id, HumanMessage(content=text))
                 manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
+                if isAudio:
+                  # 预处理：移除表情符号
+                  clean_text = remove_emojis(ai_response)
+                  print(f"预处理后的文本: {clean_text}", flush=True)
+                  # 调用http://localhost:3000/api/v1/tts/generate
+                  async with httpx.AsyncClient() as http_client:
+                    tts_response = await http_client.post(
+                      "http://localhost:3000/api/v1/tts/generate",
+                      json={
+                        "text": clean_text,
+                        "voice": "zh-CN-XiaoxiaoNeural",
+                        "rate": "0%",
+                        "pitch": "0Hz",
+                        "volume": "0%"
+                      },
+                      timeout=30.0
+                    )
+
+                    if tts_response.status_code == 200:
+                      tts_result = tts_response.json()
+                      if tts_result.get("success"):
+                        audio_file = tts_result["data"]["audio"]
+                        audio_url = f"http://localhost:3000{audio_file}"
+                        print(f"TTS 音频生成成功: {audio_url}", flush=True)
+                      else:
+                        print(f"TTS 生成失败: {tts_result}", flush=True)
+                        audio_url = ""
+                    else:
+                      print(f"TTS 请求失败: {tts_response.status_code}", flush=True)
+                      audio_url = ""
+                else:
+                  audio_url = ""
+
+
                 # 发送 AI 回复
-                await manager.send_personal_message(f"小凡: {ai_response}", websocket, msg_type=1, animation_index=int(animation_index))
+                await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))
 
             except json.JSONDecodeError:
-                await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", websocket, msg_type=1)
+                await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", "", websocket, msg_type=1)
             except Exception as e:
-                await manager.send_personal_message(f"AI 错误: {str(e)}", websocket, msg_type=1)
+                await manager.send_personal_message(f"AI 错误: {str(e)}", "", websocket, msg_type=1)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

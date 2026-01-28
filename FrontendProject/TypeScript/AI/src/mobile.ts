@@ -87,7 +87,7 @@ function initializeWebSocket(): void {
   // 生成唯一的client_id
   const clientId =
     'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  const wsUrl = `ws://47.121.30.160:8000/ws/${clientId}`;
+  const wsUrl = `ws://localhost:8000/ws/${clientId}`;
   wsManager.connect(wsUrl);
 
   console.log('正在连接到WebSocket服务器:', wsUrl);

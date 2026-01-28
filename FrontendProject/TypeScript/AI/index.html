@@ -119,6 +119,51 @@
       align-items: center;
       gap: 5px;
     }
+    #websocket-audio-toggle {
+      padding: 10px 15px;
+      background: rgba(0, 0, 0, 0.2);
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .audio-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .audio-toggle-checkbox {
+      appearance: none;
+      width: 40px;
+      height: 20px;
+      background: #666;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .audio-toggle-checkbox:checked {
+      background: #4CAF50;
+    }
+    .audio-toggle-checkbox::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+    }
+    .audio-toggle-checkbox:checked::before {
+      transform: translateX(20px);
+    }
+    .audio-toggle-text {
+      color: white;
+      font-size: 12px;
+    }
     #websocket-status.disconnected {
       color: #f44336;
     }
@@ -139,16 +184,22 @@
       background: rgba(255, 255, 255, 0.1);
       color: #e0e0e0;
       word-wrap: break-word;
+      display: flex;
+      align-items: flex-start;
+      gap: 5px;
+      line-height: 1.4;
     }
     .websocket-message img {
       display: block;
       margin-top: 5px;
       border-radius: 4px;
+      width: 100%;
     }
     .websocket-message audio {
       display: block;
       margin-top: 5px;
       width: 100%;
+      flex: 1;
     }
     .websocket-message.received {
       border-left: 3px solid #4CAF50;
@@ -164,6 +215,23 @@
       color: #888;
       font-size: 10px;
       margin-right: 8px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+    .message-content {
+      flex: 1;
+      word-break: break-word;
+      min-width: 0;
+      line-height: 1.4;
+    }
+    .typing-cursor {
+      animation: blink 1s infinite;
+      color: #4CAF50;
+    }
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
     }
     #websocket-input {
       display: flex;
