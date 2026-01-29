@@ -207,6 +207,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 manager.add_message_to_history(client_id, HumanMessage(content="我："+text))
                 manager.add_message_to_history(client_id, AIMessage(content="小凡："+ai_response))
 
+                if os.getenv("ISAUDIO", False) == False:
+                  isAudio = False
                 if isAudio:
                   # 预处理：移除表情符号
                   clean_text = remove_emojis(ai_response)
