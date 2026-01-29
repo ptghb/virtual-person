@@ -339,6 +339,12 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 确认端口3000未被占用
 - 检查audio目录是否存在且有写入权限
 
+### 7. 示例环境 47.121.30.160
+- 此环境没有部署TTS服务，不支持开启语音;
+- 此环境暂时没有域名和证书，无法使用摄像头。所以不能体验手势控制。
+- 需要体验以上两个功能，可以自行部署。
+
+
 ## 许可证
 
 本项目基于Live2D Open Software License。使用前请阅读 [LICENSE.md](LICENSE.md)。
