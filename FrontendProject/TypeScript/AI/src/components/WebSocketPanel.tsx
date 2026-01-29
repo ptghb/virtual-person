@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WebSocketManager, Message, ConnectionState } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
+import { getWebSocketUrl } from '../config';
 
 interface MessageDisplay {
   id: number;
@@ -134,7 +135,7 @@ const WebSocketPanel: React.FC = () => {
     // 延迟连接到WebSocket服务器，给后端足够的启动时间
     const connectTimer = setTimeout(() => {
       const clientId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-      const wsUrl = `ws://localhost:8000/ws/${clientId}`;
+      const wsUrl = getWebSocketUrl(clientId);
       wsManager.connect(wsUrl);
 
       // 添加初始提示消息

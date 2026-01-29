@@ -36,7 +36,7 @@ export class WebSocketManager {
   private _messageCallback: ((message: Message) => void) | null = null;
   private _stateCallback: ((state: ConnectionState) => void) | null = null;
 
-  private constructor(url: string = 'ws://localhost:8080') {
+  private constructor(url: string = 'ws://localhost:8000') {
     this._url = url;
   }
 
