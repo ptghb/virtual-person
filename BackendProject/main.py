@@ -204,17 +204,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 print(f"animation_index 值: {animation_index}", flush=True)
 
                 # 将用户消息和AI回复添加到历史记录
-                manager.add_message_to_history(client_id, HumanMessage(content=text))
-                manager.add_message_to_history(client_id, AIMessage(content=ai_response))
+                manager.add_message_to_history(client_id, HumanMessage(content="我："+text))
+                manager.add_message_to_history(client_id, AIMessage(content="小凡："+ai_response))
 
                 if isAudio:
                   # 预处理：移除表情符号
                   clean_text = remove_emojis(ai_response)
                   print(f"预处理后的文本: {clean_text}", flush=True)
-                  # 调用http://localhost:3000/api/v1/tts/generate
+                  # 调用TTS API
+                  tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
                   async with httpx.AsyncClient() as http_client:
                     tts_response = await http_client.post(
-                      "http://localhost:3000/api/v1/tts/generate",
+                      f"{tts_api_url}/api/v1/tts/generate",
                       json={
                         "text": clean_text,
                         "voice": "zh-CN-XiaoxiaoNeural",
@@ -229,7 +230,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                       tts_result = tts_response.json()
                       if tts_result.get("success"):
                         audio_file = tts_result["data"]["audio"]
-                        audio_url = f"http://localhost:3000{audio_file}"
+                        audio_url = f"{tts_api_url}{audio_file}"
                         print(f"TTS 音频生成成功: {audio_url}", flush=True)
                       else:
                         print(f"TTS 生成失败: {tts_result}", flush=True)
