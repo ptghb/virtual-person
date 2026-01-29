@@ -146,6 +146,8 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
 ```
 
+现在文件中有一个OPENAI_API_KEY，体验用的，有限制，请谨慎使用
+
 4. 启动TTS服务（使用Docker）：
 ```bash
 # 确保Docker已安装并运行
