@@ -10,6 +10,7 @@ import AudioControls from './components/AudioControls';
 import WebSocketPanel from './components/WebSocketPanel';
 import MotionControls from './components/MotionControls';
 import ZoomControls from './components/ZoomControls';
+import HandGestureControls from './components/HandGestureControls';
 
 const App: React.FC = () => {
   return (
@@ -18,6 +19,7 @@ const App: React.FC = () => {
         <AudioControls />
         <MotionControls />
         <ZoomControls />
+        <HandGestureControls />
       </div>
       <WebSocketPanel />
     </>

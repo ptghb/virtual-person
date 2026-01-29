@@ -612,6 +612,9 @@ export class LAppModel extends CubismUserModel {
       this._pose.updateParameters(this._model, deltaTimeSeconds);
     }
 
+    // 应用手臂参数（在模型更新之前）
+    this.applyArmParameters();
+
     this._model.update();
   }
 
@@ -1039,6 +1042,190 @@ export class LAppModel extends CubismUserModel {
   }
 
   /**
+   * 设置手指状态
+   * @param hand 手部标识 ('left' 或 'right')
+   * @param fingerState 手指状态
+   */
+  public setFingerState(hand: 'left' | 'right', fingerState: any): void {
+    if (!this._model) return;
+
+    // 根据手部标识设置手指参数
+    // 注意：这些参数名称需要根据实际的 Live2D 模型参数进行调整
+    // 常见的参数命名模式：ParamHand{Left/Right}{Thumb/Index/Middle/Ring/Little}{1/2/3}
+    const handPrefix = hand === 'left' ? 'Left' : 'Right';
+
+    // 设置拇指 (3个关节)
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Thumb1`,
+      fingerState.thumb ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Thumb2`,
+      fingerState.thumb ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Thumb3`,
+      fingerState.thumb ? 1.0 : 0.0
+    );
+
+    // 设置食指 (3个关节)
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Index1`,
+      fingerState.index ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Index2`,
+      fingerState.index ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Index3`,
+      fingerState.index ? 1.0 : 0.0
+    );
+
+    // 设置中指 (3个关节)
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Middle1`,
+      fingerState.middle ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Middle2`,
+      fingerState.middle ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Middle3`,
+      fingerState.middle ? 1.0 : 0.0
+    );
+
+    // 设置无名指 (3个关节)
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Ring1`,
+      fingerState.ring ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Ring2`,
+      fingerState.ring ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Ring3`,
+      fingerState.ring ? 1.0 : 0.0
+    );
+
+    // 设置小指 (3个关节)
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Little1`,
+      fingerState.little ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Little2`,
+      fingerState.little ? 1.0 : 0.0
+    );
+    this.setFingerParameter(
+      `ParamHand${handPrefix}Little3`,
+      fingerState.little ? 1.0 : 0.0
+    );
+  }
+
+  /**
+   * 应用手臂参数
+   * 在每一帧更新时调用，确保手臂参数不被动画覆盖
+   */
+  private applyArmParameters(): void {
+    if (!this._model) return;
+
+    const { leftRaised, rightRaised } = this._armState;
+
+    // 尝试设置手臂参数（不同模型可能有不同的参数名称）
+    // 使用更大的值范围以获得更明显的动作效果
+    const armParams = ['ParamArmLA', 'ParamArmRA', 'ParamArmLB', 'ParamArmRB'];
+
+    armParams.forEach(paramName => {
+      try {
+        const paramId = CubismFramework.getIdManager().getId(paramName);
+        if (paramId) {
+          const isLeftArm = paramName.includes('L');
+          const isRightArm = paramName.includes('R');
+
+          if ((isLeftArm && leftRaised) || (isRightArm && rightRaised)) {
+            // 手臂抬起时设置更大的值
+            this._model.setParameterValueById(paramId, 10.0);
+          } else {
+            // 手臂放下时设置为0
+            this._model.setParameterValueById(paramId, 0.0);
+          }
+        }
+      } catch (e) {
+        // 参数不存在，跳过
+      }
+    });
+
+    // 同时设置手腕角度参数，增强动作效果
+    const wristParams = ['ParamHandAngleL', 'ParamHandAngleR'];
+    wristParams.forEach(paramName => {
+      try {
+        const paramId = CubismFramework.getIdManager().getId(paramName);
+        if (paramId) {
+          const isLeftWrist = paramName.includes('L');
+          const isRightWrist = paramName.includes('R');
+
+          if ((isLeftWrist && leftRaised) || (isRightWrist && rightRaised)) {
+            // 手腕抬起时设置角度
+            this._model.setParameterValueById(paramId, 30.0);
+          } else {
+            // 手腕放下时重置为0
+            this._model.setParameterValueById(paramId, 0.0);
+          }
+        }
+      } catch (e) {
+        // 参数不存在，跳过
+      }
+    });
+  }
+
+  /**
+   * 设置手臂状态
+   * @param state 手臂状态
+   */
+  public setArmState(state: { leftRaised: boolean; rightRaised: boolean }): void {
+    this._armState = state;
+  }
+
+  /**
+   * 获取手臂状态
+   * @returns 手臂状态
+   */
+  public getArmState(): { leftRaised: boolean; rightRaised: boolean } {
+    return this._armState;
+  }
+
+  /**
+   * 设置手指参数
+   * @param paramName 参数名称
+   * @param value 参数值
+   */
+  private setFingerParameter(paramName: string, value: number): void {
+    try {
+      const paramId = CubismFramework.getIdManager().getId(paramName);
+      if (paramId) {
+        this._model.setParameterValueById(paramId, value);
+      }
+    } catch (error) {
+      // 如果参数不存在，静默失败（不同模型可能有不同的参数名称）
+      console.debug(`Parameter ${paramName} not found in model`);
+    }
+  }
+
+  /**
+   * 设置模型参数值（公共方法，供外部调用）
+   * @param paramId 参数ID
+   * @param value 参数值
+   */
+  public setParameterValueById(paramId: CubismIdHandle, value: number): void {
+    if (this._model) {
+      this._model.setParameterValueById(paramId, value);
+    }
+  }
+
+  /**
    * 检查模型是否已完成初始化
    * @returns 是否已完成初始化
    */
@@ -1101,6 +1288,8 @@ export class LAppModel extends CubismUserModel {
     this._audioManager = null;
     this._consistency = false;
     this._isMotionEnabled = false; // 默认不播放动画
+    this._armState = { leftRaised: false, rightRaised: false }; // 初始化手臂状态
+    this._armStateCallback = null; // 初始化手臂状态回调
   }
 
   private _subdelegate: LAppSubdelegate;
@@ -1135,4 +1324,8 @@ export class LAppModel extends CubismUserModel {
   _consistency: boolean; // MOC3 一致性检查管理用
   _isMotionEnabled: boolean; // 动画播放控制标志
   _motionNo: number; // 播放的动画的序号
+  _armState: { leftRaised: boolean; rightRaised: boolean }; // 手臂状态
+  _armStateCallback:
+    | ((state: { leftRaised: boolean; rightRaised: boolean }) => void)
+    | null; // 手臂状态回调
 }
