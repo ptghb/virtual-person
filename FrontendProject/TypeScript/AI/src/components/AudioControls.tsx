@@ -44,6 +44,8 @@ const AudioControls: React.FC = () => {
 
       audioManager.setOnEndCallback(() => {
         setAudioStatus('播放结束');
+        setPlayDisabled(false);
+        setStopDisabled(true);
       });
     } catch (error) {
       console.error('Error setting up audio callbacks:', error as Error);
