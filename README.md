@@ -148,16 +148,7 @@ OPENAI_MODEL=gpt-3.5-turbo
 
 现在文件中有一个OPENAI_API_KEY，体验用的，有限制，请谨慎使用
 
-4. 启动TTS服务（使用Docker）：
-```bash
-# 确保Docker已安装并运行
-# 启动EasyVoice TTS服务，映射端口3000，挂载audio目录
-docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:latest
-```
-
-TTS服务将在 `http://localhost:3000` 启动
-
-5. 启动后端服务：
+4. 启动后端服务：
 ```bash
 python main.py
 ```
@@ -270,6 +261,12 @@ TTS服务使用Docker容器运行，配置说明：
 - **端口映射**：3000:3000
 - **目录挂载**：`$(pwd)/audio:/app/audio` - TTS生成的音频文件将保存在项目根目录的audio文件夹中
 - **服务地址**：http://localhost:3000
+
+```bash
+# 确保Docker已安装并运行
+# 启动EasyVoice TTS服务，映射端口3000，挂载audio目录
+docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:latest
+```
 
 如需修改TTS服务配置，请编辑后端代码中的TTS API调用部分。
 
