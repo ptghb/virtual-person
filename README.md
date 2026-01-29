@@ -19,7 +19,8 @@
 
 - **框架**：TypeScript 5.8.3 + Vite 6.3.5
 - **Live2D引擎**：Live2D Cubism SDK for Web
-- **UI组件**：原生HTML/CSS + JavaScript
+- **UI框架**：React 18 + Ant Design 5
+- **手势识别**：MediaPipe Hands
 - **通信协议**：WebSocket
 - **音频处理**：Web Audio API
 
@@ -30,6 +31,7 @@
 - **AI模型**：LangChain + OpenAI API
 - **通信协议**：WebSocket
 - **依赖管理**：pip
+- **TTS服务**：EasyVoice (Docker)
 
 ## 项目结构
 
@@ -39,16 +41,28 @@ CubismWebSamples/
 │   ├── main.py                 # FastAPI主程序
 │   ├── requirements.txt        # Python依赖
 │   └── .env                    # 环境变量配置
+├── audio/                      # TTS音频输出目录（Docker挂载）
 ├── FrontendProject/
 │   └── TypeScript/
 │       └── AI/                 # 前端AI项目
 │           ├── src/
-│           │   ├── main.ts                 # 入口文件
+│           │   ├── main.tsx                # 入口文件
+│           │   ├── App.tsx                 # 主应用组件
+│           │   ├── config.ts               # 配置文件
 │           │   ├── websocketmanager.ts     # WebSocket管理器
 │           │   ├── lappdelegate.ts         # 应用委托
 │           │   ├── lapplive2dmanager.ts    # Live2D管理器
 │           │   ├── lappmodel.ts            # Live2D模型
 │           │   ├── lappaudiomanager.ts     # 音频管理器
+│           │   ├── touchmanager.ts         # 触摸管理器
+│           │   ├── components/             # React组件
+│           │   │   ├── AudioControls.tsx       # 音频控制组件
+│           │   │   ├── MotionControls.tsx      # 动画控制组件
+│           │   │   ├── ZoomControls.tsx        # 缩放控制组件
+│           │   │   ├── WebSocketPanel.tsx      # WebSocket状态面板
+│           │   │   └── HandGestureControls.tsx # 手势控制组件
+│           │   ├── services/              # 服务层
+│           │   │   └── HandGestureService.ts   # 手势识别服务
 │           │   └── ...                     # 其他Live2D相关文件
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库
@@ -58,7 +72,7 @@ CubismWebSamples/
 │           └── vite.config.mts             # Vite配置
 ├── Core/                        # Live2D Cubism Core
 ├── Framework/                   # Live2D Framework
-└── README.md                 # 中文说明文档
+└── README.md                    # 中文说明文档
 ```
 
 ## 功能特性
@@ -69,6 +83,8 @@ CubismWebSamples/
 - 支持鼠标拖拽交互
 - 多种动画效果（待机动画、随机动画等）
 - 音频播放时动画联动控制
+- 支持模型缩放控制
+- 支持手势控制（MediaPipe Hands）
 
 ### 2. AI对话功能
 
@@ -90,6 +106,7 @@ CubismWebSamples/
 - 指定动画序号播放
 - 动画启停状态控制
 - 音频播放时自动停止动画，停止后恢复
+- 支持说话相关动画（如haru_g_m01）
 
 ### 5. 音频管理
 
@@ -97,6 +114,10 @@ CubismWebSamples/
 - 音频播放/停止控制
 - 音频状态实时显示
 - 与动画系统深度集成
+- 支持从ArrayBuffer加载音频数据
+- RMS值放大5.0倍以获得更好的口型效果
+- 通过ParamMouthOpenY参数实现口型同步
+- 集成EasyVoice TTS服务，支持文本转语音
 
 ## 快速开始
 
@@ -125,7 +146,16 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
 ```
 
-4. 启动后端服务：
+4. 启动TTS服务（使用Docker）：
+```bash
+# 确保Docker已安装并运行
+# 启动EasyVoice TTS服务，映射端口3000，挂载audio目录
+docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:latest
+```
+
+TTS服务将在 `http://localhost:3000` 启动
+
+5. 启动后端服务：
 ```bash
 python main.py
 ```
@@ -188,6 +218,19 @@ npm run serve
 
 1. **循环播放随机动画**：点击"循环播放随机动画"按钮切换动画状态
 2. **播放指定动画**：在下拉框选择动画序号，点击"循环播放指定动画"按钮
+3. **缩放控制**：使用滑块调整模型大小（0.5x - 2.0x）
+
+### 手势控制（新增）
+
+1. **启用手势同步**：点击"启用手势同步"按钮开启手势识别
+2. **允许摄像头权限**：浏览器会请求摄像头访问权限，请允许
+3. **手势同步**：
+   - 伸出左手食指/中指 → Live2D左手臂抬起
+   - 伸出右手食指/中指 → Live2D右手臂抬起
+   - 收起手指 → 对应手臂放下
+4. **实时反馈**：界面会显示摄像头画面和手指状态
+
+> 注意：手势控制功能需要模型支持手臂参数。不同模型支持程度不同，Haru模型支持手臂和手腕控制，Mao模型支持完整的肘部关节控制。
 
 ### WebSocket状态
 
@@ -217,14 +260,28 @@ system_message = """你是一个知心朋友，名字叫小凡..."""
 
 模型文件位于 `public/Resources/` 目录，支持替换为其他Live2D模型。
 
+### TTS服务配置
+
+TTS服务使用Docker容器运行，配置说明：
+
+- **镜像**：cosincox/easyvoice:latest
+- **端口映射**：3000:3000
+- **目录挂载**：`$(pwd)/audio:/app/audio` - TTS生成的音频文件将保存在项目根目录的audio文件夹中
+- **服务地址**：http://localhost:3000
+
+如需修改TTS服务配置，请编辑后端代码中的TTS API调用部分。
+
 ## 开发指南
 
 ### 前端开发
 
-- **入口文件**：`src/main.ts`
+- **入口文件**：`src/main.tsx`
+- **主应用组件**：`src/App.tsx`
 - **WebSocket管理**：`src/websocketmanager.ts`
 - **Live2D管理**：`src/lapplive2dmanager.ts`
 - **模型管理**：`src/lappmodel.ts`
+- **手势识别服务**：`src/services/HandGestureService.ts`
+- **React组件**：`src/components/`
 
 ### 后端开发
 
@@ -237,6 +294,7 @@ system_message = """你是一个知心朋友，名字叫小凡..."""
 - 使用TypeScript进行类型检查
 - 遵循ESLint代码规范
 - 使用Prettier格式化代码
+- React组件使用函数式组件和Hooks
 
 ## 常见问题
 
@@ -263,6 +321,24 @@ system_message = """你是一个知心朋友，名字叫小凡..."""
 - 确认音频文件格式支持（MP3、WAV等）
 - 检查浏览器是否允许自动播放
 - 查看浏览器控制台错误信息
+- 确认TTS Docker容器是否正常运行：`docker ps`
+- 检查audio目录是否有写入权限
+
+### 5. 手势控制不生效
+
+- 确认已允许浏览器访问摄像头
+- 检查当前使用的Live2D模型是否支持手臂参数
+- Haru模型支持手臂和手腕控制，但不支持手指关节控制
+- Mao模型支持完整的肘部关节控制
+- 查看浏览器控制台是否有MediaPipe相关错误
+
+### 6. TTS服务无法使用
+
+- 确认Docker已安装并运行：`docker --version`
+- 检查TTS容器是否启动：`docker ps`
+- 查看容器日志：`docker logs <container_id>`
+- 确认端口3000未被占用
+- 检查audio目录是否存在且有写入权限
 
 ## 许可证
 
@@ -278,6 +354,10 @@ system_message = """你是一个知心朋友，名字叫小凡..."""
 - [Live2D Cubism SDK下载](https://www.live2d.com/download/cubism-sdk/download-web/)
 - [FastAPI文档](https://fastapi.tiangolo.com/)
 - [LangChain文档](https://python.langchain.com/)
+- [MediaPipe Hands文档](https://google.github.io/mediapipe/solutions/hands.html)
+- [React文档](https://react.dev/)
+- [Ant Design文档](https://ant.design/)
+- [EasyVoice TTS](https://github.com/cosincox/easyvoice)
 
 ## 更新日志
 

@@ -7,11 +7,11 @@ import { Hands, Results } from '@mediapipe/hands';
 import { Camera } from '@mediapipe/camera_utils';
 
 export interface FingerState {
-  thumb: boolean;      // 拇指
-  index: boolean;      // 食指
-  middle: boolean;     // 中指
-  ring: boolean;       // 无名指
-  little: boolean;     // 小指
+  thumb: boolean; // 拇指
+  index: boolean; // 食指
+  middle: boolean; // 中指
+  ring: boolean; // 无名指
+  little: boolean; // 小指
 }
 
 export interface HandGesture {
@@ -43,7 +43,7 @@ export class HandGestureService {
     return new Promise((resolve, reject) => {
       try {
         this.hands = new Hands({
-          locateFile: (file) => {
+          locateFile: file => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
           }
         });
@@ -165,18 +165,32 @@ export class HandGestureService {
   /**
    * 绘制手部关键点
    */
-  private drawHand(
-    ctx: CanvasRenderingContext2D,
-    landmarks: any[]
-  ): void {
+  private drawHand(ctx: CanvasRenderingContext2D, landmarks: any[]): void {
     // 绘制连接线
     const connections = [
-      [0, 1], [1, 2], [2, 3], [3, 4], // 拇指
-      [0, 5], [5, 6], [6, 7], [7, 8], // 食指
-      [0, 9], [9, 10], [10, 11], [11, 12], // 中指
-      [0, 13], [13, 14], [14, 15], [15, 16], // 无名指
-      [0, 17], [17, 18], [18, 19], [19, 20], // 小指
-      [5, 9], [9, 13], [13, 17] // 手掌
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4], // 拇指
+      [0, 5],
+      [5, 6],
+      [6, 7],
+      [7, 8], // 食指
+      [0, 9],
+      [9, 10],
+      [10, 11],
+      [11, 12], // 中指
+      [0, 13],
+      [13, 14],
+      [14, 15],
+      [15, 16], // 无名指
+      [0, 17],
+      [17, 18],
+      [18, 19],
+      [19, 20], // 小指
+      [5, 9],
+      [9, 13],
+      [13, 17] // 手掌
     ];
 
     ctx.strokeStyle = '#00FF00';
@@ -188,23 +202,23 @@ export class HandGestureService {
 
       ctx.beginPath();
       ctx.moveTo(
-        startPoint.x * this.canvasElement!.width,
-        startPoint.y * this.canvasElement!.height
+        startPoint.x * this.canvasElement.width,
+        startPoint.y * this.canvasElement.height
       );
       ctx.lineTo(
-        endPoint.x * this.canvasElement!.width,
-        endPoint.y * this.canvasElement!.height
+        endPoint.x * this.canvasElement.width,
+        endPoint.y * this.canvasElement.height
       );
       ctx.stroke();
     });
 
     // 绘制关键点
     ctx.fillStyle = '#FF0000';
-    landmarks.forEach((landmark) => {
+    landmarks.forEach(landmark => {
       ctx.beginPath();
       ctx.arc(
-        landmark.x * this.canvasElement!.width,
-        landmark.y * this.canvasElement!.height,
+        landmark.x * this.canvasElement.width,
+        landmark.y * this.canvasElement.height,
         5,
         0,
         2 * Math.PI
