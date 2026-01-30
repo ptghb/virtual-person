@@ -4,7 +4,7 @@ import * as path from 'path';
 export default defineConfig((env: ConfigEnv): UserConfig => {
   return {
     server: {
-      port: 80,
+      port: 8080,
     },
     preview: {
       allowedHosts: ['xiaofan.laogeworld.cn'],
