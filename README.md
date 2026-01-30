@@ -1,6 +1,19 @@
-# 小凡AI - Live2D智能对话助手
+# 小凡AI - 智能虚拟陪伴助手
+一个深度融合Live2D虚拟形象与AI对话引擎的智能陪伴系统。通过集成OpenAI的自然语言理解、实时WebSocket通信、手势识别（MediaPipe）与TTS语音合成，打造出可交互、有情感的AI虚拟伴侣“小凡”。
 
-一个基于Live2D Cubism SDK和OpenAI API的智能对话助手项目，结合了Live2D虚拟形象、实时WebSocket通信和AI对话功能。
+## 核心亮点
+- 🪆 生动Live2D形象：基于Cubism SDK的3D化虚拟角色，支持拖拽、缩放、动画联动
+- 🗣️ 智能对话与语音：接入OpenAI API，具备上下文记忆与角色人格；集成EasyVoice TTS，实现文本转语音
+- 👋 手势交互控制：通过摄像头识别手势，实时驱动Live2D模型动作（抬手/放下）
+- 🎭 多模态交互体验：支持文字、图片、音频消息，动画与音频深度同步
+- 🔧 全栈技术集成：前端React + TypeScript + Live2D，后端FastAPI + LangChain，Docker化TTS服务
+
+## 场景应用
+
+- 情感陪伴与日常聊天
+- 虚拟主播/数字人互动
+- AI助手 + 虚拟形象融合实验
+- 手势交互与动画控制技术演示
 
 ## 项目简介
 
