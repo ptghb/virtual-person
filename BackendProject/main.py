@@ -325,6 +325,8 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
 
         # TTS处理
         audio_url = ""
+        print(f"环境变量：{os.getenv("ISAUDIO", False)}")
+        print(f"is_audio:{is_audio}")
         if os.getenv("ISAUDIO", False) != False and is_audio:
             clean_text = remove_emojis(ai_response)
             tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
@@ -340,7 +342,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
                     },
                     timeout=30.0
                 )
-
+                print(tts_response)
                 if tts_response.status_code == 200:
                     tts_result = tts_response.json()
                     if tts_result.get("success"):

@@ -41,6 +41,12 @@ const WebSocketPanel: React.FC = () => {
 
     // 设置消息回调
     const handleMessage = (message: DisplayMessage) => {
+      // 过滤掉空内容的消息，避免显示空白消息
+      if (!message.content || message.content.trim() === '') {
+        console.log('[WebSocketPanel] 忽略空消息:', message);
+        return;
+      }
+
       const newMessage: MessageDisplay = {
         ...message,
         id: ++messageIdCounter.current,
@@ -216,30 +222,30 @@ const WebSocketPanel: React.FC = () => {
   const startRecording = async () => {
     try {
       console.log('[WebSocketPanel] 开始录音');
-      
+
       // 请求麦克风权限
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true
-        } 
+        }
       });
-      
+
       // 创建MediaRecorder
       const recorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
-      
+
       // 监听recorder停止事件，确保发送最终数据块
       recorder.onstop = () => {
         console.log('[WebSocketPanel] MediaRecorder已停止');
-        
+
         // 立即清理状态，防止后续数据发送
         setMediaRecorder(null);
         setIsRecording(false);
-        
+
         // 发送最终的is_final=true消息（即使没有音频数据也要发送）
         console.log('[WebSocketPanel] 发送最终音频结束标识');
         if (wsManager.getState() === 'connected') {
@@ -264,7 +270,7 @@ const WebSocketPanel: React.FC = () => {
           });
           wsManager.send(audioMessage);
         }
-        
+
         // 通知WebSocket结束语音流
         if (wsManager.getState() === 'connected') {
           const controlMessage: ProtocolMessage = {
@@ -277,28 +283,28 @@ const WebSocketPanel: React.FC = () => {
           };
           wsManager.send(controlMessage);
         }
-        
+
         console.log('[WebSocketPanel] 录音完全停止');
       };
-      
+
       // 设置录音数据处理
       recorder.ondataavailable = (event) => {
-        console.log('[WebSocketPanel] ondataavailable触发 - 当前状态:', { 
-          isRecording, 
+        console.log('[WebSocketPanel] ondataavailable触发 - 当前状态:', {
+          isRecording,
           hasMediaRecorder: !!mediaRecorder,
           dataSize: event.data.size,
           recorderState: recorder.state
         });
-        
+
         // 检查录音器状态而不是React状态（更可靠）
         if (recorder.state !== 'recording') {
           console.log('[WebSocketPanel] MediaRecorder未在录制状态，忽略数据');
           return;
         }
-        
+
         if (event.data.size > 0) {
           console.log('[WebSocketPanel] 处理音频数据块');
-          
+
           // 将音频数据发送到WebSocket
           const reader = new FileReader();
           reader.onload = () => {
@@ -307,7 +313,7 @@ const WebSocketPanel: React.FC = () => {
               console.log('[WebSocketPanel] WebSocket未连接，取消发送');
               return;
             }
-            
+
             const base64Data = (reader.result as string).split(',')[1];
             // 发送协议格式的音频消息（非最终块）
             const audioMessage: ProtocolMessage = {
@@ -333,13 +339,13 @@ const WebSocketPanel: React.FC = () => {
           reader.readAsDataURL(event.data);
         }
       };
-      
+
       // 每100ms收集一次数据（但不强制发送，让ondataavailable处理）
       recorder.start(100);
-      
+
       setMediaRecorder(recorder);
       setIsRecording(true);
-      
+
       // 通知WebSocket开启语音流
       if (wsManager.getState() === 'connected') {
         // 发送协议格式的控制消息
@@ -353,7 +359,7 @@ const WebSocketPanel: React.FC = () => {
         };
         wsManager.send(controlMessage);
       }
-      
+
       console.log('[WebSocketPanel] 录音已开始');
     } catch (error) {
       console.error('[WebSocketPanel] 录音启动失败:', error);
@@ -364,22 +370,22 @@ const WebSocketPanel: React.FC = () => {
   // 停止录音
   const stopRecording = () => {
     console.log('[WebSocketPanel] 停止录音 - 当前状态:', { isRecording, hasMediaRecorder: !!mediaRecorder });
-    
+
     if (mediaRecorder && isRecording) {
       // 立即清理状态，防止后续数据发送
       setIsRecording(false);
       console.log('[WebSocketPanel] 已设置isRecording=false');
-      
+
       // 只需要调用stop()，让onstop事件处理器来处理后续逻辑
       console.log('[WebSocketPanel] 调用mediaRecorder.stop()');
       mediaRecorder.stop();
-      
+
       // 停止所有音轨
       mediaRecorder.stream.getTracks().forEach(track => {
         console.log('[WebSocketPanel] 停止音轨:', track.kind);
         track.stop();
       });
-      
+
       console.log('[WebSocketPanel] stopRecording执行完成');
     } else {
       console.log('[WebSocketPanel] 无法停止录音 - 条件不满足');
@@ -488,13 +494,13 @@ const WebSocketPanel: React.FC = () => {
           发送
         </button>
         {audioEnabled && (
-          <button 
-            id="ws-record-button" 
+          <button
+            id="ws-record-button"
             className={isRecording ? 'recording' : ''}
             onClick={toggleRecording}
             disabled={sendDisabled}
           >
-            {isRecording ? '⏹️ 停止' : '🎤 录音'}
+            {isRecording ? '⏹️ 停止' : '🎤 语音'}
           </button>
         )}
       </div>
