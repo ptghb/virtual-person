@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { WebSocketManager, DisplayMessage, ConnectionState } from '../websocketmanager';
+import { WebSocketManager, DisplayMessage, ConnectionState, ProtocolMessage, ProtocolMessageType, AudioFormat, ControlAction } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
 import { getWebSocketUrl } from '../config';
 
@@ -24,10 +24,11 @@ const WebSocketPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState<string>('');
   const [sendDisabled, setSendDisabled] = useState<boolean>(true);
   const [audioEnabled, setAudioEnabled] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
   const wsManager = WebSocketManager.getInstance();
 
   useEffect(() => {
@@ -145,6 +146,11 @@ const WebSocketPanel: React.FC = () => {
 
     return () => {
       clearTimeout(connectTimer);
+      // 清理录音资源
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        mediaRecorder.stop();
+      }
       // 不释放 WebSocketManager 实例，保持单例
       // WebSocketManager.releaseInstance();
     };
@@ -183,6 +189,12 @@ const WebSocketPanel: React.FC = () => {
         text: message,
         model: modelName,
         isAudio: audioEnabled
+      } as {
+        text?: string;
+        img?: string;
+        audio?: string;
+        model?: string;
+        isAudio?: boolean;
       });
       console.log('发送结果:', sendResult);
 
@@ -197,6 +209,189 @@ const WebSocketPanel: React.FC = () => {
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       handleSendMessage();
+    }
+  };
+
+  // 开始录音
+  const startRecording = async () => {
+    try {
+      console.log('[WebSocketPanel] 开始录音');
+      
+      // 请求麦克风权限
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        } 
+      });
+      
+      // 创建MediaRecorder
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      
+      // 监听recorder停止事件，确保发送最终数据块
+      recorder.onstop = () => {
+        console.log('[WebSocketPanel] MediaRecorder已停止');
+        
+        // 立即清理状态，防止后续数据发送
+        setMediaRecorder(null);
+        setIsRecording(false);
+        
+        // 发送最终的is_final=true消息（即使没有音频数据也要发送）
+        console.log('[WebSocketPanel] 发送最终音频结束标识');
+        if (wsManager.getState() === 'connected') {
+          // 发送协议格式的音频消息（最终块）
+          const audioMessage: ProtocolMessage = {
+            type: 'audio' as ProtocolMessageType,
+            data: {
+              format: 'pcm' as AudioFormat,
+              sample_rate: 16000,
+              channels: 1,
+              chunk: '', // 空数据块表示结束
+              is_final: true, // 明确标识这是最后一块音频数据
+              timestamp: new Date().toISOString(),
+              client_id: wsManager.getClientId()
+            }
+          };
+          // 日志记录
+          console.log('[WebSocketPanel] 发送最终音频消息(onstop):', {
+            is_final: audioMessage.data.is_final,
+            chunk_size: 0,
+            timestamp: audioMessage.data.timestamp
+          });
+          wsManager.send(audioMessage);
+        }
+        
+        // 通知WebSocket结束语音流
+        if (wsManager.getState() === 'connected') {
+          const controlMessage: ProtocolMessage = {
+            type: 'control' as ProtocolMessageType,
+            data: {
+              action: 'stop_audio_stream' as ControlAction,
+              timestamp: new Date().toISOString(),
+              client_id: wsManager.getClientId()
+            }
+          };
+          wsManager.send(controlMessage);
+        }
+        
+        console.log('[WebSocketPanel] 录音完全停止');
+      };
+      
+      // 设置录音数据处理
+      recorder.ondataavailable = (event) => {
+        console.log('[WebSocketPanel] ondataavailable触发 - 当前状态:', { 
+          isRecording, 
+          hasMediaRecorder: !!mediaRecorder,
+          dataSize: event.data.size,
+          recorderState: recorder.state
+        });
+        
+        // 检查录音器状态而不是React状态（更可靠）
+        if (recorder.state !== 'recording') {
+          console.log('[WebSocketPanel] MediaRecorder未在录制状态，忽略数据');
+          return;
+        }
+        
+        if (event.data.size > 0) {
+          console.log('[WebSocketPanel] 处理音频数据块');
+          
+          // 将音频数据发送到WebSocket
+          const reader = new FileReader();
+          reader.onload = () => {
+            // 检查连接状态
+            if (wsManager.getState() !== 'connected') {
+              console.log('[WebSocketPanel] WebSocket未连接，取消发送');
+              return;
+            }
+            
+            const base64Data = (reader.result as string).split(',')[1];
+            // 发送协议格式的音频消息（非最终块）
+            const audioMessage: ProtocolMessage = {
+              type: 'audio' as ProtocolMessageType,
+              data: {
+                format: 'pcm' as AudioFormat,
+                sample_rate: 16000,
+                channels: 1,
+                chunk: base64Data,
+                is_final: false, // 实时传输的音频块都不是最终块
+                timestamp: new Date().toISOString(),
+                client_id: wsManager.getClientId()
+              }
+            };
+            // 日志记录（不显示chunk内容）
+            console.log('[WebSocketPanel] 发送音频消息:', {
+              is_final: audioMessage.data.is_final,
+              chunk_size: base64Data.length,
+              timestamp: audioMessage.data.timestamp
+            });
+            wsManager.send(audioMessage);
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+      
+      // 每100ms收集一次数据（但不强制发送，让ondataavailable处理）
+      recorder.start(100);
+      
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      
+      // 通知WebSocket开启语音流
+      if (wsManager.getState() === 'connected') {
+        // 发送协议格式的控制消息
+        const controlMessage: ProtocolMessage = {
+          type: 'control' as ProtocolMessageType,
+          data: {
+            action: 'start_audio_stream' as ControlAction,
+            timestamp: new Date().toISOString(),
+            client_id: wsManager.getClientId()
+          }
+        };
+        wsManager.send(controlMessage);
+      }
+      
+      console.log('[WebSocketPanel] 录音已开始');
+    } catch (error) {
+      console.error('[WebSocketPanel] 录音启动失败:', error);
+      alert('无法访问麦克风，请检查权限设置');
+    }
+  };
+
+  // 停止录音
+  const stopRecording = () => {
+    console.log('[WebSocketPanel] 停止录音 - 当前状态:', { isRecording, hasMediaRecorder: !!mediaRecorder });
+    
+    if (mediaRecorder && isRecording) {
+      // 立即清理状态，防止后续数据发送
+      setIsRecording(false);
+      console.log('[WebSocketPanel] 已设置isRecording=false');
+      
+      // 只需要调用stop()，让onstop事件处理器来处理后续逻辑
+      console.log('[WebSocketPanel] 调用mediaRecorder.stop()');
+      mediaRecorder.stop();
+      
+      // 停止所有音轨
+      mediaRecorder.stream.getTracks().forEach(track => {
+        console.log('[WebSocketPanel] 停止音轨:', track.kind);
+        track.stop();
+      });
+      
+      console.log('[WebSocketPanel] stopRecording执行完成');
+    } else {
+      console.log('[WebSocketPanel] 无法停止录音 - 条件不满足');
+    }
+  };
+
+  // 切换录音状态
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -287,10 +482,21 @@ const WebSocketPanel: React.FC = () => {
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
+          disabled={isRecording}
         />
-        <button id="ws-send-button" disabled={sendDisabled} onClick={handleSendMessage}>
+        <button id="ws-send-button" disabled={sendDisabled || isRecording} onClick={handleSendMessage}>
           发送
         </button>
+        {audioEnabled && (
+          <button 
+            id="ws-record-button" 
+            className={isRecording ? 'recording' : ''}
+            onClick={toggleRecording}
+            disabled={sendDisabled}
+          >
+            {isRecording ? '⏹️ 停止' : '🎤 录音'}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 import emoji
 
-from audio_handler import audio_processor
+from audio_handler import audio_processor, message_parser
 
 # 加载环境变量
 load_dotenv()
@@ -122,132 +123,30 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             data = await websocket.receive_text()
 
             try:
-                # 解析 JSON 格式的消息
-                message_data = json.loads(data)
-                print(f"接收到的原始数据: {data}")
-                text = message_data.get("text", "")
-                img = message_data.get("img", "")
-                audio = message_data.get("audio", "")
-                model = message_data.get("model", "Hiyori")
-                isAudio = message_data.get("isAudio", False)
-                print(f"model 值: {model}", flush=True)
+                print(f"[websocket_endpoint] 接收到原始数据: {data}")
+                # 使用新的消息解析器
+                msg_type, msg_data, error = message_parser.parse_message(data)
 
-                # 如果没有文字内容，跳过处理
-                if not text and not img and not audio:
+                if error:
+                    print(f"[websocket_endpoint] 消息解析错误: {error}")
+                    await manager.send_personal_message(f"消息格式错误: {error}", "", websocket, msg_type=1)
                     continue
 
-                # # 发送用户消息回显
-                # await manager.send_personal_message(f"你: {data}", websocket)
+                print(f"[websocket_endpoint] 接收到消息类型: {msg_type}")
+                print(f"[websocket_endpoint] 消息数据: {msg_data}")
 
-                # 使用 LangChain 调用 OpenAI
-                system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
-                    你的性格特点：
-                    - 温柔体贴，善于倾听
-                    - 说话亲切自然，像好朋友一样聊天
-                    - 能够理解对方的情绪，给予安慰和支持
-                    - 回复时使用轻松活泼的语气，适当使用表情符号
-                    - 避免过于正式或机械的表达
+                # 处理不同类型的消息
+                if msg_type == "control":
+                    await handle_control_message(websocket, client_id, msg_data)
+                    continue
+                elif msg_type == "audio":
+                    await handle_audio_message(websocket, client_id, msg_data)
+                    continue
+                elif msg_type == "text":
+                    await handle_text_message(websocket, client_id, msg_data)
+                    continue
 
-                   请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
-                   不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
-                   请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
-
-                   """
-
-                # 获取历史消息
-                message_history = manager.get_message_history(client_id)
-
-                # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
-                messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
-                messages.extend(message_history)
-                messages.append(HumanMessage(content=text))
-
-                response = await llm.ainvoke(messages)
-                ai_response = response.content
-
-                print(f"AI 回复: {ai_response}", flush=True)
-
-                system_prompt = f"""根据聊天内容的气氛来选择使用哪种live2d的动画。
-                   现在的live2d的模型名称是 {model}
-                   - 如果聊天氛围轻松愉快
-                     - 如果是Hiyori，可以使用1,2
-                     - 如果是Haru，可以使用1,2
-                     - 如果是Mark，可以使用3,4
-                     - 如果Natori，可以使用5,6
-                     - 如果Rice，可以使用2
-                     - 如果Mao，可以使用4
-                     - 如果Wanko，可以使用1
-                   - 如果对话氛围比较严肃
-                     - 如果是Hiyori，可以使用3
-                     - 如果是Haru，可以使用1，2
-                     - 如果是Mark，可以使用3，4
-                     - 如果Natori，可以使用5，6
-                     - 如果Rice，可以使用3
-                     - 如果Mao，可以使用3
-                     - 如果Wanko，可以使用3
-                   - 如果对话氛围比较悲伤
-                     - 如果是Hiyori，可以使用7，8
-                     - 如果是Haru，可以使用1，2
-                     - 如果是Mark，可以使用3，4
-                     - 如果Natori，可以使用5，6
-                     - 如果Rice，可以使用1
-                     - 如果Mao，可以使用2
-                     - 如果Wanko，可以使用2
-                   输出数字作为结果，不要输出其他任何内容，不要输出文字，不要输出表情符号。
-                   """
-                # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
-                messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
-                messages.extend(message_history)
-                messages.append(HumanMessage(content=text))
-
-                response = await llm.ainvoke(messages)
-                animation_index = response.content
-
-                print(f"animation_index 值: {animation_index}", flush=True)
-
-                # 将用户消息和AI回复添加到历史记录
-                manager.add_message_to_history(client_id, HumanMessage(content=text))
-                manager.add_message_to_history(client_id, AIMessage(content=ai_response))
-
-                if os.getenv("ISAUDIO", False) == False:
-                  isAudio = False
-                if isAudio:
-                  # 预处理：移除表情符号
-                  clean_text = remove_emojis(ai_response)
-                  print(f"预处理后的文本: {clean_text}", flush=True)
-                  # 调用TTS API
-                  tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
-                  async with httpx.AsyncClient() as http_client:
-                    tts_response = await http_client.post(
-                      f"{tts_api_url}/api/v1/tts/generate",
-                      json={
-                        "text": clean_text,
-                        "voice": "zh-CN-XiaoxiaoNeural",
-                        "rate": "0%",
-                        "pitch": "0Hz",
-                        "volume": "0%"
-                      },
-                      timeout=30.0
-                    )
-
-                    if tts_response.status_code == 200:
-                      tts_result = tts_response.json()
-                      if tts_result.get("success"):
-                        audio_file = tts_result["data"]["audio"]
-                        audio_url = f"{tts_api_url}{audio_file}"
-                        print(f"TTS 音频生成成功: {audio_url}", flush=True)
-                      else:
-                        print(f"TTS 生成失败: {tts_result}", flush=True)
-                        audio_url = ""
-                    else:
-                      print(f"TTS 请求失败: {tts_response.status_code}", flush=True)
-                      audio_url = ""
-                else:
-                  audio_url = ""
-
-
-                # 发送 AI 回复
-                await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))
+                # 消息已通过对应的处理函数处理，无需额外操作
 
             except json.JSONDecodeError:
                 await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", "", websocket, msg_type=1)
@@ -262,6 +161,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 async def handle_control_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理控制消息"""
     action = msg_data.get("action", "")
+    print(f"[handle_control_message] 接收到控制消息，客户端: {client_id}, 动作: {action}")
 
     if action == "start_audio_stream":
         audio_processor.start_audio_stream(client_id)
@@ -273,6 +173,7 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "control"
             }
         }
+        print(f"[handle_control_message] 发送响应: {response}")
         await websocket.send_text(json.dumps(response))
 
     elif action == "stop_audio_stream":
@@ -285,6 +186,7 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "control"
             }
         }
+        print(f"[handle_control_message] 发送响应: {response}")
         await websocket.send_text(json.dumps(response))
 
     else:
@@ -296,12 +198,16 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "control"
             }
         }
+        print(f"[handle_control_message] 发送错误响应: {response}")
         await websocket.send_text(json.dumps(response))
 
 async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理音频消息"""
+    print(f"[handle_audio_message] 接收到音频消息，客户端: {client_id}")
+    print(f"[handle_audio_message] 消息数据: {msg_data}")
+    
     result = await audio_processor.process_audio_chunk(client_id, msg_data)
-
+    
     response = {
         "type": "response",
         "data": {
@@ -311,6 +217,7 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
             "is_final": result.get("is_final", False)
         }
     }
+    print(f"[handle_audio_message] 发送响应: {response}")
     await websocket.send_text(json.dumps(response))
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
@@ -427,16 +334,16 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         # 发送 AI 回复
         await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))
 
-        # 发送确认响应
-        response_msg = {
-            "type": "response",
-            "data": {
-                "status": "success",
-                "message": "文本处理完成",
-                "request_type": "text"
-            }
-        }
-        await websocket.send_text(json.dumps(response_msg))
+        # # 发送确认响应
+        # response_msg = {
+        #     "type": "response",
+        #     "data": {
+        #         "status": "success",
+        #         "message": "文本处理完成",
+        #         "request_type": "text"
+        #     }
+        # }
+        # await websocket.send_text(json.dumps(response_msg))
 
     except Exception as e:
         response_msg = {

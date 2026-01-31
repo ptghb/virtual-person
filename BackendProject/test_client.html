@@ -31,6 +31,7 @@
             <button onclick="startAudioStream()">开始音频流</button>
             <button onclick="stopAudioStream()">停止音频流</button>
             <button onclick="sendTestAudio()">发送测试音频</button>
+            <button onclick="sendFinalAudio()">发送最终音频块</button>
         </div>
 
         <div class="section">
@@ -150,6 +151,26 @@
                 }
             };
             sendMessage(message);
+        }
+
+        function sendFinalAudio() {
+            // 生成最终音频数据块
+            const finalAudioData = "UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT_final";
+            
+            const message = {
+                type: "audio",
+                data: {
+                    format: "pcm",
+                    sample_rate: 16000,
+                    channels: 1,
+                    chunk: finalAudioData,
+                    is_final: true,  // 关键：设置为true以触发完整音频处理
+                    timestamp: new Date().toISOString(),
+                    client_id: clientId
+                }
+            };
+            sendMessage(message);
+            logMessage('📢 发送了最终音频块 (is_final=true)，应该会触发完整音频处理日志', 'sent');
         }
 
         function sendText() {

@@ -311,13 +311,17 @@ export class WebSocketManager {
    * @param data 要发送的数据对象
    * @returns 发送是否成功
    */
-  public send(data: {
-    text?: string; // 文字内容
-    img?: string; // 图片内容（base64）
-    audio?: string; // 音频内容（base64）
-    model?: string; // Live2D模型名称（如：Hiyori、Haru、Rice等）
-    isAudio?: boolean; // 是否需要语音回复
-  }): boolean {
+  public send(
+    data:
+      | {
+          text?: string; // 文字内容
+          img?: string; // 图片内容（base64）
+          audio?: string; // 音频内容（base64）
+          model?: string; // Live2D模型名称（如：Hiyori、Haru、Rice等）
+          isAudio?: boolean; // 是否需要语音回复
+        }
+      | ProtocolMessage
+  ): boolean {
     console.log('[WebSocketManager.send] 开始发送消息');
     console.log('[WebSocketManager.send] _ws 存在:', !!this._ws);
     console.log(
@@ -343,12 +347,33 @@ export class WebSocketManager {
     }
 
     try {
-      const jsonString = JSON.stringify(data);
+      // 检查是否为协议格式消息
+      let jsonString: string;
+      if ('type' in data && 'data' in data) {
+        // 协议格式消息
+        jsonString = JSON.stringify(data);
+      } else {
+        // 旧格式消息，转换为协议格式
+        const protocolData: ProtocolMessageData = {};
+        if (data.text) protocolData.content = data.text;
+        if (data.audio) protocolData.chunk = data.audio;
+        if (data.model) protocolData.model = data.model;
+        if (data.isAudio !== undefined) protocolData.is_audio = data.isAudio;
+        protocolData.timestamp = new Date().toISOString();
+        protocolData.client_id = this._clientId;
+
+        const protocolMessage: ProtocolMessage = {
+          type: data.audio ? 'audio' : 'text',
+          data: protocolData
+        };
+        jsonString = JSON.stringify(protocolMessage);
+      }
+
       console.log('[WebSocketManager.send] 发送数据:', jsonString);
       this._ws.send(jsonString);
       const msg: DisplayMessage = {
         type: 'sent',
-        content: data.text || '', // 只保存文字内容用于显示
+        content: ('text' in data ? data.text : '') || '', // 只保存文字内容用于显示
         timestamp: new Date(),
         contentType: 'text'
       };
