@@ -3,46 +3,111 @@
  * 负责管理WebSocket连接、消息收发和状态管理
  */
 
+// 连接状态
 export type ConnectionState =
   | 'disconnected'
   | 'connecting'
   | 'connected'
   | 'error';
 
+// 消息方向类型
 export type MessageType = 'received' | 'sent' | 'error' | 'system';
 
-export type ContentType = 'text' | 'image' | 'audio';
+// 协议消息类型
+export type ProtocolMessageType = 'text' | 'audio' | 'control' | 'response';
 
-export interface Message {
+// 控制消息动作类型
+export type ControlAction =
+  | 'start_audio_stream'
+  | 'stop_audio_stream'
+  | 'ping'
+  | 'pong';
+
+// 音频格式
+export type AudioFormat = 'pcm' | 'wav' | 'mp3';
+
+// 协议消息数据接口
+export interface ProtocolMessageData {
+  // 文本消息数据
+  content?: string;
+
+  // 音频消息数据
+  format?: AudioFormat;
+  sample_rate?: number;
+  channels?: number;
+  chunk?: string; // base64编码的音频块
+  is_final?: boolean;
+
+  // 控制消息数据
+  action?: ControlAction;
+
+  // 通用字段
+  timestamp?: string;
+  client_id?: string;
+
+  // Live2D相关
+  model?: string;
+  is_audio?: boolean;
+}
+
+// 完整的协议消息结构
+export interface ProtocolMessage {
+  type: ProtocolMessageType;
+  data: ProtocolMessageData;
+}
+
+// 响应消息数据
+export interface ResponseMessageData {
+  status: 'success' | 'error';
+  message: string;
+  request_type: ProtocolMessageType;
+  timestamp?: string;
+  [key: string]: unknown; // 其他可能的响应字段
+}
+
+// 响应消息结构
+export interface ResponseMessage {
+  type: 'response';
+  data: ResponseMessageData;
+}
+
+// 显示用消息接口（用于UI展示）
+export interface DisplayMessage {
   type: MessageType;
   content: string;
   timestamp: Date;
-  contentType?: ContentType; // 消息内容类型：文字、图片、音频
-  animation_index?: number; // 动画索引
+  protocolType?: ProtocolMessageType; // 协议消息类型
+  contentType?: 'text' | 'audio'; // 显示内容类型
   audioUrl?: string; // 音频URL
+  isError?: boolean; // 是否为错误消息
 }
 
 export class WebSocketManager {
   private static _instance: WebSocketManager | null = null;
   private _ws: WebSocket | null = null;
   private _url: string;
+  private _clientId: string;
   private _state: ConnectionState = 'disconnected';
-  private _messages: Message[] = [];
+  private _displayMessages: DisplayMessage[] = []; // 用于UI显示的消息
   private _maxMessages: number = 100;
   private _reconnectAttempts: number = 0;
   private _maxReconnectAttempts: number = 5;
   private _reconnectDelay: number = 3000;
   private _reconnectTimer: NodeJS.Timeout | null = null;
-  private _messageCallback: ((message: Message) => void) | null = null;
+  private _messageCallback: ((message: DisplayMessage) => void) | null = null;
   private _stateCallback: ((state: ConnectionState) => void) | null = null;
 
-  private constructor(url: string = 'ws://localhost:8000') {
+  private constructor(
+    url: string = 'ws://localhost:8000',
+    clientId: string = 'user_' + Date.now()
+  ) {
     this._url = url;
+    this._clientId = clientId;
   }
 
-  public static getInstance(url?: string): WebSocketManager {
+  public static getInstance(url?: string, clientId?: string): WebSocketManager {
     if (!WebSocketManager._instance) {
-      WebSocketManager._instance = new WebSocketManager(url);
+      WebSocketManager._instance = new WebSocketManager(url, clientId);
     }
     return WebSocketManager._instance;
   }
@@ -80,7 +145,7 @@ export class WebSocketManager {
     }
 
     this._setState('connecting');
-    this.addMessage('system', `正在连接到 ${this._url}...`);
+    this.addDisplayMessage('system', `正在连接到 ${this._url}...`);
 
     try {
       console.log('[WebSocketManager.connect] 创建 WebSocket 实例');
@@ -100,7 +165,7 @@ export class WebSocketManager {
         console.log('[WebSocketManager.onopen] _url:', this._url);
         this._setState('connected');
         this._reconnectAttempts = 0;
-        this.addMessage('system', 'WebSocket连接成功');
+        this.addDisplayMessage('system', 'WebSocket连接成功');
       };
 
       this._ws.onmessage = (event: MessageEvent) => {
@@ -114,14 +179,12 @@ export class WebSocketManager {
           };
 
           // 根据type字段确定内容类型
-          let contentType: ContentType = 'text';
-          if (parsedData.type === 2) {
-            contentType = 'image';
-          } else if (parsedData.type === 3) {
+          let contentType: 'text' | 'audio' = 'text';
+          if (parsedData.type === 3) {
             contentType = 'audio';
           }
 
-          const message: Message = {
+          const message: DisplayMessage = {
             type: 'received',
             content:
               typeof parsedData.content === 'string'
@@ -134,13 +197,12 @@ export class WebSocketManager {
                     ? String(parsedData.content)
                     : '',
             timestamp: new Date(),
-            contentType,
-            animation_index: parsedData.animation_index,
+            contentType: contentType,
             audioUrl: parsedData.audio
           };
-          this._messages.push(message);
-          if (this._messages.length > this._maxMessages) {
-            this._messages.shift();
+          this._displayMessages.push(message);
+          if (this._displayMessages.length > this._maxMessages) {
+            this._displayMessages.shift();
           }
           if (this._messageCallback) {
             this._messageCallback(message);
@@ -151,16 +213,16 @@ export class WebSocketManager {
             'Failed to parse message as JSON, treating as plain text:',
             error
           );
-          const message: Message = {
+          const message: DisplayMessage = {
             type: 'received',
             content:
               typeof event.data === 'string' ? event.data : String(event.data),
             timestamp: new Date(),
             contentType: 'text'
           };
-          this._messages.push(message);
-          if (this._messages.length > this._maxMessages) {
-            this._messages.shift();
+          this._displayMessages.push(message);
+          if (this._displayMessages.length > this._maxMessages) {
+            this._displayMessages.shift();
           }
           if (this._messageCallback) {
             this._messageCallback(message);
@@ -176,7 +238,7 @@ export class WebSocketManager {
           this._ws?.readyState
         );
         this._setState('error');
-        this.addMessage('error', 'WebSocket连接错误');
+        this.addDisplayMessage('error', 'WebSocket连接错误');
       };
 
       this._ws.onclose = (event: CloseEvent) => {
@@ -191,7 +253,7 @@ export class WebSocketManager {
         );
         console.log('[WebSocketManager.onclose] _url:', this._url);
         this._setState('disconnected');
-        this.addMessage(
+        this.addDisplayMessage(
           'system',
           `WebSocket连接关闭: ${event.code} - ${event.reason || '未知原因'}`
         );
@@ -202,7 +264,7 @@ export class WebSocketManager {
         // 自动重连
         if (this._reconnectAttempts < this._maxReconnectAttempts) {
           this._reconnectAttempts++;
-          this.addMessage(
+          this.addDisplayMessage(
             'system',
             `${this._reconnectDelay / 1000}秒后尝试第${this._reconnectAttempts}次重连...`
           );
@@ -212,13 +274,13 @@ export class WebSocketManager {
             this.connect();
           }, this._reconnectDelay);
         } else {
-          this.addMessage('error', '已达到最大重连次数，停止重连');
+          this.addDisplayMessage('error', '已达到最大重连次数，停止重连');
         }
       };
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
       this._setState('error');
-      this.addMessage(
+      this.addDisplayMessage(
         'error',
         `连接失败: ${error instanceof Error ? error.message : '未知错误'}`
       );
@@ -241,7 +303,7 @@ export class WebSocketManager {
 
     this._setState('disconnected');
     this._reconnectAttempts = 0;
-    this.addMessage('system', 'WebSocket连接已断开');
+    this.addDisplayMessage('system', 'WebSocket连接已断开');
   }
 
   /**
@@ -276,7 +338,7 @@ export class WebSocketManager {
         '!==',
         WebSocket.OPEN
       );
-      this.addMessage('error', '未连接到服务器，无法发送消息');
+      this.addDisplayMessage('error', '未连接到服务器，无法发送消息');
       return false;
     }
 
@@ -284,14 +346,15 @@ export class WebSocketManager {
       const jsonString = JSON.stringify(data);
       console.log('[WebSocketManager.send] 发送数据:', jsonString);
       this._ws.send(jsonString);
-      const msg: Message = {
+      const msg: DisplayMessage = {
         type: 'sent',
         content: data.text || '', // 只保存文字内容用于显示
-        timestamp: new Date()
+        timestamp: new Date(),
+        contentType: 'text'
       };
-      this._messages.push(msg);
-      if (this._messages.length > this._maxMessages) {
-        this._messages.shift();
+      this._displayMessages.push(msg);
+      if (this._displayMessages.length > this._maxMessages) {
+        this._displayMessages.shift();
       }
       if (this._messageCallback) {
         this._messageCallback(msg);
@@ -300,7 +363,7 @@ export class WebSocketManager {
       return true;
     } catch (error) {
       console.error('[WebSocketManager.send] 发送失败:', error);
-      this.addMessage(
+      this.addDisplayMessage(
         'error',
         `发送失败: ${error instanceof Error ? error.message : '未知错误'}`
       );
@@ -316,23 +379,37 @@ export class WebSocketManager {
   }
 
   /**
-   * 获取所有消息
+   * 获取客户端ID
    */
-  public getMessages(): Message[] {
-    return [...this._messages];
+  public getClientId(): string {
+    return this._clientId;
+  }
+
+  /**
+   * 设置客户端ID
+   */
+  public setClientId(clientId: string): void {
+    this._clientId = clientId;
+  }
+
+  /**
+   * 获取所有显示消息
+   */
+  public getMessages(): DisplayMessage[] {
+    return [...this._displayMessages];
   }
 
   /**
    * 清空消息
    */
   public clearMessages(): void {
-    this._messages = [];
+    this._displayMessages = [];
   }
 
   /**
    * 设置消息回调
    */
-  public onMessage(callback: (message: Message) => void): void {
+  public onMessage(callback: (message: DisplayMessage) => void): void {
     this._messageCallback = callback;
   }
 
@@ -372,18 +449,27 @@ export class WebSocketManager {
   }
 
   /**
-   * 添加系统消息
+   * 添加显示消息
    */
-  private addMessage(type: MessageType, content: string): void {
-    const message: Message = {
+  private addDisplayMessage(
+    type: MessageType,
+    content: string,
+    contentType?: 'text' | 'audio',
+    isError: boolean = false
+  ): void {
+    const message: DisplayMessage = {
       type,
       content,
-      timestamp: new Date()
+      timestamp: new Date(),
+      contentType,
+      isError
     };
-    this._messages.push(message);
-    if (this._messages.length > this._maxMessages) {
-      this._messages.shift();
+
+    this._displayMessages.push(message);
+    if (this._displayMessages.length > this._maxMessages) {
+      this._displayMessages.shift();
     }
+
     if (this._messageCallback) {
       this._messageCallback(message);
     }

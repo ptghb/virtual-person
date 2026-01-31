@@ -6,19 +6,16 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { WebSocketManager, Message, ConnectionState } from '../websocketmanager';
+import { WebSocketManager, DisplayMessage, ConnectionState } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
 import { getWebSocketUrl } from '../config';
 
-interface MessageDisplay {
+interface MessageDisplay extends DisplayMessage {
   id: number;
-  type: 'received' | 'sent' | 'error' | 'system';
-  timestamp: Date;
-  content: string;
-  contentType?: 'text' | 'image' | 'audio';
-  audioUrl?: string;
   displayedContent?: string; // 用于打字机效果的显示内容
   isTyping?: boolean; // 是否正在打字
+  animation_index?: number; // 动画索引
+  isError?: boolean; // 错误状态
 }
 
 const WebSocketPanel: React.FC = () => {
@@ -42,14 +39,10 @@ const WebSocketPanel: React.FC = () => {
     wsManager.onStateChange(handleStateChange);
 
     // 设置消息回调
-    const handleMessage = (message: Message) => {
+    const handleMessage = (message: DisplayMessage) => {
       const newMessage: MessageDisplay = {
+        ...message,
         id: ++messageIdCounter.current,
-        type: message.type,
-        timestamp: message.timestamp,
-        content: message.content,
-        contentType: message.contentType || 'text',
-        audioUrl: message.audioUrl,
         isTyping: false,
       };
 
@@ -86,12 +79,12 @@ const WebSocketPanel: React.FC = () => {
         }
 
         // 如果指定了动画序号，播放指定动画
-        if (message.animation_index !== undefined) {
+        if ((message as any).animation_index !== undefined) {
           try {
             const live2DManager = LAppDelegate.getInstance()
               ._subdelegates.at(0)
               .getLive2DManager();
-            live2DManager.playMotionByNo(message.animation_index);
+            live2DManager.playMotionByNo((message as any).animation_index);
           } catch (error) {
             console.error('Error playing motion by index:', error as Error);
           }
@@ -268,15 +261,9 @@ const WebSocketPanel: React.FC = () => {
       </div>
       <div id="websocket-messages">
         {messages.map(msg => (
-          <div key={msg.id} className={`websocket-message ${msg.type}`}>
+          <div key={msg.id} className={`websocket-message ${msg.type} ${msg.isError ? 'error' : ''}`}>
             <span className="message-time">{formatTime(msg.timestamp)}</span>
-            {msg.contentType === 'image' ? (
-              <img
-                src={msg.content}
-                alt="图片消息"
-                style={{ maxWidth: '100%', height: 'auto', borderRadius: '4px', marginTop: '5px' }}
-              />
-            ) : msg.contentType === 'audio' ? (
+            {msg.contentType === 'audio' ? (
               <audio
                 src={msg.content}
                 controls
@@ -284,7 +271,7 @@ const WebSocketPanel: React.FC = () => {
               />
             ) : (
               <span className="message-content">
-                {msg.displayedContent !== undefined ? msg.displayedContent : msg.content}
+                {msg.content}
                 {msg.isTyping && <span className="typing-cursor">|</span>}
               </span>
             )}

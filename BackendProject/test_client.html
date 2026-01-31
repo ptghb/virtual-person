@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket 音频+文本测试客户端</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        #messages { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .message { margin: 5px 0; padding: 5px; border-radius: 3px; }
+        .sent { background-color: #e3f2fd; }
+        .received { background-color: #f3e5f5; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket 音频+文本测试客户端</h1>
+        
+        <div class="section">
+            <h3>连接控制</h3>
+            <input type="text" id="clientId" placeholder="客户端ID" value="test_user">
+            <button onclick="connect()">连接</button>
+            <button onclick="disconnect()">断开</button>
+            <div id="status">未连接</div>
+        </div>
+
+        <div class="section">
+            <h3>音频控制</h3>
+            <button onclick="startAudioStream()">开始音频流</button>
+            <button onclick="stopAudioStream()">停止音频流</button>
+            <button onclick="sendTestAudio()">发送测试音频</button>
+        </div>
+
+        <div class="section">
+            <h3>文本消息</h3>
+            <textarea id="textInput" placeholder="输入要发送的文本消息"></textarea>
+            <br>
+            <label><input type="checkbox" id="enableAudio"> 启用语音回复</label>
+            <br>
+            <button onclick="sendText()">发送文本</button>
+        </div>
+
+        <div class="section">
+            <h3>消息记录</h3>
+            <div id="messages"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let clientId = 'test_user';
+
+        function logMessage(message, type = 'info') {
+            const messagesDiv = document.getElementById('messages');
+            const msgElement = document.createElement('div');
+            msgElement.className = `message ${type}`;
+            msgElement.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            messagesDiv.appendChild(msgElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function connect() {
+            clientId = document.getElementById('clientId').value || 'test_user';
+            const wsUrl = `ws://localhost:8000/ws/${clientId}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function(event) {
+                document.getElementById('status').textContent = '已连接';
+                logMessage('WebSocket连接已建立', 'received');
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    logMessage(`收到消息: ${JSON.stringify(data, null, 2)}`, 'received');
+                } catch (e) {
+                    logMessage(`收到消息: ${event.data}`, 'received');
+                }
+            };
+            
+            ws.onclose = function(event) {
+                document.getElementById('status').textContent = '已断开';
+                logMessage('WebSocket连接已关闭', 'received');
+            };
+            
+            ws.onerror = function(error) {
+                logMessage(`连接错误: ${error}`, 'received');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage(messageObj) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                logMessage('WebSocket未连接', 'sent');
+                return;
+            }
+            
+            const messageStr = JSON.stringify(messageObj);
+            ws.send(messageStr);
+            logMessage(`发送: ${JSON.stringify(messageObj, null, 2)}`, 'sent');
+        }
+
+        function startAudioStream() {
+            const message = {
+                type: "control",
+                data: {
+                    action: "start_audio_stream",
+                    timestamp: new Date().toISOString(),
+                    client_id: clientId
+                }
+            };
+            sendMessage(message);
+        }
+
+        function stopAudioStream() {
+            const message = {
+                type: "control",
+                data: {
+                    action: "stop_audio_stream",
+                    timestamp: new Date().toISOString(),
+                    client_id: clientId
+                }
+            };
+            sendMessage(message);
+        }
+
+        function sendTestAudio() {
+            // 生成测试音频数据（模拟的base64编码）
+            const testAudioData = "UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT";
+            
+            const message = {
+                type: "audio",
+                data: {
+                    format: "pcm",
+                    sample_rate: 16000,
+                    channels: 1,
+                    chunk: testAudioData,
+                    is_final: false,
+                    timestamp: new Date().toISOString(),
+                    client_id: clientId
+                }
+            };
+            sendMessage(message);
+        }
+
+        function sendText() {
+            const textContent = document.getElementById('textInput').value;
+            const enableAudio = document.getElementById('enableAudio').checked;
+            
+            if (!textContent.trim()) {
+                alert('请输入文本内容');
+                return;
+            }
+            
+            const message = {
+                type: "text",
+                data: {
+                    content: textContent,
+                    model: "Hiyori",
+                    is_audio: enableAudio,
+                    timestamp: new Date().toISOString(),
+                    client_id: clientId
+                }
+            };
+            sendMessage(message);
+            
+            // 清空输入框
+            document.getElementById('textInput').value = '';
+        }
+
+        // 页面加载完成后初始化
+        window.onload = function() {
+            logMessage('测试客户端已就绪，请点击"连接"按钮开始测试');
+        };
+    </script>
+</body>
+</html>

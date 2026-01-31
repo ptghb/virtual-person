@@ -1185,7 +1185,10 @@ export class LAppModel extends CubismUserModel {
    * 设置手臂状态
    * @param state 手臂状态
    */
-  public setArmState(state: { leftRaised: boolean; rightRaised: boolean }): void {
+  public setArmState(state: {
+    leftRaised: boolean;
+    rightRaised: boolean;
+  }): void {
     this._armState = state;
   }
 
