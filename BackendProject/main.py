@@ -177,13 +177,29 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
         await websocket.send_text(json.dumps(response))
 
     elif action == "stop_audio_stream":
+        # 先处理完整音频，获取识别结果
+        transcription = await audio_processor._process_complete_audio(client_id)
+        await websocket.send_text(transcription)
+
         audio_processor.stop_audio_stream(client_id)
+
+        # 如果有识别结果，将其传递给AI对话系统
+        if transcription:
+            # 构造文本消息并处理
+            text_msg_data = {
+                "content": transcription,
+                "model": "Hiyori",
+                "is_audio": True
+            }
+            await handle_text_message(websocket, client_id, text_msg_data)
+
         response = {
             "type": "response",
             "data": {
                 "status": "success",
-                "message": "音频流已停止",
-                "request_type": "control"
+                "message": f"音频流已停止，识别结果: {transcription}",
+                "request_type": "control",
+                "transcription": transcription
             }
         }
         print(f"[handle_control_message] 发送响应: {response}")
@@ -205,9 +221,9 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
     """处理音频消息"""
     print(f"[handle_audio_message] 接收到音频消息，客户端: {client_id}")
     print(f"[handle_audio_message] 消息数据: {msg_data}")
-    
+
     result = await audio_processor.process_audio_chunk(client_id, msg_data)
-    
+
     response = {
         "type": "response",
         "data": {
@@ -218,7 +234,7 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
         }
     }
     print(f"[handle_audio_message] 发送响应: {response}")
-    await websocket.send_text(json.dumps(response))
+    # await websocket.send_text(json.dumps(response))
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""

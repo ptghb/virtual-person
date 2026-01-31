@@ -6,6 +6,8 @@
 
 - ✅ 同时支持音频流和文本消息处理
 - ✅ 实时音频数据接收和处理
+- ✅ 音频文件本地保存
+- ✅ SiliconFlow语音识别（ASR）
 - ✅ AI对话功能（集成LangChain + OpenAI）
 - ✅ TTS语音合成功能
 - ✅ Live2D动画控制
@@ -36,9 +38,14 @@ pip install -r requirements.txt
 创建 `.env` 文件：
 
 ```env
+# OpenAI API 配置
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
+
+# SiliconFlow 语音识别API配置
+SILICONFLOW_API_KEY=your_siliconflow_api_key
+
 TTS_API_URL=http://localhost:3000
 ISAUDIO=true
 ```
@@ -131,6 +138,9 @@ python test_websocket.py
 - 采样率: 16000Hz
 - 单声道
 - Base64编码传输
+- 自动保存到本地文件
+- 集成SiliconFlow语音识别
+- 识别结果自动传递给AI对话系统
 
 ### 文本处理
 - 集成OpenAI GPT模型
@@ -144,6 +154,8 @@ python test_websocket.py
 2. **音频处理异常**: 确认音频格式正确
 3. **AI回复失败**: 检查OpenAI API密钥和网络连接
 4. **TTS失败**: 确认TTS服务地址正确
+5. **语音识别失败**: 检查SILICONFLOW_API_KEY是否正确配置
+6. **音频文件未保存**: 检查目录权限和磁盘空间
 
 ## 许可证
 
