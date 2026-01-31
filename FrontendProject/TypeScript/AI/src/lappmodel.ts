@@ -1046,7 +1046,16 @@ export class LAppModel extends CubismUserModel {
    * @param hand 手部标识 ('left' 或 'right')
    * @param fingerState 手指状态
    */
-  public setFingerState(hand: 'left' | 'right', fingerState: any): void {
+  public setFingerState(
+    hand: 'left' | 'right',
+    fingerState: {
+      thumb: boolean;
+      index: boolean;
+      middle: boolean;
+      ring: boolean;
+      little: boolean;
+    }
+  ): void {
     if (!this._model) return;
 
     // 根据手部标识设置手指参数
