@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, Base
 import emoji
 
 from audio_handler import audio_processor, message_parser
+from image_handler import image_processor, image_message_parser
 
 # 加载环境变量
 load_dotenv()
@@ -235,6 +236,34 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
     }
     print(f"[handle_audio_message] 发送响应: {response}")
     # await websocket.send_text(json.dumps(response))
+
+async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: dict):
+    """处理图片消息"""
+    print(f"[handle_image_message] 接收到图片消息，客户端: {client_id}")
+    print(f"[handle_image_message] 消息数据长度: {len(msg_data.get('image', '')) if 'image' in msg_data else 0} 字符")
+    
+    # 处理图片消息
+    result = await image_processor.process_image_message(msg_data)
+    
+    # 构造响应
+    response = {
+        "type": "response",
+        "data": {
+            "status": result["status"],
+            "message": result["message"],
+            "request_type": "image",
+            "description": result.get("description", ""),
+            "timestamp": result.get("timestamp", "")
+        }
+    }
+    
+    print(f"[handle_image_message] 发送响应: {response}")
+    await websocket.send_text(json.dumps(response))
+    
+    # 同时发送AI对图片的描述作为聊天消息
+    if result["status"] == "success" and "description" in result:
+        description = result["description"]
+        await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""

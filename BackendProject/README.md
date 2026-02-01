@@ -156,6 +156,9 @@ python test_websocket.py
 4. **TTS失败**: 确认TTS服务地址正确
 5. **语音识别失败**: 检查SILICONFLOW_API_KEY是否正确配置
 6. **音频文件未保存**: 检查目录权限和磁盘空间
+7. **图片处理失败**: 检查ZHIPUAI_API_KEY是否正确配置
+8. **图片格式不支持**: 确认图片格式为JPEG/PNG/GIF/WEBP
+9. **图片过大**: 建议图片大小不超过10MB
 
 ## 许可证
 

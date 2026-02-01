@@ -141,6 +141,8 @@ class MessageParser:
                 return "", {}, "音频消息缺少chunk字段"
             elif msg_type == "control" and "action" not in msg_data:
                 return "", {}, "控制消息缺少action字段"
+            elif msg_type == "image" and "image" not in msg_data:
+                return "", {}, "图片消息缺少image字段"
 
             return msg_type, msg_data, ""
         except Exception as e:

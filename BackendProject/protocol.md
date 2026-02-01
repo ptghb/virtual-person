@@ -30,7 +30,20 @@
 }
 ```
 
-### 3. 控制消息
+### 3. 图片消息
+```json
+{
+  "type": "image",
+  "data": {
+    "image": "base64_encoded_image_data",
+    "format": "jpeg",  // 图片格式: jpeg, png, gif, webp等
+    "timestamp": "2024-01-01T12:00:00Z",
+    "client_id": "user123"
+  }
+}
+```
+
+### 4. 控制消息
 ```json
 {
   "type": "control",
@@ -42,7 +55,7 @@
 }
 ```
 
-### 4. 服务端响应
+### 5. 服务端响应
 ```json
 {
   "type": "response",
@@ -71,3 +84,11 @@
 - 单声道
 - 分块大小: 1024字节
 - 实时处理延迟: < 200ms
+
+## 图片处理规范
+
+- 支持JPEG、PNG、GIF、WEBP格式
+- Base64编码传输
+- 最大图片大小: 10MB
+- 使用GLM-4V-Flash模型进行图片理解
+- 分析结果将打印到服务端日志
