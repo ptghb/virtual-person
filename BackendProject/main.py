@@ -248,25 +248,32 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
     # 处理图片消息
     result = await image_processor.process_image_message(msg_data)
 
-    # 构造响应
-    response = {
-        "type": "response",
-        "data": {
-            "status": result["status"],
-            "message": result["message"],
-            "request_type": "image",
-            "description": result.get("description", ""),
-            "timestamp": result.get("timestamp", "")
-        }
-    }
-
-    print(f"[handle_image_message] 发送响应: {response}")
-    await websocket.send_text(json.dumps(response))
+    # # 构造响应
+    # response = {
+    #     "type": "response",
+    #     "data": {
+    #         "status": result["status"],
+    #         "message": result["message"],
+    #         "request_type": "image",
+    #         "description": result.get("description", ""),
+    #         "timestamp": result.get("timestamp", "")
+    #     }
+    # }
+    #
+    # print(f"[handle_image_message] 发送响应: {response}")
+    # await websocket.send_text(json.dumps(response))
 
     # 同时发送AI对图片的描述作为聊天消息
     if result["status"] == "success" and "description" in result:
         description = result["description"]
-        await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
+        # await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
+        # 构造文本消息并处理
+        text_msg_data = {
+          "content": "这张照片是现在的我，" + description,
+          "model": "Hiyori",
+          "is_audio": False
+        }
+        await handle_text_message(websocket, client_id, text_msg_data)
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""
