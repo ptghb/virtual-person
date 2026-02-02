@@ -26,6 +26,9 @@ const WebSocketPanel: React.FC = () => {
   const [audioEnabled, setAudioEnabled] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -253,7 +256,7 @@ const WebSocketPanel: React.FC = () => {
           const audioMessage: ProtocolMessage = {
             type: 'audio' as ProtocolMessageType,
             data: {
-              format: 'pcm' as AudioFormat,
+              audioFormat: 'pcm' as AudioFormat,
               sample_rate: 16000,
               channels: 1,
               chunk: '', // 空数据块表示结束
@@ -319,7 +322,7 @@ const WebSocketPanel: React.FC = () => {
             const audioMessage: ProtocolMessage = {
               type: 'audio' as ProtocolMessageType,
               data: {
-                format: 'pcm' as AudioFormat,
+                audioFormat: 'pcm' as AudioFormat,
                 sample_rate: 16000,
                 channels: 1,
                 chunk: base64Data,
@@ -401,6 +404,206 @@ const WebSocketPanel: React.FC = () => {
     }
   };
 
+  // 打开摄像头
+  const openCamera = async () => {
+    try {
+      console.log('[WebSocketPanel] 打开摄像头');
+
+      // 先设置状态，让video元素渲染出来
+      setIsCameraOpen(true);
+
+      // 等待React重新渲染，video元素被创建
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 检查video元素是否存在
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        }
+      });
+      console.log('[WebSocketPanel] 获取视频流成功');
+
+      // 将视频流绑定到video元素
+      const video = videoRef.current;
+      video.srcObject = stream;
+      console.log('[WebSocketPanel] 视频流已绑定到video元素');
+
+      // 等待视频元数据加载完成
+      console.log('[WebSocketPanel] 等待视频元数据加载...');
+      await new Promise<void>((resolve, reject) => {
+        const handleLoadedMetadata = () => {
+          console.log('[WebSocketPanel] 视频元数据已加载:', {
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            readyState: video.readyState
+          });
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('error', handleError);
+          resolve();
+        };
+
+        const handleError = (error: Event) => {
+          console.error('[WebSocketPanel] 视频加载错误:', error);
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('error', handleError);
+          reject(new Error('Video load error'));
+        };
+
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('error', handleError);
+
+        // 添加超时处理
+        setTimeout(() => {
+          if (video.videoWidth === 0) {
+            console.error('[WebSocketPanel] 视频加载超时');
+            video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            video.removeEventListener('error', handleError);
+            reject(new Error('Video loading timeout'));
+          }
+        }, 5000);
+      });
+
+      console.log('[WebSocketPanel] 开始播放视频');
+      await video.play();
+      console.log('[WebSocketPanel] 视频开始播放');
+
+      // 额外等待一小段时间，确保视频帧已准备好
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      console.log('[WebSocketPanel] 视频最终状态:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState,
+        currentTime: video.currentTime
+      });
+
+      // 设置视频流状态
+      setVideoStream(stream);
+      console.log('[WebSocketPanel] 摄像头已成功打开');
+    } catch (error) {
+      console.error('[WebSocketPanel] 打开摄像头失败:', error);
+      alert('无法访问摄像头，请检查权限设置');
+      closeCamera();
+      throw error; // 重新抛出错误，让调用者知道失败了
+    }
+  };
+
+  // 关闭摄像头
+  const closeCamera = () => {
+    console.log('[WebSocketPanel] 关闭摄像头');
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      setVideoStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+
+  // 拍照
+  const takePhoto = () => {
+    console.log('[WebSocketPanel] 拍照');
+    if (!videoRef.current) {
+      console.error('[WebSocketPanel] video元素未找到');
+      return;
+    }
+
+    const video = videoRef.current;
+    console.log('[WebSocketPanel] 视频元素状态:', {
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      readyState: video.readyState,
+      currentTime: video.currentTime
+    });
+
+    // 检查视频是否准备好
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error('[WebSocketPanel] 视频未准备好，无法拍照');
+      alert('摄像头未准备好，请稍后再试');
+      return;
+    }
+
+    // 创建canvas来捕获视频帧
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      // 绘制视频帧到canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // 转换为base64
+      const base64Data = canvas.toDataURL('image/jpeg', 0.8);
+      const base64Image = base64Data.split(',')[1];
+
+      console.log('[WebSocketPanel] 完整base64Data长度:', base64Data.length);
+      console.log('[WebSocketPanel] base64Image长度:', base64Image.length);
+      console.log('[WebSocketPanel] base64Image前100字符:', base64Image.substring(0, 100));
+      console.log('[WebSocketPanel] base64Image是否为空:', base64Image === '');
+
+      // 在聊天界面显示发送的图片
+      const newMessage: MessageDisplay = {
+        id: ++messageIdCounter.current,
+        type: 'sent',
+        timestamp: new Date(),
+        content: base64Data, // 完整的data URL
+        contentType: 'image',
+        isTyping: false,
+      };
+      setMessages(prev => [...prev, newMessage]);
+
+      // 发送图片消息到WebSocket
+      if (wsManager.getState() === 'connected') {
+        const imageMessage: ProtocolMessage = {
+          type: 'image' as ProtocolMessageType,
+          data: {
+            image: base64Image,
+            format: 'jpeg' as 'jpeg' | 'png' | 'gif' | 'webp',
+            timestamp: new Date().toISOString(),
+            client_id: wsManager.getClientId()
+          }
+        };
+        console.log('[WebSocketPanel] 准备发送的图片消息:', {
+          type: imageMessage.type,
+          hasImage: !!imageMessage.data.image,
+          imageSize: imageMessage.data.image?.length,
+          format: imageMessage.data.format,
+          clientId: imageMessage.data.client_id,
+          imageDataPreview: imageMessage.data.image?.substring(0, 50)
+        });
+        const sendResult = wsManager.send(imageMessage);
+        console.log('[WebSocketPanel] 图片消息发送结果:', sendResult);
+      } else {
+        console.error('[WebSocketPanel] WebSocket未连接，无法发送图片');
+        alert('WebSocket未连接，无法发送图片');
+      }
+    }
+  };
+
+  // 切换摄像头状态
+  const toggleCamera = async () => {
+    console.log('[WebSocketPanel] toggleCamera 被调用, isCameraOpen:', isCameraOpen);
+
+    if (isCameraOpen) {
+      console.log('[WebSocketPanel] 摄像头已打开，准备拍照');
+      takePhoto();
+      closeCamera();
+    } else {
+      console.log('[WebSocketPanel] 摄像头未打开，准备打开摄像头');
+      try {
+        await openCamera();
+        console.log('[WebSocketPanel] openCamera 完成');
+      } catch (error) {
+        console.error('[WebSocketPanel] openCamera 失败:', error);
+      }
+    }
+  };
+
   const formatTime = (date: Date): string => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -470,6 +673,12 @@ const WebSocketPanel: React.FC = () => {
                 controls
                 style={{ width: '100%', marginTop: '5px' }}
               />
+            ) : msg.contentType === 'image' ? (
+              <img
+                src={msg.content}
+                alt="发送的图片"
+                style={{ maxWidth: '100%', borderRadius: '8px', marginTop: '5px' }}
+              />
             ) : (
               <span className="message-content">
                 {msg.content}
@@ -480,6 +689,31 @@ const WebSocketPanel: React.FC = () => {
         ))}
         <div ref={messagesEndRef} />
       </div>
+      {isCameraOpen && (
+        <div id="camera-preview" style={{ padding: '10px', textAlign: 'center' }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: '100%', maxWidth: '400px', borderRadius: '8px' }}
+          />
+          <button
+            onClick={toggleCamera}
+            style={{
+              marginTop: '10px',
+              padding: '8px 16px',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            拍照并关闭
+          </button>
+        </div>
+      )}
       <div id="websocket-input">
         <input
           type="text"
@@ -492,6 +726,13 @@ const WebSocketPanel: React.FC = () => {
         />
         <button id="ws-send-button" disabled={sendDisabled || isRecording} onClick={handleSendMessage}>
           发送
+        </button>
+        <button
+          id="ws-camera-button"
+          onClick={toggleCamera}
+          disabled={sendDisabled || isRecording}
+        >
+          📷 拍照
         </button>
         {audioEnabled && (
           <button

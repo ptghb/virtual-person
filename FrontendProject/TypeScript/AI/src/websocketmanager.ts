@@ -14,7 +14,12 @@ export type ConnectionState =
 export type MessageType = 'received' | 'sent' | 'error' | 'system';
 
 // 协议消息类型
-export type ProtocolMessageType = 'text' | 'audio' | 'control' | 'response';
+export type ProtocolMessageType =
+  | 'text'
+  | 'audio'
+  | 'control'
+  | 'response'
+  | 'image';
 
 // 控制消息动作类型
 export type ControlAction =
@@ -32,11 +37,15 @@ export interface ProtocolMessageData {
   content?: string;
 
   // 音频消息数据
-  format?: AudioFormat;
+  audioFormat?: AudioFormat;
   sample_rate?: number;
   channels?: number;
   chunk?: string; // base64编码的音频块
   is_final?: boolean;
+
+  // 图片消息数据
+  image?: string; // base64编码的图片数据
+  format?: 'jpeg' | 'png' | 'gif' | 'webp'; // 图片格式
 
   // 控制消息数据
   action?: ControlAction;
@@ -77,7 +86,7 @@ export interface DisplayMessage {
   content: string;
   timestamp: Date;
   protocolType?: ProtocolMessageType; // 协议消息类型
-  contentType?: 'text' | 'audio'; // 显示内容类型
+  contentType?: 'text' | 'audio' | 'image'; // 显示内容类型
   audioUrl?: string; // 音频URL
   isError?: boolean; // 是否为错误消息
 }
@@ -351,7 +360,12 @@ export class WebSocketManager {
       let jsonString: string;
       if ('type' in data && 'data' in data) {
         // 协议格式消息
+        console.log('[WebSocketManager.send] 检测到协议格式消息');
+        console.log('[WebSocketManager.send] 消息类型:', (data as ProtocolMessage).type);
+        console.log('[WebSocketManager.send] 消息数据:', (data as ProtocolMessage).data);
         jsonString = JSON.stringify(data);
+        console.log('[WebSocketManager.send] 序列化后的JSON字符串长度:', jsonString.length);
+        console.log('[WebSocketManager.send] JSON字符串前200字符:', jsonString.substring(0, 200));
       } else {
         // 旧格式消息，转换为协议格式
         const protocolData: ProtocolMessageData = {};
@@ -371,19 +385,25 @@ export class WebSocketManager {
 
       console.log('[WebSocketManager.send] 发送数据:', jsonString);
       this._ws.send(jsonString);
-      const msg: DisplayMessage = {
-        type: 'sent',
-        content: ('text' in data ? data.text : '') || '', // 只保存文字内容用于显示
-        timestamp: new Date(),
-        contentType: 'text'
-      };
-      this._displayMessages.push(msg);
-      if (this._displayMessages.length > this._maxMessages) {
-        this._displayMessages.shift();
+
+      // 对于协议格式消息，不自动添加到显示消息列表
+      // 因为WebSocketPanel组件已经在发送前添加了显示消息
+      if (!('type' in data && 'data' in data)) {
+        const msg: DisplayMessage = {
+          type: 'sent',
+          content: ('text' in data ? data.text : '') || '', // 只保存文字内容用于显示
+          timestamp: new Date(),
+          contentType: 'text'
+        };
+        this._displayMessages.push(msg);
+        if (this._displayMessages.length > this._maxMessages) {
+          this._displayMessages.shift();
+        }
+        if (this._messageCallback) {
+          this._messageCallback(msg);
+        }
       }
-      if (this._messageCallback) {
-        this._messageCallback(msg);
-      }
+
       console.log('[WebSocketManager.send] 发送成功');
       return true;
     } catch (error) {
