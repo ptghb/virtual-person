@@ -598,6 +598,11 @@ const WebSocketPanel: React.FC = () => {
       try {
         await openCamera();
         console.log('[WebSocketPanel] openCamera 完成');
+
+        // 自动拍照、发送、关闭
+        console.log('[WebSocketPanel] 自动拍照');
+        takePhoto();
+        closeCamera();
       } catch (error) {
         console.error('[WebSocketPanel] openCamera 失败:', error);
       }
@@ -698,20 +703,9 @@ const WebSocketPanel: React.FC = () => {
             muted
             style={{ width: '100%', maxWidth: '400px', borderRadius: '8px' }}
           />
-          <button
-            onClick={toggleCamera}
-            style={{
-              marginTop: '10px',
-              padding: '8px 16px',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            拍照并关闭
-          </button>
+          <div style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
+            正在拍照...
+          </div>
         </div>
       )}
       <div id="websocket-input">
