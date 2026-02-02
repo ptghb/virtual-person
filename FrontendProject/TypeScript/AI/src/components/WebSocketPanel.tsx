@@ -29,6 +29,7 @@ const WebSocketPanel: React.FC = () => {
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdCounter = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -159,6 +160,11 @@ const WebSocketPanel: React.FC = () => {
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stream.getTracks().forEach(track => track.stop());
         mediaRecorder.stop();
+      }
+      // 清理摄像头资源
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach(track => track.stop());
+        cameraStreamRef.current = null;
       }
       // 不释放 WebSocketManager 实例，保持单例
       // WebSocketManager.releaseInstance();
@@ -429,6 +435,10 @@ const WebSocketPanel: React.FC = () => {
       });
       console.log('[WebSocketPanel] 获取视频流成功');
 
+      // 保存视频流引用到ref中，确保在closeCamera时能访问到
+      cameraStreamRef.current = stream;
+      setVideoStream(stream);
+
       // 将视频流绑定到video元素
       const video = videoRef.current;
       video.srcObject = stream;
@@ -443,15 +453,27 @@ const WebSocketPanel: React.FC = () => {
             videoHeight: video.videoHeight,
             readyState: video.readyState
           });
+          // 清理事件监听器和定时器
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
           video.removeEventListener('error', handleError);
+          const timeoutId = (video as any)._cameraTimeoutId;
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            (video as any)._cameraTimeoutId = null;
+          }
           resolve();
         };
 
         const handleError = (error: Event) => {
           console.error('[WebSocketPanel] 视频加载错误:', error);
+          // 清理事件监听器和定时器
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
           video.removeEventListener('error', handleError);
+          const timeoutId = (video as any)._cameraTimeoutId;
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            (video as any)._cameraTimeoutId = null;
+          }
           reject(new Error('Video load error'));
         };
 
@@ -459,14 +481,19 @@ const WebSocketPanel: React.FC = () => {
         video.addEventListener('error', handleError);
 
         // 添加超时处理
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           if (video.videoWidth === 0) {
             console.error('[WebSocketPanel] 视频加载超时');
+            // 清理事件监听器
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
             video.removeEventListener('error', handleError);
+            (video as any)._cameraTimeoutId = null;
             reject(new Error('Video loading timeout'));
           }
         }, 5000);
+
+        // 将timeoutId存储到video元素上，以便在关闭时清理
+        (video as any)._cameraTimeoutId = timeoutId;
       });
 
       console.log('[WebSocketPanel] 开始播放视频');
@@ -483,8 +510,6 @@ const WebSocketPanel: React.FC = () => {
         currentTime: video.currentTime
       });
 
-      // 设置视频流状态
-      setVideoStream(stream);
       console.log('[WebSocketPanel] 摄像头已成功打开');
     } catch (error) {
       console.error('[WebSocketPanel] 打开摄像头失败:', error);
@@ -495,13 +520,42 @@ const WebSocketPanel: React.FC = () => {
   };
 
   // 关闭摄像头
-  const closeCamera = () => {
+  const closeCamera = async () => {
     console.log('[WebSocketPanel] 关闭摄像头');
-    if (videoStream) {
-      videoStream.getTracks().forEach(track => track.stop());
+
+    // 优先使用ref中的视频流，确保能访问到最新的流
+    const streamToStop = cameraStreamRef.current || videoStream;
+
+    // 停止视频流的所有音轨
+    if (streamToStop) {
+      console.log('[WebSocketPanel] 准备停止视频流，音轨数量:', streamToStop.getTracks().length);
+      streamToStop.getTracks().forEach(track => {
+        console.log('[WebSocketPanel] 停止音轨:', track.kind, track.label, 'readyState:', track.readyState);
+        track.stop();
+        console.log('[WebSocketPanel] 音轨已停止:', track.kind, 'readyState:', track.readyState);
+      });
+      // 清空所有视频流引用
+      cameraStreamRef.current = null;
       setVideoStream(null);
+    } else {
+      console.log('[WebSocketPanel] 没有找到需要停止的视频流');
     }
+
+    // 停止视频元素播放并清空源
+    if (videoRef.current) {
+      const video = videoRef.current;
+      console.log('[WebSocketPanel] 停止视频元素播放');
+      video.pause();
+      video.srcObject = null;
+      video.removeAttribute('src'); // 移除src属性
+      video.load(); // 重置视频元素状态
+    }
+
+    // 等待更长时间，确保摄像头资源完全释放
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     setIsCameraOpen(false);
+    console.log('[WebSocketPanel] 摄像头已关闭');
   };
 
   // 拍照
@@ -592,7 +646,7 @@ const WebSocketPanel: React.FC = () => {
     if (isCameraOpen) {
       console.log('[WebSocketPanel] 摄像头已打开，准备拍照');
       takePhoto();
-      closeCamera();
+      await closeCamera();
     } else {
       console.log('[WebSocketPanel] 摄像头未打开，准备打开摄像头');
       try {
@@ -602,7 +656,7 @@ const WebSocketPanel: React.FC = () => {
         // 自动拍照、发送、关闭
         console.log('[WebSocketPanel] 自动拍照');
         takePhoto();
-        closeCamera();
+        await closeCamera();
       } catch (error) {
         console.error('[WebSocketPanel] openCamera 失败:', error);
       }
