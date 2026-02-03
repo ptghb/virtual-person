@@ -237,6 +237,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
     """处理图片消息"""
     print(f"[handle_image_message] 接收到图片消息，客户端: {client_id}")
     print(f"[handle_image_message] 消息数据长度: {len(msg_data.get('image', '')) if 'image' in msg_data else 0} 字符")
+    is_audio = msg_data.get("is_audio", False)
 
     # 处理图片消息
     result = await image_processor.process_image_message(msg_data)
@@ -249,7 +250,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
         text_msg_data = {
           "content": "这张照片是现在的我，" + description,
           "model": "Hiyori",
-          "is_audio": False,
+          "is_audio": is_audio,
           "has_image": True
         }
         await handle_text_message(websocket, client_id, text_msg_data)
