@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 import emoji
 
-from handlers.audio_handler import audio_processor, message_parser
-from handlers.image_handler import image_processor
+from audio_handler import audio_processor, message_parser
+from image_handler import image_processor
 from services.llm_service import llm_service
 from services.http_service import http_service
 
@@ -141,6 +141,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     await handle_image_message(websocket, client_id, msg_data)
                     continue
 
+                # 消息已通过对应的处理函数处理，无需额外操作
+
             except json.JSONDecodeError:
                 await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", "", websocket, msg_type=1)
             except Exception as e:
@@ -227,6 +229,7 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
         }
     }
     print(f"[handle_audio_message] 发送响应: {response}")
+    # await websocket.send_text(json.dumps(response))
 
 async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理图片消息"""
@@ -235,6 +238,21 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
 
     # 处理图片消息
     result = await image_processor.process_image_message(msg_data)
+
+    # # 构造响应
+    # response = {
+    #     "type": "response",
+    #     "data": {
+    #         "status": result["status"],
+    #         "message": result["message"],
+    #         "request_type": "image",
+    #         "description": result.get("description", ""),
+    #         "timestamp": result.get("timestamp", "")
+    #     }
+    # }
+    #
+    # print(f"[handle_image_message] 发送响应: {response}")
+    # await websocket.send_text(json.dumps(response))
 
     # 同时发送AI对图片的描述作为聊天消息
     if result["status"] == "success" and "description" in result:
