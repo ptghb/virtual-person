@@ -7,30 +7,14 @@ from datetime import datetime
 import os
 from io import BytesIO
 from PIL import Image
-import httpx
 from dotenv import load_dotenv
-from zhipuai import ZhipuAI
 
 # 加载环境变量
 load_dotenv()
 
 class ImageProcessor:
     def __init__(self):
-        self.zhipu_client = None
-        self._initialize_zhipu_client()
-
-    def _initialize_zhipu_client(self):
-        """初始化智谱AI客户端"""
-        api_key = os.getenv("ZHIPUAI_API_KEY")
-        if api_key and api_key != "your_zhipuai_api_key_here":
-            try:
-                self.zhipu_client = ZhipuAI(api_key=api_key)
-                print("[ImageProcessor] 智谱AI客户端初始化成功")
-            except Exception as e:
-                print(f"[ImageProcessor] 智谱AI客户端初始化失败: {str(e)}")
-                self.zhipu_client = None
-        else:
-            print("[ImageProcessor] 未配置ZHIPUAI_API_KEY或使用默认值")
+        pass
 
     async def process_image_message(self, image_data: dict) -> Dict:
         """处理图片消息"""
@@ -51,7 +35,8 @@ class ImageProcessor:
                 return {"status": "error", "message": "不支持的图片格式"}
 
             # 调用GLM-4V-Flash分析图片
-            analysis_result = await self._analyze_image_with_glm4v(image_bytes)
+            from services.llm_service import llm_service
+            analysis_result = await self._analyze_image_with_glm4v(image_bytes, llm_service)
 
             if analysis_result["status"] == "success":
                 # 打印分析结果到日志
@@ -88,49 +73,17 @@ class ImageProcessor:
             print(f"[ImageProcessor] 图片格式验证失败: {str(e)}")
             return False
 
-    async def _analyze_image_with_glm4v(self, image_bytes: bytes) -> Dict:
+    async def _analyze_image_with_glm4v(self, image_bytes: bytes, llm_service) -> Dict:
         """使用GLM-4V-Flash分析图片"""
-        if not self.zhipu_client:
-            return {"status": "error", "message": "智谱AI客户端未初始化"}
-
         try:
-            # 将图片转换为base64格式（如果需要的话）
-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            # 调用服务层的图片分析方法
+            description = await llm_service.analyze_image(image_bytes)
 
-            # 调用智谱AI的GLM-4V-Flash模型
-            response = self.zhipu_client.chat.completions.create(
-                model="glm-4.6v-flash",  # GLM-4V-Flash模型
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": "描述一下我的表情，心情，穿着，动作，背景，以及我所处的环境，我正在做什么。回答主语要用我。"
-                            }
-                        ]
-                    }
-                ],
-                stream=False,
-            )
-
-            # 提取分析结果
-            if hasattr(response, 'choices') and len(response.choices) > 0:
-                description = response.choices[0].message.content
-                print(f"[ImageProcessor] GLM-4V-Flash分析完成")
-                return {
-                    "status": "success",
-                    "description": description
-                }
-            else:
-                return {"status": "error", "message": "模型返回结果格式异常"}
-
+            print(f"[ImageProcessor] GLM-4V-Flash分析完成")
+            return {
+                "status": "success",
+                "description": description
+            }
         except Exception as e:
             error_msg = f"GLM-4V-Flash调用失败: {str(e)}"
             print(f"[ImageProcessor] {error_msg}")

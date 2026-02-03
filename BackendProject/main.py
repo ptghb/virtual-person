@@ -5,26 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict
 import os
 import json
-import httpx
-import re
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 import emoji
 
 from audio_handler import audio_processor, message_parser
-from image_handler import image_processor, image_message_parser
+from image_handler import image_processor
+from services.llm_service import llm_service
+from services.http_service import http_service
 
 # 加载环境变量
 load_dotenv()
-
-# 初始化 LangChain OpenAI 模型
-llm = ChatOpenAI(
-    model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-    temperature=0.7,
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL")
-)
 
 app = FastAPI()
 
@@ -97,7 +88,7 @@ def remove_emojis(text: str) -> str:
     """
     """使用 emoji 库移除表情符号"""
     newtext = emoji.replace_emoji(text, replace='')
-    newtext = newtext.replace('（*^^*）','');
+    newtext = newtext.replace('（*^^*）','')
     return newtext
 
 manager = ConnectionManager()
@@ -295,7 +286,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
 
     # 重用原有的AI对话处理逻辑
     try:
-        # 使用 LangChain 调用 OpenAI
+        # 使用大模型服务调用AI
         system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
             你的性格特点：
             - 温柔体贴，善于倾听
@@ -313,50 +304,14 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         # 获取历史消息
         message_history = manager.get_message_history(client_id)
 
-        # 构建消息列表：系统提示 + 历史消息 + 当前用户消息
-        messages: List[BaseMessage] = [SystemMessage(content=system_prompt)]
-        messages.extend(message_history)
-        messages.append(HumanMessage(content=text))
+        # 构建消息列表：历史消息 + 当前用户消息
+        messages: List[BaseMessage] = message_history + [HumanMessage(content=text)]
 
-        response = await llm.ainvoke(messages)
-        ai_response = response.content
+        # 调用大模型服务获取回复
+        ai_response = await llm_service.chat(messages, system_prompt)
 
-        # 动画索引处理
-        system_prompt = f"""根据聊天内容的气氛来选择使用哪种live2d的动画。
-           现在的live2d的模型名称是 {model}
-           - 如果聊天氛围轻松愉快
-             - 如果是Hiyori，可以使用1,2
-             - 如果是Haru，可以使用1,2
-             - 如果是Mark，可以使用3,4
-             - 如果Natori，可以使用5,6
-             - 如果Rice，可以使用2
-             - 如果Mao，可以使用4
-             - 如果Wanko，可以使用1
-           - 如果对话氛围比较严肃
-             - 如果是Hiyori，可以使用3
-             - 如果是Haru，可以使用1，2
-             - 如果是Mark，可以使用3，4
-             - 如果Natori，可以使用5，6
-             - 如果Rice，可以使用3
-             - 如果Mao，可以使用3
-             - 如果Wanko，可以使用3
-           - 如果对话氛围比较悲伤
-             - 如果是Hiyori，可以使用7，8
-             - 如果是Haru，可以使用1，2
-             - 如果是Mark，可以使用3，4
-             - 如果Natori，可以使用5，6
-             - 如果Rice，可以使用1
-             - 如果Mao，可以使用2
-             - 如果Wanko，可以使用2
-           输出数字作为结果，不要输出其他任何内容，不要输出文字，不要输出表情符号。
-           """
-
-        messages_animation: List[BaseMessage] = [SystemMessage(content=system_prompt)]
-        messages_animation.extend(message_history)
-        messages_animation.append(HumanMessage(content=text))
-
-        animation_response = await llm.ainvoke(messages_animation)
-        animation_index = animation_response.content
+        # 调用大模型服务获取动画索引
+        animation_index = await llm_service.get_animation_index(messages, model)
 
         # 将用户消息和AI回复添加到历史记录
         manager.add_message_to_history(client_id, HumanMessage(content=text))
@@ -368,25 +323,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         print(f"is_audio:{is_audio}")
         if os.getenv("ISAUDIO", False) != False and is_audio:
             clean_text = remove_emojis(ai_response)
-            tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
-            async with httpx.AsyncClient() as http_client:
-                tts_response = await http_client.post(
-                    f"{tts_api_url}/api/v1/tts/generate",
-                    json={
-                        "text": clean_text,
-                        "voice": "zh-CN-XiaoxiaoNeural",
-                        "rate": "0%",
-                        "pitch": "0Hz",
-                        "volume": "0%"
-                    },
-                    timeout=30.0
-                )
-                print(tts_response)
-                if tts_response.status_code == 200:
-                    tts_result = tts_response.json()
-                    if tts_result.get("success"):
-                        audio_file = tts_result["data"]["audio"]
-                        audio_url = f"{tts_api_url}{audio_file}"
+            audio_url = await http_service.generate_tts_audio(clean_text)
 
         # 发送 AI 回复
         await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))

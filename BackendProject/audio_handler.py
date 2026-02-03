@@ -1,12 +1,9 @@
 import base64
 import json
-import numpy as np
 from typing import Dict, List
-import asyncio
 from datetime import datetime
 import os
 import aiofiles
-import httpx
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -62,70 +59,42 @@ class AudioProcessor:
         all_audio_data = b''.join(self.audio_buffers[client_id])
 
         print(f"[AudioProcessor] 处理完整音频，总大小: {len(all_audio_data)} 字节")
-        
+
         # 保存音频到本地
         audio_filename = await self._save_audio_file(client_id, all_audio_data)
-        
+
         # 调用语音识别API
         transcription = await self._transcribe_audio(audio_filename)
-        
+
         # 清理缓冲区
         self.audio_buffers[client_id] = []
-        
+
         return transcription
-    
+
     async def _save_audio_file(self, client_id: str, audio_data: bytes) -> str:
         """保存音频数据到本地文件"""
         # 创建音频目录
         audio_dir = "audio_files"
         if not os.path.exists(audio_dir):
             os.makedirs(audio_dir)
-        
+
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{audio_dir}/audio_{client_id}_{timestamp}.wav"
-        
+
         # 保存文件
         async with aiofiles.open(filename, "wb") as f:
             await f.write(audio_data)
-        
+
         print(f"[AudioProcessor] 音频已保存到: {filename}")
         return filename
-    
+
     async def _transcribe_audio(self, audio_filepath: str) -> str:
         """调用SiliconFlow语音识别API"""
-        api_key = os.getenv("SILICONFLOW_API_KEY")
-        if not api_key:
-            print("[AudioProcessor] 未找到SILICONFLOW_API_KEY环境变量")
-            return ""
-        
-        url = "https://api.siliconflow.cn/v1/audio/transcriptions"
-        headers = {
-            "Authorization": f"Bearer {api_key}"
-        }
-        
-        try:
-            async with httpx.AsyncClient() as client:
-                with open(audio_filepath, "rb") as audio_file:
-                    files = {
-                        "file": (os.path.basename(audio_filepath), audio_file, "audio/wav"),
-                        "model": (None, "FunAudioLLM/SenseVoiceSmall")
-                    }
-                    
-                    response = await client.post(url, headers=headers, files=files, timeout=30.0)
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        transcription = result.get("text", "")
-                        print(f"[AudioProcessor] 语音识别结果: {transcription}")
-                        return transcription
-                    else:
-                        print(f"[AudioProcessor] 语音识别API调用失败: {response.status_code} - {response.text}")
-                        return ""
-                        
-        except Exception as e:
-            print(f"[AudioProcessor] 语音识别过程出错: {str(e)}")
-            return ""
+        from services.http_service import http_service
+
+        transcription = await http_service.transcribe_audio(audio_filepath)
+        return transcription if transcription else ""
 
 class MessageParser:
     @staticmethod
