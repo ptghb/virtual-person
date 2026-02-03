@@ -42,7 +42,7 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None):
+    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None):
         """发送个人消息，支持多种类型
 
         Args:
@@ -50,14 +50,19 @@ class ConnectionManager:
             websocket: WebSocket连接
             msg_type: 消息类型（1:文字，2:图片，3:音频）
             animation_index: 动画序号（可选）
+            should_take_photo: 是否需要拍照（可选）
         """
         message_obj = {
             "type": msg_type,
             "content": message,
             "audio": audio
         }
+
         if animation_index is not None:
             message_obj["animation_index"] = animation_index
+        if should_take_photo is not None:
+            message_obj["should_take_photo"] = should_take_photo
+
         await websocket.send_text(json.dumps(message_obj))
 
     async def broadcast(self, message: str):
@@ -292,8 +297,13 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         # 调用大模型服务获取回复
         ai_response = await llm_service.chat(messages, system_prompt)
 
+        # messages.append(AIMessage(content=ai_response))
         # 调用大模型服务获取动画索引
         animation_index = await llm_service.get_animation_index(messages, model)
+
+        # 调用大模型服务判断是否需要拍照
+        should_take_photo = await llm_service.should_take_photo(messages)
+        print(f"[handle_text_message] 是否需要拍照: {should_take_photo}")
 
         # 将用户消息和AI回复添加到历史记录
         manager.add_message_to_history(client_id, HumanMessage(content=text))
@@ -308,7 +318,14 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             audio_url = await http_service.generate_tts_audio(clean_text)
 
         # 发送 AI 回复
-        await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))
+        await manager.send_personal_message(
+            f"小凡: {ai_response}",
+            audio_url,
+            websocket,
+            msg_type=1,
+            animation_index=int(animation_index),
+            should_take_photo=should_take_photo
+        )
 
         # # 发送确认响应
         # response_msg = {

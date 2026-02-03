@@ -179,6 +179,46 @@ class LLMService:
             print(f"[LLMService] 获取动画索引失败: {str(e)}")
             return 1  # 默认返回1
 
+    async def should_take_photo(
+        self,
+        messages: List[BaseMessage]
+    ) -> bool:
+        """
+        根据对话内容判断是否需要拍照
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            是否需要拍照（True/False）
+        """
+        system_prompt = """你是一个智能助手，需要根据对话内容判断是否需要拍照。
+
+判断标准：
+- 如果用户提到脸色不好看、皮肤不好看、妆容不好看、妆容不对、发型不好看、发型不对等关键词，返回 true
+- 如果用户提到你看看我、看看我的脸、看看我的妆容、看看我的发型等关键词，返回 true
+- 如果用户提到化妆、打底妆、打粉底、打口红、画眉毛、染发、染指甲等关键词，返回 true
+- 如果用户提到美颜、滤镜、特效等关键词，返回 true
+- 如果用户提到拍照、照片、合影、自拍、留念、记录等关键词，返回 true
+- 如果用户想要记录当前场景、保存美好时刻、留下回忆等，返回 true
+- 如果用户询问是否可以拍照、能否拍照等，返回 true
+- 如果用户提到相机、镜头、拍摄等与拍照相关的词汇，返回 true
+- 其他情况返回 false
+
+请只返回 true 或 false，不要输出其他任何内容，不要输出文字解释，不要输出表情符号。
+"""
+
+        try:
+            final_messages = [SystemMessage(content=system_prompt)] + messages
+            print(f"[LLMService] 拍照判断请求: {final_messages}")
+            response = await self.llm.ainvoke(final_messages)
+            result = response.content.strip().lower()
+            print(f"[LLMService] 拍照判断结果: {result}")
+            return result == "true"
+        except Exception as e:
+            print(f"[LLMService] 拍照判断失败: {str(e)}")
+            return False  # 默认返回 false
+
 
 # 创建全局实例
 llm_service = LLMService()
