@@ -94,22 +94,5 @@ class AudioProcessor:
         transcription = await http_service.transcribe_audio(audio_filepath)
         return transcription if transcription else ""
 
-class MessageParser:
-    @staticmethod
-    def parse_message(message: str) -> tuple:
-        """解析WebSocket消息
-
-        Returns:
-            tuple: (msg_type, msg_data, error)
-        """
-        try:
-            data = json.loads(message)
-            msg_type = data.get("type", "")
-            msg_data = data.get("data", {})
-            return msg_type, msg_data, None
-        except json.JSONDecodeError:
-            return "", {}, "Invalid JSON format"
-
 # 创建全局实例
 audio_processor = AudioProcessor()
-message_parser = MessageParser()
