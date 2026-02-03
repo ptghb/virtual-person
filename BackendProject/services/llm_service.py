@@ -19,14 +19,28 @@ class LLMService:
 
     def __init__(self):
         """初始化大模型客户端"""
-        self.llm = ChatOpenAI(
-            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-            temperature=0.7,
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL")
-        )
+        self.model_type = os.getenv("MODEL_TYPE", "openai")
+        self.llm = None
         self.zhipu_client = None
-        self._initialize_zhipu_client()
+
+        if self.model_type == "zhipu":
+            self._initialize_zhipu_client()
+        else:
+            self._initialize_openai_client()
+
+    def _initialize_openai_client(self):
+        """初始化OpenAI客户端"""
+        try:
+            self.llm = ChatOpenAI(
+                model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+                temperature=0.7,
+                api_key=os.getenv("OPENAI_API_KEY"),
+                base_url=os.getenv("OPENAI_BASE_URL")
+            )
+            print(f"[LLMService] OpenAI客户端初始化成功 (模型: {os.getenv('OPENAI_MODEL')})")
+        except Exception as e:
+            print(f"[LLMService] OpenAI客户端初始化失败: {str(e)}")
+            self.llm = None
 
     def _initialize_zhipu_client(self):
         """初始化智谱AI客户端"""
@@ -63,11 +77,46 @@ class LLMService:
             else:
                 final_messages = messages
 
-            response = await self.llm.ainvoke(final_messages)
-            return response.content
+            if self.model_type == "zhipu":
+                return await self._chat_with_zhipu(final_messages)
+            else:
+                return await self._chat_with_openai(final_messages)
         except Exception as e:
             print(f"[LLMService] 大模型调用失败: {str(e)}")
             raise
+
+    async def _chat_with_openai(self, messages: List[BaseMessage]) -> str:
+        """使用OpenAI进行对话"""
+        if not self.llm:
+            raise Exception("OpenAI客户端未初始化")
+        response = await self.llm.ainvoke(messages)
+        return response.content
+
+    async def _chat_with_zhipu(self, messages: List[BaseMessage]) -> str:
+        """使用智谱AI进行对话"""
+        if not self.zhipu_client:
+            raise Exception("智谱AI客户端未初始化")
+
+        # 转换LangChain消息格式为智谱AI格式
+        zhipu_messages = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                zhipu_messages.append({"role": "system", "content": msg.content})
+            elif hasattr(msg, 'role'):
+                zhipu_messages.append({"role": msg.role, "content": msg.content})
+            else:
+                zhipu_messages.append({"role": "user", "content": msg.content})
+
+        response = self.zhipu_client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=zhipu_messages,
+            stream=False,
+        )
+
+        if hasattr(response, 'choices') and len(response.choices) > 0:
+            return response.choices[0].message.content
+        else:
+            raise Exception("模型返回结果格式异常")
 
     async def analyze_image(self, image_bytes: bytes, prompt: str = None) -> str:
         """
@@ -116,7 +165,7 @@ class LLMService:
             # 提取分析结果
             if hasattr(response, 'choices') and len(response.choices) > 0:
                 description = response.choices[0].message.content
-                print(f"[LLMService] GLM-4V-Flash分析完成")
+                print(f"[LLMService] GLM-4.6V-Flash分析完成")
                 return description
             else:
                 raise Exception("模型返回结果格式异常")
@@ -172,8 +221,11 @@ class LLMService:
 
         try:
             final_messages = [SystemMessage(content=system_prompt)] + messages
-            response = await self.llm.ainvoke(final_messages)
-            animation_index = response.content.strip()
+            if self.model_type == "zhipu":
+                response = await self._chat_with_zhipu(final_messages)
+            else:
+                response = await self._chat_with_openai(final_messages)
+            animation_index = response.strip()
             return int(animation_index)
         except Exception as e:
             print(f"[LLMService] 获取动画索引失败: {str(e)}")
@@ -210,9 +262,11 @@ class LLMService:
 
         try:
             final_messages = [SystemMessage(content=system_prompt)] + messages
-            print(f"[LLMService] 拍照判断请求: {final_messages}")
-            response = await self.llm.ainvoke(final_messages)
-            result = response.content.strip().lower()
+            if self.model_type == "zhipu":
+                response = await self._chat_with_zhipu(final_messages)
+            else:
+                response = await self._chat_with_openai(final_messages)
+            result = response.strip().lower()
             print(f"[LLMService] 拍照判断结果: {result}")
             return result == "true"
         except Exception as e:

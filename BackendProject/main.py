@@ -62,6 +62,7 @@ class ConnectionManager:
             message_obj["animation_index"] = animation_index
         if should_take_photo is not None:
             message_obj["should_take_photo"] = should_take_photo
+        print(f"[send_personal_message] 发送的消息内容: {message_obj}")
 
         await websocket.send_text(json.dumps(message_obj))
 
@@ -317,8 +318,6 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
 
         # TTS处理
         audio_url = ""
-        print(f"环境变量：{os.getenv("ISAUDIO", False)}")
-        print(f"is_audio:{is_audio}")
         if os.getenv("ISAUDIO", False) != False and is_audio:
             clean_text = remove_emojis(ai_response)
             audio_url = await http_service.generate_tts_audio(clean_text)
