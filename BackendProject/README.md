@@ -4,11 +4,12 @@
 
 ## 功能特性
 
+### 核心功能
 - ✅ 同时支持音频流和文本消息处理
 - ✅ 实时音频数据接收和处理
 - ✅ 音频文件本地保存
 - ✅ SiliconFlow语音识别（ASR）
-- ✅ AI对话功能（集成LangChain + OpenAI）
+- ✅ AI对话功能（集成LangChain + OpenAI/智谱AI）
 - ✅ TTS语音合成功能
 - ✅ Live2D动画控制
 - ✅ 客户端连接管理
@@ -16,6 +17,13 @@
 - ✅ 图片消息处理（集成智谱AI GLM-4V-Flash）
 - ✅ 图片内容智能分析
 - ✅ 支持多种图片格式（JPEG/PNG/GIF/WEBP）
+
+### 智能功能
+- ✅ 根据对话内容自动匹配Live2D动画
+- ✅ 智能判断是否需要拍照
+- ✅ 表情符号过滤（TTS前自动移除）
+- ✅ 支持多种大模型（OpenAI/智谱AI）
+- ✅ 多模型动画索引映射
 
 ## 项目结构
 
@@ -30,8 +38,6 @@ BackendProject/
 │   ├── __init__.py
 │   ├── llm_service.py   # 大模型服务（OpenAI + 智谱AI）
 │   └── http_service.py  # HTTP请求服务
-├── test_client.html     # 浏览器测试客户端
-├── test_websocket.py    # Python测试脚本
 ├── requirements.txt     # 依赖包列表
 └── README.md           # 说明文档
 ```
@@ -61,6 +67,9 @@ ZHIPUAI_API_KEY=your_actual_zhipuai_api_key_here
 # TTS服务配置
 TTS_API_URL=http://localhost:3000
 ISAUDIO=true
+
+# 大模型类型选择（可选：openai 或 zhipu，默认：openai）
+MODEL_TYPE=openai
 ```
 
 ## 启动服务器
@@ -141,37 +150,27 @@ python main.py
 }
 ```
 
+### 6. AI回复消息（扩展字段）
+```json
+{
+  "type": 1,
+  "content": "小凡: 你好！",
+  "audio": "/voice/audio_123.wav",
+  "animation_index": 2,
+  "should_take_photo": false
+}
+```
+
+**字段说明：**
+- `type`: 消息类型（1:文字，2:图片，3:音频）
+- `content`: 消息内容
+- `audio`: 音频文件URL（可选）
+- `animation_index`: Live2D动画索引（可选，根据对话内容自动匹配）
+- `should_take_photo`: 是否需要拍照（可选，根据对话内容智能判断）
+
 ## 测试方法
 
-### 1. 使用浏览器测试客户端
-打开 `test_client.html` 文件，在浏览器中测试各种功能。
-
-### 2. 使用Python测试脚本
-```bash
-python test_websocket.py
-```
-
-### 3. 图片功能测试
-#### 方式一：使用HTML测试客户端
-打开 `test_image_client.html` 文件，在浏览器中运行：
-1. 输入客户端ID
-2. 点击"连接WebSocket"
-3. 选择图片文件
-4. 点击"发送图片"
-5. 查看日志输出
-
-#### 方式二：使用Python测试脚本
-```bash
-python test_image_message.py
-```
-
-该脚本会：
-1. 自动创建测试图片
-2. 连接到WebSocket服务器
-3. 发送图片消息
-4. 显示服务器响应和AI分析结果
-
-### 4. 手动测试
+### 手动测试
 使用WebSocket客户端工具连接到 `ws://localhost:8000/ws/your_client_id`
 
 ## API端点
@@ -182,13 +181,42 @@ python test_image_message.py
 
 ## 支持的Live2D模型
 
-- Hiyori (1-8号动画)
-- Haru (1-2号动画)  
-- Mark (3-4号动画)
-- Natori (5-6号动画)
-- Rice (1-3号动画)
-- Mao (2-4号动画)
-- Wanko (1-3号动画)
+### 动画索引映射规则
+
+**Hiyori**
+- 轻松愉快: 1, 2
+- 严肃: 3
+- 悲伤: 7, 8
+
+**Haru**
+- 轻松愉快: 1, 2
+- 严肃: 1, 2
+- 悲伤: 1, 2
+
+**Mark**
+- 轻松愉快: 3, 4
+- 严肃: 3, 4
+- 悲伤: 3, 4
+
+**Natori**
+- 轻松愉快: 5, 6
+- 严肃: 5, 6
+- 悲伤: 5, 6
+
+**Rice**
+- 轻松愉快: 2
+- 严肃: 3
+- 悲伤: 1
+
+**Mao**
+- 轻松愉快: 4
+- 严肃: 3
+- 悲伤: 2
+
+**Wanko**
+- 轻松愉快: 1
+- 严肃: 3
+- 悲伤: 2
 
 ## 开发说明
 
@@ -204,10 +232,12 @@ python test_image_message.py
 - 实时处理延迟: < 200ms
 
 ### 文本处理
-- 集成OpenAI GPT模型
+- 集成OpenAI GPT模型或智谱AI GLM模型
 - 支持对话历史记录
 - 自动情绪识别和动画匹配
 - 可选TTS语音回复
+- 表情符号自动过滤（TTS前）
+- 智能拍照判断
 
 ### 图片处理
 - 支持JPEG、PNG、GIF、WEBP格式
@@ -222,7 +252,7 @@ python test_image_message.py
 2. 客户端分块发送音频数据
 3. 服务端实时处理音频并返回响应
 4. 客户端发送文本消息
-5. 服务端处理文本并返回AI回复
+5. 服务端处理文本并返回AI回复（包含动画索引和拍照判断）
 6. 客户端发送图片消息
 7. 服务端分析图片并返回AI描述
 8. 客户端发送控制消息结束音频流
@@ -263,12 +293,20 @@ python test_image_message.py
 ### 分层架构
 项目采用三层架构设计：
 1. **路由层** (main.py) - 负责请求路由和响应处理
+   - WebSocket连接管理（ConnectionManager）
+   - 消息分发和处理
+   - 客户端消息历史记录管理
 2. **处理器层** (handlers/) - 负责业务逻辑处理
    - audio_handler.py - 音频处理和语音识别
+     - AudioProcessor: 音频流处理、文件保存、语音识别
+     - MessageParser: WebSocket消息解析
    - image_handler.py - 图片处理和分析
+     - ImageProcessor: 图片解码、格式验证、AI分析
 3. **服务层** (services/) - 负责外部服务调用
    - llm_service.py - 大模型服务（OpenAI + 智谱AI）
+     - LLMService: 对话、图片分析、动画索引获取、拍照判断
    - http_service.py - HTTP请求服务（TTS、语音识别等）
+     - HTTPService: 通用HTTP请求封装、TTS生成、语音识别
 
 ### 优势
 - **职责分离**: 每层专注于自己的职责，代码更清晰
@@ -276,6 +314,80 @@ python test_image_message.py
 - **易于维护**: 修改API调用逻辑只需在服务层修改
 - **易于测试**: 各层可以独立进行单元测试
 - **扩展性强**: 新增功能只需在对应层添加代码
+- **多模型支持**: 支持OpenAI和智谱AI两种大模型，可灵活切换
+
+## 技术栈
+
+### 后端框架
+- **FastAPI**: 现代化的Python Web框架，支持异步处理
+- **Uvicorn**: ASGI服务器，用于运行FastAPI应用
+- **WebSockets**: 实时双向通信协议
+
+### AI与机器学习
+- **LangChain**: 大语言模型应用开发框架
+- **OpenAI API**: GPT模型对话服务
+- **智谱AI GLM**: GLM-4V-Flash图片分析、GLM-4.7对话服务
+- **SiliconFlow**: SenseVoiceSmall语音识别服务
+
+### 数据处理
+- **Pillow (PIL)**: 图片处理和格式验证
+- **NumPy**: 数值计算支持
+- **base64**: 数据编码解码
+- **emoji**: 表情符号处理
+
+### 工具库
+- **python-dotenv**: 环境变量管理
+- **httpx**: 异步HTTP客户端
+- **aiofiles**: 异步文件操作
+- **python-multipart**: 多部分表单数据处理
+
+## 开发指南
+
+### 添加新的Live2D模型
+1. 在 `llm_service.py` 的 `get_animation_index` 方法中添加模型名称和动画映射规则
+2. 更新 README.md 中的模型支持列表
+3. 测试不同对话场景下的动画匹配效果
+
+### 切换大模型提供商
+在 `.env` 文件中设置 `MODEL_TYPE` 环境变量：
+```env
+# 使用OpenAI
+MODEL_TYPE=openai
+
+# 使用智谱AI
+MODEL_TYPE=zhipu
+```
+
+### 自定义TTS参数
+修改 `http_service.py` 中的 `generate_tts_audio` 方法参数：
+```python
+json_data={
+    "text": text,
+    "voice": "zh-CN-XiaoxiaoNeural",  # 语音类型
+    "rate": "0%",                       # 语速调整
+    "pitch": "0Hz",                     # 音调调整
+    "volume": "0%"                      # 音量调整
+}
+```
+
+### 扩展拍照判断逻辑
+在 `llm_service.py` 的 `should_take_photo` 方法中修改系统提示词，添加新的判断规则。
+
+## 性能优化建议
+
+1. **音频处理**: 使用流式处理减少内存占用
+2. **图片处理**: 添加图片大小限制，防止内存溢出
+3. **并发控制**: 使用连接池管理HTTP请求
+4. **缓存策略**: 对频繁访问的AI回复进行缓存
+5. **日志优化**: 生产环境关闭DEBUG级别日志
+
+## 安全建议
+
+1. **API密钥保护**: 使用环境变量存储敏感信息，不要提交到代码仓库
+2. **CORS配置**: 生产环境应指定具体的允许来源域名
+3. **输入验证**: 对所有用户输入进行严格验证和清理
+4. **速率限制**: 添加API调用频率限制，防止滥用
+5. **HTTPS**: 生产环境使用HTTPS加密传输
 
 ## 许可证
 
