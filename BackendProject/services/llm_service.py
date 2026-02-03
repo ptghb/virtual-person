@@ -3,12 +3,11 @@
 大模型服务层
 负责所有与大模型交互的逻辑
 """
-from typing import List, Dict, Any, Optional
+from typing import List
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 import os
 import base64
-import json
 from dotenv import load_dotenv
 from zhipuai import ZhipuAI
 
@@ -68,84 +67,6 @@ class LLMService:
             return response.content
         except Exception as e:
             print(f"[LLMService] 大模型调用失败: {str(e)}")
-            raise
-
-    async def chat_with_tools(
-        self,
-        messages: List[BaseMessage],
-        system_prompt: str = None
-    ) -> Dict[str, Any]:
-        """
-        调用大模型进行对话，支持工具调用
-
-        Args:
-            messages: 消息列表
-            system_prompt: 系统提示词（可选）
-
-        Returns:
-            包含回复内容和工具调用信息的字典
-            {
-                "content": 模型回复内容,
-                "tool_calls": 工具调用列表,
-                "has_tool_calls": 是否有工具调用
-            }
-        """
-        try:
-            # 如果提供了系统提示词，添加到消息列表开头
-            if system_prompt:
-                final_messages = [SystemMessage(content=system_prompt)] + messages
-            else:
-                final_messages = messages
-
-            # 定义工具
-            tools = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "play_animation",
-                        "description": "播放Live2D模型的动画。当用户要求表演、跳舞、做动作或想要看动画时使用此工具。",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "animation_no": {
-                                    "type": "integer",
-                                    "description": "动画编号，根据模型不同有不同的动画编号范围。Hiyori: 1-8, Haru: 1-2, Mark: 3-4, Natori: 5-6, Rice: 1-3, Mao: 2-4, Wanko: 1-3",
-                                    "minimum": 1,
-                                    "maximum": 8
-                                }
-                            },
-                            "required": ["animation_no"]
-                        }
-                    }
-                },
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "take_photo",
-                        "description": "打开摄像头拍照。当用户要求拍照、记录当前画面、或者想要看到自己的样子时使用此工具。",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {},
-                            "required": []
-                        }
-                    }
-                }
-            ]
-
-            # 调用大模型，传入工具定义
-            response = await self.llm.ainvoke(final_messages, tools=tools)
-
-            # 检查是否有工具调用
-            tool_calls = response.tool_calls if hasattr(response, 'tool_calls') else []
-            has_tool_calls = len(tool_calls) > 0
-
-            return {
-                "content": response.content,
-                "tool_calls": tool_calls,
-                "has_tool_calls": has_tool_calls
-            }
-        except Exception as e:
-            print(f"[LLMService] 大模型工具调用失败: {str(e)}")
             raise
 
     async def analyze_image(self, image_bytes: bytes, prompt: str = None) -> str:
@@ -257,27 +178,6 @@ class LLMService:
         except Exception as e:
             print(f"[LLMService] 获取动画索引失败: {str(e)}")
             return 1  # 默认返回1
-
-
-    def parse_tool_calls(self, tool_calls: List) -> List[Dict[str, Any]]:
-        """
-        解析工具调用信息
-
-        Args:
-            tool_calls: 工具调用列表
-
-        Returns:
-            解析后的工具调用信息列表
-        """
-        parsed_calls = []
-        for tool_call in tool_calls:
-            parsed_call = {
-                "name": tool_call.name,
-                "arguments": tool_call.args if hasattr(tool_call, 'args') else {},
-                "id": tool_call.id if hasattr(tool_call, 'id') else None
-            }
-            parsed_calls.append(parsed_call)
-        return parsed_calls
 
 
 # 创建全局实例

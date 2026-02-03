@@ -141,31 +141,38 @@ python main.py
 }
 ```
 
-### 6. 动画控制消息
-```json
-{
-  "type": "animation",
-  "data": {
-    "animation_no": 1,
-    "timestamp": "2024-01-01T12:00:00Z",
-    "client_id": "user123"
-  }
-}
+## 测试方法
+
+### 1. 使用浏览器测试客户端
+打开 `test_client.html` 文件，在浏览器中测试各种功能。
+
+### 2. 使用Python测试脚本
+```bash
+python test_websocket.py
 ```
 
-### 7. 拍照控制消息
-```json
-{
-  "type": "photo",
-  "data": {
-    "action": "take_photo",
-    "timestamp": "2024-01-01T12:00:00Z",
-    "client_id": "user123"
-  }
-}
+### 3. 图片功能测试
+#### 方式一：使用HTML测试客户端
+打开 `test_image_client.html` 文件，在浏览器中运行：
+1. 输入客户端ID
+2. 点击"连接WebSocket"
+3. 选择图片文件
+4. 点击"发送图片"
+5. 查看日志输出
+
+#### 方式二：使用Python测试脚本
+```bash
+python test_image_message.py
 ```
 
+该脚本会：
+1. 自动创建测试图片
+2. 连接到WebSocket服务器
+3. 发送图片消息
+4. 显示服务器响应和AI分析结果
 
+### 4. 手动测试
+使用WebSocket客户端工具连接到 `ws://localhost:8000/ws/your_client_id`
 
 ## API端点
 

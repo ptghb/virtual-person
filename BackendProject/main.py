@@ -2,14 +2,14 @@
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
+from typing import List, Dict
 import os
 import json
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 import emoji
 
-from handlers.audio_handler import audio_processor
+from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
 from services.llm_service import llm_service
 from services.http_service import http_service
@@ -92,26 +92,6 @@ def remove_emojis(text: str) -> str:
     return newtext
 
 manager = ConnectionManager()
-
-
-class MessageParser:
-    @staticmethod
-    def parse_message(message: str) -> tuple:
-        """解析WebSocket消息
-
-        Returns:
-            tuple: (msg_type, msg_data, error)
-        """
-        try:
-            data = json.loads(message)
-            msg_type = data.get("type", "")
-            msg_data = data.get("data", {})
-            return msg_type, msg_data, None
-        except json.JSONDecodeError:
-            return "", {}, "Invalid JSON format"
-
-
-message_parser = MessageParser()
 
 
 @app.get("/")
@@ -269,7 +249,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
         await handle_text_message(websocket, client_id, text_msg_data)
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
-    """处理文本消息 - 支持大模型工具调用"""
+    """处理文本消息 - 重用原有的AI对话逻辑"""
     text = msg_data.get("content", "")
     model = msg_data.get("model", "Hiyori")
     is_audio = msg_data.get("is_audio", False)
@@ -288,7 +268,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
 
     # 重用原有的AI对话处理逻辑
     try:
-        # 使用大模型服务调用AI（支持工具调用）
+        # 使用大模型服务调用AI
         system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
             你的性格特点：
             - 温柔体贴，善于倾听
@@ -296,7 +276,6 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             - 能够理解对方的情绪，给予安慰和支持
             - 回复时使用轻松活泼的语气，适当使用表情符号
             - 避免过于正式或机械的表达
-            - 你可以使用工具来播放动画或拍照，当用户要求时主动使用相应工具
 
            请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
            不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
@@ -310,26 +289,15 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         # 构建消息列表：历史消息 + 当前用户消息
         messages: List[BaseMessage] = message_history + [HumanMessage(content=text)]
 
-        # 调用大模型服务获取回复（支持工具调用）
-        result = await llm_service.chat_with_tools(messages, system_prompt)
-        ai_response = result["content"]
-        has_tool_calls = result["has_tool_calls"]
-        tool_calls = result["tool_calls"]
+        # 调用大模型服务获取回复
+        ai_response = await llm_service.chat(messages, system_prompt)
+
+        # 调用大模型服务获取动画索引
+        animation_index = await llm_service.get_animation_index(messages, model)
 
         # 将用户消息和AI回复添加到历史记录
         manager.add_message_to_history(client_id, HumanMessage(content=text))
         manager.add_message_to_history(client_id, AIMessage(content=ai_response))
-
-        # 处理工具调用
-        if has_tool_calls:
-            parsed_tool_calls = llm_service.parse_tool_calls(tool_calls)
-            for tool_call in parsed_tool_calls:
-                await execute_tool_call(websocket, client_id, tool_call)
-
-        # 如果没有工具调用，使用原有的动画索引逻辑
-        animation_index = None
-        if not has_tool_calls:
-            animation_index = await llm_service.get_animation_index(messages, model)
 
         # TTS处理
         audio_url = ""
@@ -340,7 +308,18 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             audio_url = await http_service.generate_tts_audio(clean_text)
 
         # 发送 AI 回复
-        await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index) if animation_index else None)
+        await manager.send_personal_message(f"小凡: {ai_response}", audio_url, websocket, msg_type=1, animation_index=int(animation_index))
+
+        # # 发送确认响应
+        # response_msg = {
+        #     "type": "response",
+        #     "data": {
+        #         "status": "success",
+        #         "message": "文本处理完成",
+        #         "request_type": "text"
+        #     }
+        # }
+        # await websocket.send_text(json.dumps(response_msg))
 
     except Exception as e:
         response_msg = {
@@ -352,75 +331,6 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             }
         }
         await websocket.send_text(json.dumps(response_msg))
-
-
-async def execute_tool_call(websocket: WebSocket, client_id: str, tool_call: Dict[str, Any]):
-    """
-    执行工具调用
-
-    Args:
-        websocket: WebSocket连接
-        client_id: 客户端ID
-        tool_call: 工具调用信息
-    """
-    tool_name = tool_call["name"]
-    arguments = tool_call["arguments"]
-
-    print(f"[execute_tool_call] 执行工具: {tool_name}, 参数: {arguments}")
-
-    if tool_name == "play_animation":
-        await handle_play_animation(websocket, client_id, arguments)
-    elif tool_name == "take_photo":
-        await handle_take_photo(websocket, client_id)
-    else:
-        print(f"[execute_tool_call] 未知工具: {tool_name}")
-
-
-async def handle_play_animation(websocket: WebSocket, client_id: str, arguments: Dict[str, Any]):
-    """
-    处理播放动画工具调用
-
-    Args:
-        websocket: WebSocket连接
-        client_id: 客户端ID
-        arguments: 工具参数
-    """
-    animation_no = arguments.get("animation_no", 1)
-
-    print(f"[handle_play_animation] 播放动画: {animation_no}")
-
-    # 发送动画控制消息给前端
-    animation_message = {
-        "type": "animation",
-        "data": {
-            "animation_no": animation_no,
-            "timestamp": "2024-01-01T12:00:00Z",
-            "client_id": client_id
-        }
-    }
-    await websocket.send_text(json.dumps(animation_message))
-
-
-async def handle_take_photo(websocket: WebSocket, client_id: str):
-    """
-    处理拍照工具调用
-
-    Args:
-        websocket: WebSocket连接
-        client_id: 客户端ID
-    """
-    print(f"[handle_take_photo] 触发拍照")
-
-    # 发送拍照控制消息给前端
-    photo_message = {
-        "type": "photo",
-        "data": {
-            "action": "take_photo",
-            "timestamp": "2024-01-01T12:00:00Z",
-            "client_id": client_id
-        }
-    }
-    await websocket.send_text(json.dumps(photo_message))
 
 if __name__ == "__main__":
     uvicorn.run(
