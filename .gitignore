@@ -18,4 +18,4 @@ temp/
 !/.vscode/launch.json
 !/.vscode/settings.json
 !/.vscode/tasks.json
-.BackendProject/.env
+BackendProject/.env
