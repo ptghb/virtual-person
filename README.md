@@ -40,11 +40,15 @@
 
 ### 后端技术栈
 
-- **框架**：FastAPI (Python)
-- **AI模型**：LangChain + OpenAI API
+- **框架**：FastAPI (Python) + Uvicorn
+- **AI模型**：
+  - LangChain + OpenAI API（对话生成）
+  - 智谱AI GLM-4V-Flash（图片分析）
+- **语音识别**：SiliconFlow SenseVoiceSmall
 - **通信协议**：WebSocket
 - **依赖管理**：pip
 - **TTS服务**：EasyVoice (Docker)
+- **其他库**：httpx, aiofiles, Pillow, emoji, zhipuai
 
 ## 项目结构
 
@@ -53,7 +57,15 @@ CubismWebSamples/
 ├── BackendProject/              # 后端项目
 │   ├── main.py                 # FastAPI主程序
 │   ├── requirements.txt        # Python依赖
-│   └── .env                    # 环境变量配置
+│   ├── .env                    # 环境变量配置
+│   ├── .env.example            # 环境变量示例
+│   ├── handlers/               # 消息处理器
+│   │   ├── audio_handler.py    # 音频消息处理（语音识别）
+│   │   └── image_handler.py    # 图片消息处理（GLM-4V分析）
+   ├── services/                # 服务层
+│   │   ├── llm_service.py      # 大模型服务（OpenAI + 智谱AI）
+   │   └── http_service.py      # HTTP服务（TTS + 语音识别）
+   └── audio_files/             # 音频文件存储目录
 ├── audio/                      # TTS音频输出目录（Docker挂载）
 ├── FrontendProject/
 │   └── TypeScript/
@@ -61,7 +73,7 @@ CubismWebSamples/
 │           ├── src/
 │           │   ├── main.tsx                # 入口文件
 │           │   ├── App.tsx                 # 主应用组件
-│           │   ├── config.ts               # 配置文件
+│           │   ├── config.ts               # 配置文件（后端地址、图片配置）
 │           │   ├── websocketmanager.ts     # WebSocket管理器
 │           │   ├── lappdelegate.ts         # 应用委托
 │           │   ├── lapplive2dmanager.ts    # Live2D管理器
@@ -75,7 +87,7 @@ CubismWebSamples/
 │           │   │   ├── WebSocketPanel.tsx      # WebSocket状态面板
 │           │   │   └── HandGestureControls.tsx # 手势控制组件
 │           │   ├── services/              # 服务层
-│           │   │   └── HandGestureService.ts   # 手势识别服务
+│           │   │   └── HandGestureService.ts   # 手势识别服务（MediaPipe）
 │           │   └── ...                     # 其他Live2D相关文件
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库
@@ -105,13 +117,16 @@ CubismWebSamples/
 - 上下文记忆功能，保持对话连续性
 - 角色设定：知心朋友"小凡"，温柔体贴、亲切自然
 - 支持多客户端独立会话管理
+- **智能动画选择**：根据对话氛围自动选择合适的Live2D动画
+- **多模态输入**：支持文字、图片、语音输入
 
 ### 3. WebSocket实时通信
 
 - 自动重连机制（最多5次，间隔3秒）
-- 支持多种消息类型（文字、图片、音频）
+- 支持多种消息类型（文字、图片、音频、控制指令）
 - 实时状态显示（连接中、已连接、断开、错误）
 - 消息历史记录
+- **音频流处理**：支持实时音频流传输和语音识别
 
 ### 4. 动画控制系统
 
@@ -131,6 +146,7 @@ CubismWebSamples/
 - RMS值放大5.0倍以获得更好的口型效果
 - 通过ParamMouthOpenY参数实现口型同步
 - 集成EasyVoice TTS服务，支持文本转语音
+- **语音识别**：集成SiliconFlow SenseVoiceSmall，支持语音转文字
 
 ## 快速开始
 
@@ -154,12 +170,23 @@ pip install -r requirements.txt
 
 3. 配置环境变量（编辑`.env`文件）：
 ```env
+# OpenAI API 配置
 OPENAI_API_KEY=your_api_key_here
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
+
+# SiliconFlow 语音识别API配置
+SILICONFLOW_API_KEY=your_siliconflow_api_key_here
+
+# 智谱AI GLM-4V API配置（图片分析）
+ZHIPUAI_API_KEY=your_zhipuai_api_key_here
+
+# TTS服务配置
+TTS_API_URL=http://localhost:3000
+ISAUDIO=True  # 是否启用TTS语音合成
 ```
 
-现在文件中有一个OPENAI_API_KEY，体验用的，有限制，请谨慎使用
+> 现在文件中有一个OPENAI_API_KEY，体验用的，有限制，请谨慎使用
 
 4. 启动后端服务：
 ```bash
@@ -190,7 +217,7 @@ npm run build
 npm run start
 ```
 
-前端服务将在 `http://localhost:80` 启动
+前端服务将在 `http://localhost:8080` 启动
 
 ### 构建生产版本
 
@@ -237,6 +264,20 @@ npm run serve
 4. **实时反馈**：界面会显示摄像头画面和手指状态
 
 > 注意：手势控制功能需要模型支持手臂参数。不同模型支持程度不同，Haru模型支持手臂和手腕控制，Mao模型支持完整的肘部关节控制。
+
+### 图片识别（新增）
+
+1. **上传图片**：在聊天界面发送图片消息
+2. **自动分析**：后端使用GLM-4V-Flash模型分析图片内容
+3. **智能回复**：AI根据图片内容生成描述性回复
+4. **支持格式**：JPEG、PNG、GIF、WEBP（最大5MB）
+
+### 语音输入（新增）
+
+1. **开始录音**：点击"开始录音"按钮启动音频流
+2. **实时传输**：音频数据实时传输到后端进行识别
+3. **停止录音**：点击"停止录音"按钮结束录音
+4. **自动对话**：识别结果自动发送给AI进行对话
 
 ### WebSocket状态
 
@@ -298,8 +339,12 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ### 后端开发
 
 - **主程序**：`BackendProject/main.py`
-- **API路由**：FastAPI路由定义
-- **消息处理**：LangChain消息链处理
+- **消息处理器**：`BackendProject/handlers/`
+  - `audio_handler.py`：音频消息处理、语音识别
+  - `image_handler.py`：图片消息处理、GLM-4V分析
+- **服务层**：`BackendProject/services/`
+  - `llm_service.py`：大模型服务（OpenAI对话、智谱AI图片分析、动画选择）
+  - `http_service.py`：HTTP服务（TTS生成、语音识别）
 
 ### 代码规范
 
@@ -351,8 +396,25 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 查看容器日志：`docker logs <container_id>`
 - 确认端口3000未被占用
 - 检查audio目录是否存在且有写入权限
+- 确认环境变量`ISAUDIO`设置为`True`
 
-### 7. 示例环境 47.121.30.160
+### 7. 图片识别功能不工作
+
+- 确认已配置`ZHIPUAI_API_KEY`环境变量
+- 检查智谱AI API密钥是否有效
+- 查看后端日志中的GLM-4V调用错误信息
+- 确认图片格式支持（JPEG、PNG、GIF、WEBP）
+- 检查图片大小是否超过5MB限制
+
+### 8. 语音识别功能不工作
+
+- 确认已配置`SILICONFLOW_API_KEY`环境变量
+- 检查SiliconFlow API密钥是否有效
+- 查看后端日志中的语音识别错误信息
+- 确认音频文件格式为WAV
+- 检查`audio_files`目录是否有写入权限
+
+### 9. 示例环境 47.121.30.160
 - 此环境没有部署TTS服务，不支持开启语音;
 - 此环境暂时没有域名和证书，无法使用摄像头。所以不能体验手势控制。
 - 需要体验以上两个功能，可以自行部署。
