@@ -249,7 +249,8 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
         text_msg_data = {
           "content": "这张照片是现在的我，" + description,
           "model": "Hiyori",
-          "is_audio": False
+          "is_audio": False,
+          "has_image": True
         }
         await handle_text_message(websocket, client_id, text_msg_data)
 
@@ -258,6 +259,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
     text = msg_data.get("content", "")
     model = msg_data.get("model", "Hiyori")
     is_audio = msg_data.get("is_audio", False)
+    has_image = msg_data.get("has_image", False)
 
     if not text:
         response = {
@@ -301,9 +303,11 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         # 调用大模型服务获取动画索引
         animation_index = await llm_service.get_animation_index(messages, model)
 
-        # 调用大模型服务判断是否需要拍照
-        should_take_photo = await llm_service.should_take_photo(messages)
-        print(f"[handle_text_message] 是否需要拍照: {should_take_photo}")
+        should_take_photo = False
+        if not has_image:
+          # 调用大模型服务判断是否需要拍照
+          should_take_photo = await llm_service.should_take_photo(messages)
+          print(f"[handle_text_message] 是否需要拍照: {should_take_photo}")
 
         # 将用户消息和AI回复添加到历史记录
         manager.add_message_to_history(client_id, HumanMessage(content=text))

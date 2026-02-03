@@ -185,6 +185,7 @@ export class WebSocketManager {
             content?: unknown;
             animation_index?: number;
             audio?: string;
+            should_take_photo?: boolean;
           };
 
           // 根据type字段确定内容类型
@@ -215,6 +216,16 @@ export class WebSocketManager {
           }
           if (this._messageCallback) {
             this._messageCallback(message);
+          }
+
+          // 检查是否需要拍照
+          if (parsedData.should_take_photo === true) {
+            console.log('[WebSocketManager.onmessage] 收到拍照指令，触发拍照');
+            // 触发自定义事件通知组件拍照
+            const photoEvent = new CustomEvent('should-take-photo', {
+              detail: { shouldTakePhoto: true }
+            });
+            window.dispatchEvent(photoEvent);
           }
         } catch (error) {
           // 如果不是JSON格式，按纯文本处理
@@ -361,11 +372,17 @@ export class WebSocketManager {
       if ('type' in data && 'data' in data) {
         // 协议格式消息
         console.log('[WebSocketManager.send] 检测到协议格式消息');
-        console.log('[WebSocketManager.send] 消息类型:', (data as ProtocolMessage).type);
-        console.log('[WebSocketManager.send] 消息数据:', (data as ProtocolMessage).data);
+        console.log('[WebSocketManager.send] 消息类型:', data.type);
+        console.log('[WebSocketManager.send] 消息数据:', data.data);
         jsonString = JSON.stringify(data);
-        console.log('[WebSocketManager.send] 序列化后的JSON字符串长度:', jsonString.length);
-        console.log('[WebSocketManager.send] JSON字符串前200字符:', jsonString.substring(0, 200));
+        console.log(
+          '[WebSocketManager.send] 序列化后的JSON字符串长度:',
+          jsonString.length
+        );
+        console.log(
+          '[WebSocketManager.send] JSON字符串前200字符:',
+          jsonString.substring(0, 200)
+        );
       } else {
         // 旧格式消息，转换为协议格式
         const protocolData: ProtocolMessageData = {};

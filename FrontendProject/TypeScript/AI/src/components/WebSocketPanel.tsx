@@ -176,6 +176,33 @@ const WebSocketPanel: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // 监听拍照指令事件
+  useEffect(() => {
+    const handleTakePhotoEvent = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ shouldTakePhoto: boolean }>;
+      if (customEvent.detail.shouldTakePhoto) {
+        console.log('[WebSocketPanel] 收到拍照指令，开始执行拍照流程');
+        try {
+          await openCamera();
+          console.log('[WebSocketPanel] 摄像头已打开，开始拍照');
+          takePhoto();
+          await closeCamera();
+          console.log('[WebSocketPanel] 拍照流程完成');
+        } catch (error) {
+          console.error('[WebSocketPanel] 自动拍照流程失败:', error);
+        }
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('should-take-photo', handleTakePhotoEvent);
+
+    // 清理函数：移除事件监听器
+    return () => {
+      window.removeEventListener('should-take-photo', handleTakePhotoEvent);
+    };
+  }, []);
+
   const handleSendMessage = () => {
     console.log('发送按钮被点击');
     const message = inputValue.trim();
