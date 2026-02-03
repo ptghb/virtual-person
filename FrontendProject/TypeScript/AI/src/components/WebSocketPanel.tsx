@@ -646,7 +646,8 @@ const WebSocketPanel: React.FC = () => {
             image: base64Image,
             format: 'jpeg' as 'jpeg' | 'png' | 'gif' | 'webp',
             timestamp: new Date().toISOString(),
-            client_id: wsManager.getClientId()
+            client_id: wsManager.getClientId(),
+            is_audio: audioEnabled
           }
         };
         console.log('[WebSocketPanel] 准备发送的图片消息:', {
