@@ -42,7 +42,7 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
-    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None):
+    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None, prompt: str = None):
         """发送个人消息，支持多种类型
 
         Args:
@@ -62,6 +62,8 @@ class ConnectionManager:
             message_obj["animation_index"] = animation_index
         if should_take_photo is not None:
             message_obj["should_take_photo"] = should_take_photo
+        if prompt is not None:
+            message_obj["prompt"] = prompt
         print(f"[send_personal_message] 发送的消息内容: {message_obj}")
 
         await websocket.send_text(json.dumps(message_obj))
@@ -246,16 +248,29 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
 
     # 同时发送AI对图片的描述作为聊天消息
     if result["status"] == "success" and "description" in result:
-        description = result["description"]
+        ai_response = result["description"]
         # await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
-        # 构造文本消息并处理
-        text_msg_data = {
-          "content": "这张照片是现在的我，" + description,
-          "model": "Hiyori",
-          "is_audio": is_audio,
-          "has_image": True
-        }
-        await handle_text_message(websocket, client_id, text_msg_data)
+
+        # 将用户消息和AI回复添加到历史记录
+        manager.add_message_to_history(client_id, HumanMessage(content=msg_data.get("prompt", "拍照")))
+        manager.add_message_to_history(client_id, AIMessage(content=ai_response))
+
+        # TTS处理
+        audio_url = ""
+        if os.getenv("ISAUDIO", False) != False and is_audio:
+          clean_text = remove_emojis(ai_response)
+          audio_url = await http_service.generate_tts_audio(clean_text)
+
+        # 发送 AI 回复
+        await manager.send_personal_message(
+          f"小凡: {ai_response}",
+          audio_url,
+          websocket,
+          msg_type=1,
+          animation_index=0,
+          should_take_photo=False,
+          prompt=None
+        )
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""
@@ -329,7 +344,8 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             websocket,
             msg_type=1,
             animation_index=int(animation_index),
-            should_take_photo=should_take_photo
+            should_take_photo=should_take_photo,
+            prompt=text
         )
 
         # # 发送确认响应

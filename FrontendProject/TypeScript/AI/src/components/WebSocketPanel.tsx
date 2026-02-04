@@ -179,7 +179,7 @@ const WebSocketPanel: React.FC = () => {
   // 监听拍照指令事件
   useEffect(() => {
     const handleTakePhotoEvent = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ shouldTakePhoto: boolean }>;
+      const customEvent = event as CustomEvent<{ shouldTakePhoto: boolean , prompt: string }>;
       if (customEvent.detail.shouldTakePhoto) {
         console.log('[WebSocketPanel] 收到拍照指令，开始执行拍照流程');
         try {
@@ -189,7 +189,7 @@ const WebSocketPanel: React.FC = () => {
 
           await openCamera();
           console.log('[WebSocketPanel] 摄像头已打开，开始拍照');
-          takePhoto(currentAudioEnabled);
+          takePhoto(currentAudioEnabled, customEvent.detail.prompt);
           await closeCamera();
           console.log('[WebSocketPanel] 拍照流程完成');
         } catch (error) {
@@ -590,7 +590,7 @@ const WebSocketPanel: React.FC = () => {
   };
 
   // 拍照
-  const takePhoto = (audioState?: boolean) => {
+  const takePhoto = (audioState?: boolean, prompt: string | null = null) => {
     console.log('[WebSocketPanel] 拍照');
     if (!videoRef.current) {
       console.error('[WebSocketPanel] video元素未找到');
@@ -659,7 +659,8 @@ const WebSocketPanel: React.FC = () => {
             format: 'jpeg' as 'jpeg' | 'png' | 'gif' | 'webp',
             timestamp: new Date().toISOString(),
             client_id: wsManager.getClientId(),
-            is_audio: isAudioEnabled
+            is_audio: isAudioEnabled,
+            prompt: prompt // 添加prompt字段
           }
         };
         console.log('[WebSocketPanel] 准备发送的图片消息:', {
@@ -669,6 +670,7 @@ const WebSocketPanel: React.FC = () => {
           imageSize: imageMessage.data.image?.length,
           format: imageMessage.data.format,
           clientId: imageMessage.data.client_id,
+          prompt: imageMessage.data.prompt,
           imageDataPreview: imageMessage.data.image?.substring(0, 50)
         });
         const sendResult = wsManager.send(imageMessage);
@@ -686,7 +688,7 @@ const WebSocketPanel: React.FC = () => {
 
     if (isCameraOpen) {
       console.log('[WebSocketPanel] 摄像头已打开，准备拍照');
-      takePhoto(audioEnabled);
+      takePhoto(audioEnabled, null);
       await closeCamera();
     } else {
       console.log('[WebSocketPanel] 摄像头未打开，准备打开摄像头');
@@ -700,7 +702,7 @@ const WebSocketPanel: React.FC = () => {
 
         // 自动拍照、发送、关闭
         console.log('[WebSocketPanel] 自动拍照');
-        takePhoto(currentAudioEnabled);
+        takePhoto(currentAudioEnabled, null);
         await closeCamera();
       } catch (error) {
         console.error('[WebSocketPanel] openCamera 失败:', error);

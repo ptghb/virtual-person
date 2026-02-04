@@ -57,6 +57,7 @@ export interface ProtocolMessageData {
   // Live2D相关
   model?: string;
   is_audio?: boolean;
+  prompt?: string;
 }
 
 // 完整的协议消息结构
@@ -186,6 +187,7 @@ export class WebSocketManager {
             animation_index?: number;
             audio?: string;
             should_take_photo?: boolean;
+            prompt?: string;
           };
 
           // 根据type字段确定内容类型
@@ -223,7 +225,7 @@ export class WebSocketManager {
             console.log('[WebSocketManager.onmessage] 收到拍照指令，触发拍照');
             // 触发自定义事件通知组件拍照
             const photoEvent = new CustomEvent('should-take-photo', {
-              detail: { shouldTakePhoto: true }
+              detail: { shouldTakePhoto: true, prompt: parsedData.prompt }
             });
             window.dispatchEvent(photoEvent);
           }

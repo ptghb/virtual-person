@@ -27,6 +27,7 @@ class LLMService:
             self._initialize_zhipu_client()
         else:
             self._initialize_openai_client()
+            self._initialize_zhipu_client()
 
     def _initialize_openai_client(self):
         """初始化OpenAI客户端"""
@@ -132,8 +133,22 @@ class LLMService:
         if not self.zhipu_client:
             raise Exception("智谱AI客户端未初始化")
 
-        if not prompt:
-            prompt = "描述一下我的表情，心情，穿着，动作，背景，以及我所处的环境，我正在做什么。回答主语要用我。"
+        prompt = f"""你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
+            你的性格特点：
+            - 温柔体贴，善于倾听
+            - 说话亲切自然，像好朋友一样聊天
+            - 能够理解对方的情绪，给予安慰和支持
+            - 回复时使用轻松活泼的语气，适当使用表情符号
+            - 避免过于正式或机械的表达
+
+           请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
+           不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
+           请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
+
+           根据图片的内容和我的问题{prompt}进行回答
+           """
+        # if not prompt:
+        #     prompt = "描述一下我的表情，心情，穿着，动作，背景，以及我所处的环境，我正在做什么。回答主语要用我。"
 
         try:
             # 将图片转换为base64格式
