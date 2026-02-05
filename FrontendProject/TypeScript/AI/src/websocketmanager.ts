@@ -219,6 +219,19 @@ export class WebSocketManager {
           if (this._messageCallback) {
             this._messageCallback(message);
           }
+          if (parsedData.animation_index !== undefined) {
+            console.log(
+              '[WebSocketManager.onmessage] 收到动画指令，切换到动画索引:',
+              parsedData.animation_index
+            );
+            // 触发自定义事件通知组件切换动画
+            const animationEvent = new CustomEvent('change-animation', {
+              detail: {
+                animationIndex: parsedData.animation_index
+              }
+            });
+            window.dispatchEvent(animationEvent);
+          }
 
           // 检查是否需要拍照
           if (parsedData.should_take_photo === true) {

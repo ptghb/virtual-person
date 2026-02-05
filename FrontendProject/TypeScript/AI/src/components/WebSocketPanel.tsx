@@ -89,18 +89,6 @@ const WebSocketPanel: React.FC = () => {
           }
         }
 
-        // 如果指定了动画序号，播放指定动画
-        if ((message as any).animation_index !== undefined) {
-          try {
-            const live2DManager = LAppDelegate.getInstance()
-              ._subdelegates.at(0)
-              .getLive2DManager();
-            live2DManager.playMotionByNo((message as any).animation_index);
-          } catch (error) {
-            console.error('Error playing motion by index:', error as Error);
-          }
-        }
-
         // 打字机效果
         let currentIndex = 0;
         const fullText = message.content;
@@ -206,6 +194,30 @@ const WebSocketPanel: React.FC = () => {
       window.removeEventListener('should-take-photo', handleTakePhotoEvent);
     };
   }, [audioEnabled]);
+
+  // 监听动画切换事件
+  useEffect(() => {
+    const handleAnimationEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ animationIndex: number }>;
+      console.log('[WebSocketPanel] 收到动画切换事件，动画索引:', customEvent.detail.animationIndex);
+      try {
+        const live2DManager = LAppDelegate.getInstance()
+          ._subdelegates.at(0)
+          .getLive2DManager();
+        live2DManager.playMotionByNo(customEvent.detail.animationIndex);
+      } catch (error) {
+        console.error('[WebSocketPanel] 播放动画失败:', error);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('change-animation', handleAnimationEvent);
+
+    // 清理函数：移除事件监听器
+    return () => {
+      window.removeEventListener('change-animation', handleAnimationEvent);
+    };
+  }, []);
 
   const handleSendMessage = () => {
     console.log('发送按钮被点击');
