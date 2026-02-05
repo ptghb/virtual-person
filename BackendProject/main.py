@@ -251,8 +251,9 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
         ai_response = result["description"]
         # await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
 
+        humanMessage = msg_data.get("prompt", None) if msg_data.get("prompt", None) else "拍照"
         # 将用户消息和AI回复添加到历史记录
-        manager.add_message_to_history(client_id, HumanMessage(content=msg_data.get("prompt", "拍照")))
+        manager.add_message_to_history(client_id, HumanMessage(content=humanMessage))
         manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
         # TTS处理
