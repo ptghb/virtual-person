@@ -489,21 +489,15 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 检查`audio_files`目录是否存在且有写入权限：`ls -la BackendProject/audio_files/`
 - 测试SiliconFlow API是否可访问
 
-### 9. 示例环境限制（47.121.30.160）
+### 9. 示例环境限制（https://xiaofan.laogeworld.cn）
 
 ⚠️ 注意事项：
 - 此环境没有部署TTS服务，不支持开启语音功能（ISAUDIO=False）
-- 此环境暂时没有域名和SSL证书，无法使用摄像头（需要HTTPS环境）
-- 因此无法体验手势控制功能（需要摄像头权限）
 - 如需体验以上功能，请自行部署完整环境
 
 ## 许可证
 
 本项目基于Live2D Open Software License。使用前请阅读 [LICENSE.md](LICENSE.md)。
-
-## 注意事项
-
-请阅读 [NOTICE.md](NOTICE.md) 了解使用本SDK的注意事项。
 
 ## 相关链接
 
