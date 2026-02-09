@@ -557,4 +557,10 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 
 如有问题或建议，请通过以下方式联系我们：
 - GitHub Issues：提交问题和功能请求
-- GitHub Discussions：参与项目讨论和交流
+
+## 请作者喝杯咖啡？
+多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
+![微信支付](./weixinpay.jpg)
+![支付宝支付](./alipay.jpg)
+
+
