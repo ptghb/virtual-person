@@ -555,7 +555,7 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ## 请作者喝杯咖啡？
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
 
-| <img src="./weixinpay.jpg" alt="微信支付" width="200" /> | <img src="./alipay.jpg" alt="支付宝支付" width="200" /> |
+<img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
 
 
 
