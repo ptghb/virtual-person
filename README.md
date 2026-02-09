@@ -552,13 +552,13 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
   - `refactor:` 重构代码
   - `test:` 测试相关
 
+## Star History
+[![Star History Chart](https://api.star-history.com/svg?repos=ptghb/virtual-person&type=date&legend=bottom-right)](https://www.star-history.com/#ptghb/virtual-person&type=date&legend=bottom-right)
+
 ## 请作者喝杯咖啡？
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
 
 <img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
-
-
-
 
 
 
