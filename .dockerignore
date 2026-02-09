@@ -1,0 +1,70 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.gitmodules
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env
+venv
+ENV
+env.bak
+venv.bak
+*.egg-info/
+dist/
+build/
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE.md
+*.md
+
+# Payment images
+alipay.jpg
+weixinpay.jpg
+
+# Audio files (will be created in container)
+audio_files/
+*.wav
+*.mp3
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp

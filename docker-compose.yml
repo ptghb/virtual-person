@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: cubism_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./FrontendProject/TypeScript/AI/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - cubism_network
+    restart: unless-stopped
+
+  # 前端服务
+  frontend:
+    build:
+      context: .
+      dockerfile: ./FrontendProject/TypeScript/AI/Dockerfile
+    container_name: cubism_frontend
+    volumes:
+      - ./FrontendProject/Resources:/app/Resources:ro
+      - ./Core:/app/Core:ro
+    environment:
+      - NODE_ENV=docker
+    networks:
+      - cubism_network
+    restart: unless-stopped
+
+  # 后端服务
+  backend:
+    build:
+      context: ./BackendProject
+      dockerfile: Dockerfile
+    container_name: cubism_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./BackendProject/audio_files:/app/audio_files
+    env_file:
+      - ./BackendProject/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - cubism_network
+    depends_on:
+      - tts
+    restart: unless-stopped
+
+  # TTS 服务
+  tts:
+    image: cosincox/easyvoice:latest
+    container_name: cubism_tts
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./BackendProject/audio_files:/app/audio
+    networks:
+      - cubism_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+networks:
+  cubism_network:
+    driver: bridge
+
+volumes:
+  audio_files:

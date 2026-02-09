@@ -1,0 +1,56 @@
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env
+venv
+ENV
+env.bak
+venv.bak
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# Audio files (will be created in container)
+audio_files/
+*.wav
+*.mp3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Docker
+Dockerfile
+.dockerignore

@@ -1,0 +1,10 @@
+# 此目录用于存放 SSL 证书文件
+# 
+# 请将以下文件放置在此目录：
+# - cert.pem: SSL 证书文件
+# - key.pem: SSL 私钥文件
+#
+# 如果没有 SSL 证书，可以：
+# 1. 使用 Let's Encrypt 免费证书
+# 2. 使用自签名证书（仅用于测试）
+# 3. 修改 nginx/nginx.conf，移除 HTTPS 配置
