@@ -554,13 +554,22 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
   - `chore:` 构建/工具链相关
 
 ## 联系方式
-
-如有问题或建议，请通过以下方式联系我们：
 - GitHub Issues：提交问题和功能请求
 
 ## 请作者喝杯咖啡？
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
-![微信支付](./weixinpay.jpg)
-![支付宝支付](./alipay.jpg)
+
+<div style="display: flex; gap: 20px; justify-content: flex-start; align-items: center;">
+  <div style="text-align: center;">
+    <img src="./weixinpay.jpg" alt="微信支付" style="width: 200px; height: 200px; object-fit: contain;" />
+    <p style="margin-top: 8px; font-size: 14px;">微信支付</p>
+  </div>
+  <div style="text-align: center;">
+    <img src="./alipay.jpg" alt="支付宝支付" style="width: 200px; height: 200px; object-fit: contain;" />
+    <p style="margin-top: 8px; font-size: 14px;">支付宝支付</p>
+  </div>
+</div>
+
+
 
 
