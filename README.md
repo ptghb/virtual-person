@@ -41,6 +41,7 @@
 - **音频处理**：Web Audio API（RMS值放大5.0倍实现口型同步）
 - **状态管理**：React Hooks + localStorage持久化
 - **代码规范**：ESLint 9.26.0 + Prettier 3.5.3
+- **容器化部署**：Docker + Docker Compose
 
 ### 后端技术栈
 
@@ -53,6 +54,7 @@
 - **通信协议**：WebSocket 12.0+
 - **依赖管理**：pip + requirements.txt
 - **TTS服务**：EasyVoice (Docker)
+- **容器化部署**：Docker + Docker Compose
 - **其他库**：httpx 0.25.0+, aiofiles 23.0.0+, Pillow 10.0.0+, emoji 2.15.0+, zhipuai 2.0.0+, numpy 1.24.0+
 
 ## 项目结构
@@ -149,6 +151,8 @@ CubismWebSamples/
 - **多客户端管理**：每个客户端独立会话，互不干扰
 - **智能动画选择**：根据对话氛围自动选择合适的Live2D动画
 - **多模态输入**：支持文字、图片、语音三种输入方式
+- **图片分析**：集成智谱AI GLM-4V-Flash模型，支持图片内容分析与描述
+- **自动拍照**：支持前端拍照指令，自动捕获画面并发送给AI分析
 
 ### 3. WebSocket实时通信
 
@@ -158,6 +162,7 @@ CubismWebSamples/
 - **消息历史记录**：最多保存100条消息，支持时间戳格式化显示
 - **音频流处理**：支持实时音频流传输和语音识别（PCM格式）
 - **消息格式**：JSON格式，包含clientId、message、modelName、isAudio、should_take_photo等字段
+- **图片消息音频**：支持图片消息转语音功能，可配置音频开关
 
 ### 4. 动画控制系统
 
@@ -168,6 +173,7 @@ CubismWebSamples/
 - **说话动画**：支持说话相关动画（如haru_g_m01），与TTS语音同步
 - **循环实现**：通过时间计算(time -= duration)和状态重置(updateForNextLoop)实现循环播放
 - **配置驱动**：动画循环由motion3.json配置文件中的Loop字段控制
+- **动画切换事件**：新增动画切换事件机制，支持动态切换动画索引
 
 ### 5. 音频管理
 
@@ -179,6 +185,7 @@ CubismWebSamples/
 - **TTS集成**：集成EasyVoice TTS服务，支持文本转语音（Docker部署）
 - **语音识别**：集成SiliconFlow SenseVoiceSmall，支持语音转文字（WAV格式）
 - **音频流处理**：支持实时音频流传输，格式为PCM，包含sample_rate、channels等参数
+- **图片音频**：支持图片消息转语音功能，可配置音频开关
 
 ## 快速开始
 
@@ -189,6 +196,32 @@ CubismWebSamples/
 - **Docker**: 用于运行EasyVoice TTS服务（可选，如需语音功能则必须）
 - **浏览器**: 支持WebGL的现代浏览器（推荐Chrome、Edge、Firefox最新版）
 - **摄像头**: 如需使用手势控制功能
+
+### Docker Compose 一键部署（推荐）
+
+```bash
+# 克隆项目并初始化子模块
+git clone --recurse-submodules https://github.com/ptghb/virtual-person-framework.git
+cd virtual-person-framework
+
+# 配置环境变量
+cp BackendProject/.env.example BackendProject/.env
+# 编辑 BackendProject/.env 填入你的 API 密钥
+
+# 一键启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+```
+
+服务启动后访问：
+- 前端服务：http://localhost:8080
+- 后端服务：http://localhost:8000
+- TTS服务：http://localhost:3000
 
 ### 后端部署
 
@@ -321,6 +354,7 @@ docker ps
 2. **自动分析**：后端使用GLM-4V-Flash模型分析图片内容
 3. **智能回复**：AI根据图片内容生成描述性回复
 4. **支持格式**：JPEG、PNG、GIF、WEBP（最大5MB）
+5. **图片音频**：支持将图片分析结果转换为语音播放（可配置开关）
 
 ### 语音输入（新增）
 
@@ -355,6 +389,18 @@ export const BACKEND_CONFIG = {
 
 ```python
 system_message = """你是一个知心朋友，名字叫小凡..."""
+```
+
+### 模型类型配置
+
+通过 `MODEL_TYPE` 环境变量切换AI引擎：
+
+```env
+# 使用智谱AI（推荐，支持图片分析）
+MODEL_TYPE=zhipu
+
+# 使用OpenAI（仅支持文字对话）
+MODEL_TYPE=openai
 ```
 
 ### Live2D模型配置
@@ -418,6 +464,17 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - **React组件**：使用函数式组件和Hooks，避免类组件
 - **日志规范**：使用console.log进行调试日志输出，日志前缀使用方括号标注模块名称，如`[WebSocketManager]`
 
+### Docker部署
+
+项目支持Docker Compose一键部署，配置文件位于项目根目录：
+
+- **docker-compose.yml**：多服务编排配置
+- **FrontendProject/TypeScript/AI/Dockerfile**：前端多阶段构建配置
+- **BackendProject/Dockerfile**：后端Python服务配置
+- **nginx/nginx.conf**：Nginx反向代理配置
+
+部署方式详见「Docker Compose 一键部署」章节。
+
 ## 常见问题
 
 ### 1. WebSocket连接失败
@@ -471,6 +528,16 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 确认环境变量`ISAUDIO`设置为`True`
 - 测试TTS服务是否可访问：`curl http://localhost:3000`
 
+### 10. Docker Compose 部署问题
+
+- 确认Docker和Docker Compose已安装：`docker --version` 和 `docker-compose --version`
+- 检查端口是否被占用：8080（前端）、8000（后端）、3000（TTS）
+- 查看服务状态：`docker-compose ps`
+- 查看服务日志：`docker-compose logs -f <service_name>`
+- 确认环境变量已正确配置在 `BackendProject/.env` 文件中
+- 检查Git子模块是否已初始化：`git submodule status`
+- 如需重新构建镜像：`docker-compose build --no-cache`
+
 ### 7. 图片识别功能不工作
 
 - 确认已配置`ZHIPUAI_API_KEY`环境变量且有效
@@ -479,6 +546,7 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 确认图片格式支持（JPEG、PNG、GIF、WEBP）
 - 检查图片大小是否超过5MB限制（IMAGE_CONFIG.MAX_FILE_SIZE）
 - 测试智谱AI API是否可访问
+- 确认 `MODEL_TYPE` 设置为 `zhipu`
 
 ### 8. 语音识别功能不工作
 
@@ -494,6 +562,21 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ⚠️ 注意事项：
 - 此环境没有部署TTS服务，不支持开启语音功能（ISAUDIO=False）
 - 如需体验以上功能，请自行部署完整环境
+- 建议使用 Docker Compose 一键部署完整环境
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ptghb/virtual-person-framework&type=Date)](https://star-history.com/#ptghb/virtual-person-framework&Date)
+
+## 赞助支持
+
+如果这个项目对你有帮助，欢迎请我喝杯咖啡！
+
+| 微信支付 | 支付宝 |
+|---------|--------|
+| ![微信支付](https://github.com/ptghb/virtual-person-framework/raw/main/docs/wechat_pay.png) | ![支付宝](https://github.com/ptghb/virtual-person-framework/raw/main/docs/alipay.png) |
+
+感谢你的支持！
 
 ## 许可证
 
