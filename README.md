@@ -9,7 +9,7 @@
 - 👋 **手势交互控制**：通过摄像头识别手势，实时驱动Live2D模型动作（抬手/放下）
 - 🎭 **多模态交互体验**：支持文字、图片、音频消息，动画与音频深度同步
 - 🔧 **全栈技术集成**：前端React 19 + TypeScript 5.8 + Vite 6.3，后端FastAPI + LangChain，Docker化TTS服务
-- 🎨 **现代化UI设计**：基于Ant Design 6的精美界面，响应式布局，支持移动端访问
+- 🎨 **现代化UI设计**：基于Ant Design 6的精美界面，响应式布局
 
 ## 场景应用
 
@@ -201,8 +201,8 @@ CubismWebSamples/
 
 ```bash
 # 克隆项目并初始化子模块
-git clone --recurse-submodules https://github.com/ptghb/virtual-person-framework.git
-cd virtual-person-framework
+git clone --recurse-submodules https://github.com/ptghb/virtual-person.git
+cd virtual-person
 
 # 配置环境变量
 cp BackendProject/.env.example BackendProject/.env
@@ -219,9 +219,11 @@ docker-compose logs -f
 ```
 
 服务启动后访问：
-- 前端服务：http://localhost:8080
+- 前端服务：http://localhost（或 http://localhost:80）
 - 后端服务：http://localhost:8000
 - TTS服务：http://localhost:3000
+
+> 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
 
 ### 后端部署
 
@@ -531,12 +533,13 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ### 10. Docker Compose 部署问题
 
 - 确认Docker和Docker Compose已安装：`docker --version` 和 `docker-compose --version`
-- 检查端口是否被占用：8080（前端）、8000（后端）、3000（TTS）
+- 检查端口是否被占用：80（Nginx入口）、8000（后端）、3000（TTS）
 - 查看服务状态：`docker-compose ps`
 - 查看服务日志：`docker-compose logs -f <service_name>`
 - 确认环境变量已正确配置在 `BackendProject/.env` 文件中
 - 检查Git子模块是否已初始化：`git submodule status`
 - 如需重新构建镜像：`docker-compose build --no-cache`
+- 前端服务通过 Nginx 反向代理访问，请访问 http://localhost 而非 8080 端口
 
 ### 7. 图片识别功能不工作
 
