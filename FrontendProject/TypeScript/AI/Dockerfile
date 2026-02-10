@@ -21,16 +21,20 @@ COPY ./Framework ./Framework
 RUN npm run build:prod
 
 # 生产阶段
-FROM nginx:alpine
+FROM node:23-alpine
 
-# 复制构建产物到 nginx 目录
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 设置工作目录
+WORKDIR /app
 
-# 复制自定义 nginx 配置（如果需要）
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 从构建阶段复制 package.json 和 node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+
+# 复制构建产物
+COPY --from=builder /app/dist ./dist
 
 # 暴露端口
-EXPOSE 80
+EXPOSE 8080
 
-# 启动 nginx
-CMD ["nginx", "-g", "daemon off;"]
+# 启动服务
+CMD ["npm", "run", "serve"]
