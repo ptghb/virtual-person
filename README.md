@@ -567,20 +567,6 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 如需体验以上功能，请自行部署完整环境
 - 建议使用 Docker Compose 一键部署完整环境
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ptghb/virtual-person-framework&type=Date)](https://star-history.com/#ptghb/virtual-person-framework&Date)
-
-## 赞助支持
-
-如果这个项目对你有帮助，欢迎请我喝杯咖啡！
-
-| 微信支付 | 支付宝 |
-|---------|--------|
-| ![微信支付](https://github.com/ptghb/virtual-person-framework/raw/main/docs/wechat_pay.png) | ![支付宝](https://github.com/ptghb/virtual-person-framework/raw/main/docs/alipay.png) |
-
-感谢你的支持！
-
 ## 许可证
 
 本项目基于Live2D Open Software License。使用前请阅读 [LICENSE.md](LICENSE.md)。
