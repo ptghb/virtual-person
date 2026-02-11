@@ -33,6 +33,8 @@ const HandGestureControls: React.FC = () => {
   }>({ x: 0, y: 0 });
   const [isPlayingMotion, setIsPlayingMotion] = useState<boolean>(false);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
+  const smoothedPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,6 +112,13 @@ const HandGestureControls: React.FC = () => {
    * 当伸出食指时，屏幕出现一个小手，小手碰到Live2D模型时，随机播放一个动画
    */
   const handleNewInteractionLogic = (gesture: HandGesture) => {
+    // 节流：限制更新频率为每50ms一次
+    const now = Date.now();
+    if (now - lastUpdateTimeRef.current < 50) {
+      return;
+    }
+    lastUpdateTimeRef.current = now;
+
     // 检查是否有任意一只手伸出食指
     const hasIndexFingerExtended =
       (gesture.leftHand && gesture.leftHand.index) ||
@@ -147,11 +156,18 @@ const HandGestureControls: React.FC = () => {
           const screenX = canvasRect.left + normalizedX * canvasRect.width;
           const screenY = canvasRect.top + normalizedY * canvasRect.height;
 
-          const screenPosition = { x: screenX, y: screenY };
-          setCursorPosition(screenPosition);
+          // 平滑处理：使用线性插值减少抖动
+          const smoothedPosition = smoothPosition(
+            { x: screenX, y: screenY },
+            smoothedPositionRef.current,
+            0.3 // 平滑系数，0.3表示30%的新位置，70%的旧位置
+          );
+          smoothedPositionRef.current = smoothedPosition;
+
+          setCursorPosition(smoothedPosition);
 
           // 检测是否碰到Live2D模型
-          checkCollisionAndPlayMotion(screenX, screenY);
+          checkCollisionAndPlayMotion(smoothedPosition.x, smoothedPosition.y);
         } catch (error) {
           console.error(
             'Failed to map finger position to Live2D canvas:',
@@ -162,7 +178,31 @@ const HandGestureControls: React.FC = () => {
     } else {
       // 隐藏小手光标
       setCursorHandVisible(false);
+      // 重置平滑位置
+      smoothedPositionRef.current = null;
     }
+  };
+
+  /**
+   * 平滑位置处理（线性插值）
+   * @param targetPosition 目标位置
+   * @param currentPosition 当前位置
+   * @param smoothingFactor 平滑系数（0-1），值越小越平滑
+   * @returns 平滑后的位置
+   */
+  const smoothPosition = (
+    targetPosition: { x: number; y: number },
+    currentPosition: { x: number; y: number } | null,
+    smoothingFactor: number
+  ): { x: number; y: number } => {
+    if (!currentPosition) {
+      return targetPosition;
+    }
+
+    return {
+      x: currentPosition.x + (targetPosition.x - currentPosition.x) * smoothingFactor,
+      y: currentPosition.y + (targetPosition.y - currentPosition.y) * smoothingFactor
+    };
   };
 
   /**
