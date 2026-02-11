@@ -14,9 +14,16 @@ export interface FingerState {
   little: boolean; // 小指
 }
 
+export interface FingerPosition {
+  x: number; // 屏幕X坐标
+  y: number; // 屏幕Y坐标
+}
+
 export interface HandGesture {
   leftHand: FingerState | null;
   rightHand: FingerState | null;
+  leftHandIndexPosition: FingerPosition | null; // 左手食指指尖位置
+  rightHandIndexPosition: FingerPosition | null; // 右手食指指尖位置
 }
 
 export type GestureCallback = (gesture: HandGesture) => void;
@@ -133,7 +140,9 @@ export class HandGestureService {
 
     const gesture: HandGesture = {
       leftHand: null,
-      rightHand: null
+      rightHand: null,
+      leftHandIndexPosition: null,
+      rightHandIndexPosition: null
     };
 
     if (results.multiHandLandmarks && results.multiHandedness) {
@@ -147,11 +156,20 @@ export class HandGestureService {
         // 检测手指状态
         const fingerState = this.detectFingerState(landmarks);
 
+        // 获取食指指尖位置（landmark[8]是食指指尖）
+        const indexTip = landmarks[8];
+        const fingerPosition: FingerPosition = {
+          x: indexTip.x * this.canvasElement.width,
+          y: indexTip.y * this.canvasElement.height
+        };
+
         // 根据左右手分类
         if (handedness.label === 'Left') {
           gesture.leftHand = fingerState;
+          gesture.leftHandIndexPosition = fingerPosition;
         } else {
           gesture.rightHand = fingerState;
+          gesture.rightHandIndexPosition = fingerPosition;
         }
       }
     }

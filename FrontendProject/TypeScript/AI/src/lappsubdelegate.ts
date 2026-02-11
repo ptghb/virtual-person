@@ -312,6 +312,10 @@ export class LAppSubdelegate {
     return this._glManager.getGl().isContextLost();
   }
 
+  public getView(): LAppView {
+    return this._view;
+  }
+
   private _canvas: HTMLCanvasElement;
 
   /**
