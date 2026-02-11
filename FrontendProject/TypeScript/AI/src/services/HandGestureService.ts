@@ -62,7 +62,7 @@ export class HandGestureService {
           minTrackingConfidence: 0.5
         });
 
-        this.hands.onResults(this.onResults.bind(this));
+        this.hands.onResults((results: Results) => this.onResults(results));
 
         this.camera = new Camera(videoElement, {
           onFrame: async () => {
@@ -77,7 +77,7 @@ export class HandGestureService {
         this.isInitialized = true;
         resolve();
       } catch (error) {
-        reject(error);
+        reject(error instanceof Error ? error : new Error('Unknown error'));
       }
     });
   }
@@ -183,7 +183,10 @@ export class HandGestureService {
   /**
    * 绘制手部关键点
    */
-  private drawHand(ctx: CanvasRenderingContext2D, landmarks: any[]): void {
+  private drawHand(
+    ctx: CanvasRenderingContext2D,
+    landmarks: { x: number; y: number }[]
+  ): void {
     // 绘制连接线
     const connections = [
       [0, 1],
@@ -248,7 +251,9 @@ export class HandGestureService {
   /**
    * 检测手指状态（是否伸出）
    */
-  private detectFingerState(landmarks: any[]): FingerState {
+  private detectFingerState(
+    landmarks: { x: number; y: number }[]
+  ): FingerState {
     // 手指关键点索引
     // 拇指: 4 (指尖), 3 (第二关节), 2 (第一关节), 1 (根部)
     // 其他手指: 8, 12, 16, 20 (指尖), 6, 10, 14, 18 (第二关节), 5, 9, 13, 17 (第一关节)
@@ -320,4 +325,4 @@ export class HandGestureService {
 }
 
 // 导出单例
-export const handGestureService = new HandGestureService();
+export const HandGestureServiceInstance = new HandGestureService();

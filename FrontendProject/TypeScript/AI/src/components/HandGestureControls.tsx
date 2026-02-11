@@ -7,21 +7,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Switch, message } from 'antd';
 import { RiseOutlined, StopOutlined } from '@ant-design/icons';
-import { handGestureService, FingerState, HandGesture } from '../services/HandGestureService';
+import {
+  HandGestureServiceInstance,
+  FingerState,
+  HandGesture
+} from '../services/HandGestureService';
 import { LAppDelegate } from '../lappdelegate';
 import * as LAppDefine from '../lappdefine';
 
 const HandGestureControls: React.FC = () => {
-  const [isGestureSyncEnabled, setIsGestureSyncEnabled] = useState<boolean>(false);
+  const [isGestureSyncEnabled, setIsGestureSyncEnabled] =
+    useState<boolean>(false);
   const [currentGesture, setCurrentGesture] = useState<HandGesture>({
     leftHand: null,
     rightHand: null,
     leftHandIndexPosition: null,
     rightHandIndexPosition: null
   });
-  const [isServiceInitialized, setIsServiceInitialized] = useState<boolean>(false);
+  const [isServiceInitialized, setIsServiceInitialized] =
+    useState<boolean>(false);
   const [cursorHandVisible, setCursorHandVisible] = useState<boolean>(false);
-  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cursorPosition, setCursorPosition] = useState<{
+    x: number;
+    y: number;
+  }>({ x: 0, y: 0 });
   const [isPlayingMotion, setIsPlayingMotion] = useState<boolean>(false);
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
@@ -33,7 +42,7 @@ const HandGestureControls: React.FC = () => {
     const initService = async () => {
       if (videoRef.current && canvasRef.current) {
         try {
-          await handGestureService.initialize(
+          await HandGestureServiceInstance.initialize(
             videoRef.current,
             canvasRef.current
           );
@@ -58,11 +67,11 @@ const HandGestureControls: React.FC = () => {
       }
     };
 
-    handGestureService.onGesture(handleGesture);
+    HandGestureServiceInstance.onGesture(handleGesture);
 
     // 清理
     return () => {
-      handGestureService.removeGestureCallback(handleGesture);
+      HandGestureServiceInstance.removeGestureCallback(handleGesture);
     };
   }, [isGestureSyncEnabled]);
 
@@ -76,7 +85,7 @@ const HandGestureControls: React.FC = () => {
     }
 
     try {
-      await handGestureService.start();
+      await HandGestureServiceInstance.start();
       setIsGestureSyncEnabled(true);
       setCursorHandVisible(false);
       message.success('手势同步已启用');
@@ -90,7 +99,7 @@ const HandGestureControls: React.FC = () => {
    * 禁用手势同步
    */
   const handleDisableGestureSync = () => {
-    handGestureService.stop();
+    HandGestureServiceInstance.stop();
     setIsGestureSyncEnabled(false);
     setCursorHandVisible(false);
     message.info('手势同步已禁用');
@@ -131,12 +140,12 @@ const HandGestureControls: React.FC = () => {
 
           // 将视频画布的相对坐标（0-1）映射到Live2D画布的相对坐标
           // 注意：视频是镜像翻转的，所以X坐标需要反转
-          const normalizedX = 1.0 - (fingerPosition.x / videoWidth);
+          const normalizedX = 1.0 - fingerPosition.x / videoWidth;
           const normalizedY = fingerPosition.y / videoHeight;
 
           // 将相对坐标转换为Live2D画布的屏幕坐标
-          const screenX = canvasRect.left + (normalizedX * canvasRect.width);
-          const screenY = canvasRect.top + (normalizedY * canvasRect.height);
+          const screenX = canvasRect.left + normalizedX * canvasRect.width;
+          const screenY = canvasRect.top + normalizedY * canvasRect.height;
 
           const screenPosition = { x: screenX, y: screenY };
           setCursorPosition(screenPosition);
@@ -144,7 +153,10 @@ const HandGestureControls: React.FC = () => {
           // 检测是否碰到Live2D模型
           checkCollisionAndPlayMotion(screenX, screenY);
         } catch (error) {
-          console.error('Failed to map finger position to Live2D canvas:', error);
+          console.error(
+            'Failed to map finger position to Live2D canvas:',
+            error
+          );
         }
       }
     } else {
@@ -183,7 +195,12 @@ const HandGestureControls: React.FC = () => {
       const canvasY = y - rect.top;
 
       // 检查是否在画布范围内
-      if (canvasX < 0 || canvasX > rect.width || canvasY < 0 || canvasY > rect.height) {
+      if (
+        canvasX < 0 ||
+        canvasX > rect.width ||
+        canvasY < 0 ||
+        canvasY > rect.height
+      ) {
         return;
       }
 
@@ -192,7 +209,9 @@ const HandGestureControls: React.FC = () => {
       const viewX = view.transformViewX(canvasX * window.devicePixelRatio);
       const viewY = view.transformViewY(canvasY * window.devicePixelRatio);
 
-      console.log(`[HandGestureControls] Checking collision at canvas(${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}) -> view(${viewX.toFixed(2)}, ${viewY.toFixed(2)})`);
+      console.log(
+        `[HandGestureControls] Checking collision at canvas(${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}) -> view(${viewX.toFixed(2)}, ${viewY.toFixed(2)})`
+      );
 
       // 检测是否碰到模型的任意碰撞区域
       const hitAreaCount = model._modelSetting.getHitAreasCount();
@@ -204,24 +223,31 @@ const HandGestureControls: React.FC = () => {
       for (let i = 0; i < hitAreaCount; i++) {
         hitAreaName = model._modelSetting.getHitAreaName(i);
         const hitResult = model.hitTest(hitAreaName, viewX, viewY);
-        console.log(`[HandGestureControls] Testing hit area '${hitAreaName}': ${hitResult}`);
+        console.log(
+          `[HandGestureControls] Testing hit area '${hitAreaName}': ${hitResult}`
+        );
         if (hitResult) {
           isHit = true;
-          console.log(`[HandGestureControls] Hit detected on area: ${hitAreaName}`);
+          console.log(
+            `[HandGestureControls] Hit detected on area: ${hitAreaName}`
+          );
           break;
         }
       }
 
       // 如果碰到模型，播放随机动画
-      if (isHit && isPlayingMotion === false) {
+      if (isHit) {
         console.log(`[HandGestureControls] Playing random motion`);
-        setIsPlayingMotion(true);
-        playRandomMotion(model);
+        model.enableMotion();
       } else {
         console.log(`[HandGestureControls] No hit detected`);
+        model.stopMotion();
       }
     } catch (error) {
-      console.error('[HandGestureControls] Failed to check collision or play motion:', error);
+      console.error(
+        '[HandGestureControls] Failed to check collision or play motion:',
+        error
+      );
     }
   };
 
@@ -246,12 +272,13 @@ const HandGestureControls: React.FC = () => {
     }
   };
 
-
-
   /**
    * 渲染手指状态显示（简化版）
    */
-  const renderFingerState = (fingerState: FingerState | null, label: string) => {
+  const renderFingerState = (
+    fingerState: FingerState | null,
+    label: string
+  ) => {
     if (!fingerState) {
       return <div style={{ color: '#999' }}>{label}: 未检测到</div>;
     }
@@ -269,15 +296,11 @@ const HandGestureControls: React.FC = () => {
   };
 
   return (
-    <Card
-      title="手势控制"
-      size="small"
-      style={{ marginBottom: '10px' }}
-    >
+    <Card title="手势控制" size="small" style={{ marginBottom: '10px' }}>
       <div style={{ marginBottom: '10px' }}>
         <Switch
           checked={isGestureSyncEnabled}
-          onChange={(checked) => {
+          onChange={checked => {
             if (checked) {
               handleEnableGestureSync();
             } else {
@@ -347,15 +370,32 @@ const HandGestureControls: React.FC = () => {
       </div>
 
       {/* 手指状态显示 */}
-      <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+      <div
+        style={{
+          marginTop: '10px',
+          padding: '8px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '4px'
+        }}
+      >
         {renderFingerState(currentGesture.leftHand, '左手')}
         {renderFingerState(currentGesture.rightHand, '右手')}
       </div>
 
       {/* 使用说明 */}
       {isGestureSyncEnabled && (
-        <div style={{ marginTop: '10px', padding: '8px', backgroundColor: '#e6f7ff', borderRadius: '4px', fontSize: '12px', color: '#1890ff' }}>
-          💡 使用说明：伸出食指时，屏幕会出现小手光标。将小手移动到Live2D模型上，会随机播放一个动画。
+        <div
+          style={{
+            marginTop: '10px',
+            padding: '8px',
+            backgroundColor: '#e6f7ff',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#1890ff'
+          }}
+        >
+          💡
+          使用说明：伸出食指时，屏幕会出现小手光标。将小手移动到Live2D模型上，会随机播放一个动画。
         </div>
       )}
 
