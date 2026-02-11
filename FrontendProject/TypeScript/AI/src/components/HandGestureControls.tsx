@@ -407,15 +407,30 @@ const HandGestureControls: React.FC = () => {
             left: cursorPosition.x,
             top: cursorPosition.y,
             transform: 'translate(-50%, -50%)',
-            fontSize: '48px',
+            fontSize: '40px',
             pointerEvents: 'none',
             zIndex: 9999,
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
+            animation: 'pulse 1.5s ease-in-out infinite'
           }}
         >
-          👆
+          👋
         </div>
       )}
+
+      {/* 添加脉冲动画样式 */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.1);
+            opacity: 0.8;
+          }
+        }
+      `}</style>
     </Card>
   );
 };
