@@ -646,6 +646,11 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ## Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=ptghb/virtual-person&type=date&legend=bottom-right)](https://www.star-history.com/#ptghb/virtual-person&type=date&legend=bottom-right)
 
+## 联系我
+如有任何问题或建议，欢迎通过以下方式联系我：
+
+<img src="./weixin.jpg" alt="微信二维码" width="200" />
+
 ## 请作者喝杯咖啡？
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
 
