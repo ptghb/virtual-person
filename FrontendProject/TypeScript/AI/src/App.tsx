@@ -13,14 +13,18 @@ import MotionControls from './components/MotionControls';
 import ZoomControls from './components/ZoomControls';
 import HandGestureControls from './components/HandGestureControls';
 import MobilePage from './pages/MobilePage';
+import LiveStreamPage from './pages/LiveStreamPage';
 import { Button } from 'antd';
 
 const HomePage: React.FC = () => {
   return (
     <>
-      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
+      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000, display: 'flex', gap: '10px' }}>
         <Link to="/mobile">
           <Button type="primary">进入手机页面</Button>
+        </Link>
+        <Link to="/livestream">
+          <Button type="default">进入直播页面</Button>
         </Link>
       </div>
       <div id="controls-container">
@@ -40,6 +44,7 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/mobile" element={<MobilePage />} />
+        <Route path="/livestream" element={<LiveStreamPage />} />
       </Routes>
     </Router>
   );
