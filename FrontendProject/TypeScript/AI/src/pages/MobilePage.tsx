@@ -25,11 +25,17 @@ const MobilePage: React.FC = () => {
   const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
 
   useEffect(() => {
+    // 配置 message 显示在 header 下方
+    message.config({
+      top: 80,
+      duration: 3,
+    });
+
     // 设置状态变化回调
     wsManager.onStateChange((state) => {
       setIsConnected(state === 'connected');
       if (state === 'connected') {
-        message.success('WebSocket连接成功');
+        // message.success('WebSocket连接成功');
       } else if (state === 'error') {
         message.error('WebSocket连接错误');
       }
@@ -128,7 +134,7 @@ const MobilePage: React.FC = () => {
 
       if (success) {
         console.log('发送消息成功:', inputValue);
-        message.success('消息已发送');
+        // message.success('消息已发送');
         setInputValue('');
       } else {
         message.error('发送消息失败');
@@ -154,16 +160,8 @@ const MobilePage: React.FC = () => {
 
   return (
     <div className="mobile-page">
-      {/*<div className="mobile-header">*/}
-      {/*  <Button*/}
-      {/*    type="text"*/}
-      {/*    icon={<ArrowLeftOutlined />}*/}
-      {/*    onClick={handleBack}*/}
-      {/*    className="back-button"*/}
-      {/*  >*/}
-      {/*    返回*/}
-      {/*  </Button>*/}
-      {/*</div>*/}
+      <div className="mobile-header">
+      </div>
 
       {/* 消息泡泡容器 */}
       <div className="message-bubbles-container">
@@ -225,7 +223,7 @@ const MobilePage: React.FC = () => {
           backdrop-filter: blur(10px);
           pointer-events: auto !important;
           position: relative;
-          z-index: 1;
+          z-index: -1;
         }
 
         .back-button {
