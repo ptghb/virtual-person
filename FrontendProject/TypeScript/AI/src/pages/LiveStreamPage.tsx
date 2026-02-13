@@ -47,12 +47,8 @@ const LiveStreamPage: React.FC = () => {
           id: bubbleId,
           content: displayMessage.content
         };
-        setMessageBubbles(prev => [...prev, newBubble]);
-
-        // 10秒后自动关闭泡泡
-        setTimeout(() => {
-          setMessageBubbles(prev => prev.filter(bubble => bubble.id !== bubbleId));
-        }, 10000);
+        // 新消息出现时，移除所有旧消息
+        setMessageBubbles([newBubble]);
 
         // 如果有音频URL，使用 LAppAudioManager 播放音频并控制口型同步
         if (displayMessage.audioUrl) {

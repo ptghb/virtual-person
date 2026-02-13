@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
 import json
 from dotenv import load_dotenv
@@ -11,6 +11,7 @@ import emoji
 
 from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
+from handlers.comment_handler import comment_processor
 from services.llm_service import llm_service
 from services.http_service import http_service
 
@@ -32,15 +33,23 @@ app.add_middleware(
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        # 存储 client_id 到 WebSocket 的映射
+        self.client_connections: Dict[str, WebSocket] = {}
         # 存储每个客户端的消息历史记录
         self.message_history: Dict[str, List[BaseMessage]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections.append(websocket)
+        self.client_connections[client_id] = websocket
+        print(f"[ConnectionManager] 客户端 {client_id} 已连接")
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def disconnect(self, websocket: WebSocket, client_id: str):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        if client_id in self.client_connections:
+            del self.client_connections[client_id]
+        print(f"[ConnectionManager] 客户端 {client_id} 已断开")
 
     async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None, prompt: str = None):
         """发送个人消息，支持多种类型
@@ -87,6 +96,10 @@ class ConnectionManager:
         if client_id in self.message_history:
             del self.message_history[client_id]
 
+    def get_client_by_id(self, client_id: str) -> Optional[WebSocket]:
+        """根据 client_id 获取 WebSocket 连接"""
+        return self.client_connections.get(client_id)
+
 
 def remove_emojis(text: str) -> str:
     """
@@ -114,7 +127,7 @@ async def say_hello(name: str):
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await manager.connect(websocket)
+    await manager.connect(websocket, client_id)
     try:
         # 发送欢迎消息
         await manager.send_personal_message("你好，我是你的好朋友，小凡...", "", websocket, msg_type=1)
@@ -124,13 +137,31 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             try:
                 print(f"[websocket_endpoint] 接收到原始数据: {data}")
-                # 使用新的消息解析器
-                msg_type, msg_data, error = message_parser.parse_message(data)
 
-                if error:
-                    print(f"[websocket_endpoint] 消息解析错误: {error}")
-                    await manager.send_personal_message(f"消息格式错误: {error}", "", websocket, msg_type=1)
+                # 先尝试解析为 JSON
+                try:
+                    parsed_data = json.loads(data)
+                except json.JSONDecodeError:
+                    await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", "", websocket, msg_type=1)
                     continue
+
+                # 判断消息格式类型
+                # 格式1: 评论推送格式 [{"method": "WebcastChatMessage", ...}, ...] - 直接数组
+                # 格式2: 标准格式 {"type": "xxx", "data": {...}} - 使用 MessageParser 解析
+                if isinstance(parsed_data, list):
+                    # 评论推送格式，直接是数组
+                    msg_type = "comment"
+                    msg_data = {"comments": parsed_data}
+                    error = None
+                    print(f"[websocket_endpoint] 识别为评论推送格式（数组）")
+                else:
+                    # 标准格式，使用 MessageParser 解析
+                    msg_type, msg_data, error = message_parser.parse_message(data)
+
+                    if error:
+                        print(f"[websocket_endpoint] 消息解析错误: {error}")
+                        await manager.send_personal_message(f"消息格式错误: {error}", "", websocket, msg_type=1)
+                        continue
 
                 print(f"[websocket_endpoint] 接收到消息类型: {msg_type}")
                 print(f"[websocket_endpoint] 消息数据: {msg_data}")
@@ -148,6 +179,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 elif msg_type == "image":
                     await handle_image_message(websocket, client_id, msg_data)
                     continue
+                elif msg_type == "comment":
+                    await handle_comment_message(websocket, client_id, msg_data)
+                    continue
 
             except json.JSONDecodeError:
                 await manager.send_personal_message("消息格式错误，请发送 JSON 格式的消息", "", websocket, msg_type=1)
@@ -155,7 +189,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 await manager.send_personal_message(f"AI 错误: {str(e)}", "", websocket, msg_type=1)
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, client_id)
         await manager.broadcast(f"Client {client_id} left the chat")
 
 # 新增的处理函数
@@ -273,6 +307,149 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
           prompt=None
         )
 
+async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data: dict):
+    """处理评论推送消息
+
+    消息格式:
+    {
+        "type": "comment",
+        "comments": [
+            {
+                "id": "消息ID",
+                "method": "WebcastChatMessage|WebcastMemberMessage|WebcastGiftMessage|WebcastLikeMessage",
+                "user": {
+                    "id": "用户ID",
+                    "name": "用户名",
+                    "avatar": "头像URL"
+                },
+                "content": "评论内容（仅 WebcastChatMessage 有）",
+                "gift": {...},  // 仅 WebcastGiftMessage 有
+                "room": {...}   // 房间信息
+            },
+            ...
+        ]
+    }
+
+    处理流程:
+    1. 接收评论推送数组
+    2. 过滤出 WebcastChatMessage 类型的消息（实际评论）
+    3. 调用大模型生成回复
+    4. 生成 TTS 语音
+    5. 发送给所有 livestream_user_ 开头的客户端
+    """
+    print(f"[handle_comment_message] 接收到评论推送消息，客户端: {client_id}")
+
+    comments = msg_data.get("comments", [])
+
+    if not comments:
+        response = {
+            "type": "response",
+            "data": {
+                "status": "error",
+                "message": "评论数据不能为空",
+                "request_type": "comment"
+            }
+        }
+        await websocket.send_text(json.dumps(response))
+        return
+
+    # 过滤出 WebcastChatMessage 类型的消息（实际评论）
+    chat_messages = [
+        msg for msg in comments
+        if msg.get("method") == "WebcastChatMessage" and msg.get("content")
+    ]
+
+    if not chat_messages:
+        print(f"[handle_comment_message] 未找到实际评论消息（WebcastChatMessage）")
+        response = {
+            "type": "response",
+            "data": {
+                "status": "success",
+                "message": f"收到 {len(comments)} 条消息，但无实际评论内容",
+                "processed_count": 0,
+                "request_type": "comment"
+            }
+        }
+        await websocket.send_text(json.dumps(response))
+        return
+
+    print(f"[handle_comment_message] 找到 {len(chat_messages)} 条实际评论")
+
+    try:
+        # 处理每条评论
+        processed_count = 0
+        for chat_msg in chat_messages:
+            comment_text = chat_msg.get("content", "")
+            user_info = chat_msg.get("user", {})
+            user_name = user_info.get("name", "观众")
+
+            print(f"[handle_comment_message] 处理评论 - 用户: {user_name}, 内容: {comment_text}")
+
+            # 处理评论，获取 AI 回复和音频
+            result = await comment_processor.process_comment(comment_text, user_name)
+
+            if result["status"] != "success":
+                print(f"[handle_comment_message] 处理评论失败: {result.get('message')}")
+                continue
+
+            ai_response = result["ai_response"]
+            audio_url = result["audio_url"]
+
+            # 查找所有 livestream_user_ 开头的客户端
+            livestream_clients = [
+                (cid, ws)
+                for cid, ws in manager.client_connections.items()
+                if cid.startswith("livestream_user_")
+            ]
+
+            if not livestream_clients:
+                print(f"[handle_comment_message] 未找到 livestream_user_ 开头的客户端")
+                continue
+
+            # 发送给所有 livestream_user_ 开头的客户端
+            for stream_client_id, stream_websocket in livestream_clients:
+                try:
+                    await manager.send_personal_message(
+                        f"小凡: {ai_response}",
+                        audio_url,
+                        stream_websocket,
+                        msg_type=1,
+                        animation_index=0,
+                        should_take_photo=False,
+                        prompt=None
+                    )
+                    print(f"[handle_comment_message] 已发送回复给客户端 {stream_client_id}")
+                except Exception as e:
+                    print(f"[handle_comment_message] 发送给客户端 {stream_client_id} 失败: {str(e)}")
+
+            processed_count += 1
+
+        # 发送确认响应给发送评论的客户端
+        response = {
+            "type": "response",
+            "data": {
+                "status": "success",
+                "message": f"评论处理完成，共处理 {processed_count} 条评论",
+                "total_messages": len(comments),
+                "chat_messages": len(chat_messages),
+                "processed_count": processed_count,
+                "request_type": "comment"
+            }
+        }
+        await websocket.send_text(json.dumps(response))
+
+    except Exception as e:
+        print(f"[handle_comment_message] 处理评论推送失败: {str(e)}")
+        response = {
+            "type": "response",
+            "data": {
+                "status": "error",
+                "message": f"处理评论推送失败: {str(e)}",
+                "request_type": "comment"
+            }
+        }
+        await websocket.send_text(json.dumps(response))
+
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""
     text = msg_data.get("content", "")
@@ -370,6 +547,10 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             }
         }
         await websocket.send_text(json.dumps(response_msg))
+
+
+
+
 
 if __name__ == "__main__":
     uvicorn.run(
