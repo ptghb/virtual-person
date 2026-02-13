@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "forceConsistentCasingInFileNames": true,
@@ -15,6 +15,7 @@
     "noImplicitAny": true,
     "useUnknownInCatchVariables": true,
     "jsx": "react-jsx",
+    "skipLibCheck": true,
     "lib": ["es6", "dom", "dom.iterable"]
   },
   "include": [

@@ -17,6 +17,7 @@ class HTTPService:
     def __init__(self):
         """初始化HTTP服务"""
         self.tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
+        self.audio_url = os.getenv("AUDIO_URL", "http://localhost:3000")
 
     async def post(
         self,
@@ -117,7 +118,7 @@ class HTTPService:
 
             if response and response.get("success"):
                 audio_file = response["data"]["audio"]
-                return f"{self.tts_api_url}{audio_file}"
+                return f"{self.audio_url}{audio_file}"
 
             return None
         except Exception as e:

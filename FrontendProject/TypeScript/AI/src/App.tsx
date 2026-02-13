@@ -6,15 +6,23 @@
  */
 
 import * as React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import AudioControls from './components/AudioControls';
 import WebSocketPanel from './components/WebSocketPanel';
 import MotionControls from './components/MotionControls';
 import ZoomControls from './components/ZoomControls';
 import HandGestureControls from './components/HandGestureControls';
+import MobilePage from './pages/MobilePage';
+import { Button } from 'antd';
 
-const App: React.FC = () => {
+const HomePage: React.FC = () => {
   return (
     <>
+      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
+        <Link to="/mobile">
+          <Button type="primary">进入手机页面</Button>
+        </Link>
+      </div>
       <div id="controls-container">
         <AudioControls />
         <MotionControls />
@@ -23,6 +31,17 @@ const App: React.FC = () => {
       </div>
       <WebSocketPanel />
     </>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/mobile" element={<MobilePage />} />
+      </Routes>
+    </Router>
   );
 };
 
