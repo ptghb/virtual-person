@@ -19,3 +19,5 @@ temp/
 !/.vscode/settings.json
 !/.vscode/tasks.json
 BackendProject/.env
+
+BackendProject/audio_files
