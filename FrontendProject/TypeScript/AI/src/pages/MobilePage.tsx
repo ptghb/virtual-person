@@ -5,11 +5,11 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Typography, Card, Input, Space, message } from 'antd';
 import { ArrowLeftOutlined, SendOutlined, AudioOutlined, CloseOutlined } from '@ant-design/icons';
-import { WebSocketManager } from '../websocketmanager';
+import { WebSocketManager, ProtocolMessage, ProtocolMessageType, AudioFormat, ControlAction } from '../websocketmanager';
 import { getWebSocketUrl } from '../config';
 import type { DisplayMessage } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
@@ -23,6 +23,8 @@ const MobilePage: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [messageBubbles, setMessageBubbles] = useState<Array<{ id: number; content: string }>>([]);
   const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   useEffect(() => {
     // 配置 message 显示在 header 下方
@@ -96,6 +98,11 @@ const MobilePage: React.FC = () => {
     // 清理函数
     return () => {
       clearTimeout(connectTimer);
+      // 清理录音资源
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        mediaRecorder.stop();
+      }
       wsManager.disconnect();
     };
   }, [wsManager]);
@@ -142,10 +149,187 @@ const MobilePage: React.FC = () => {
     }
   };
 
+  // 开始录音
+  const startRecording = async () => {
+    try {
+      console.log('[MobilePage] 开始录音');
+
+      // 请求麦克风权限
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+
+      // 创建MediaRecorder
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      // 监听recorder停止事件，确保发送最终数据块
+      recorder.onstop = () => {
+        console.log('[MobilePage] MediaRecorder已停止');
+
+        // 立即清理状态，防止后续数据发送
+        setMediaRecorder(null);
+        setIsRecording(false);
+
+        // 发送最终的is_final=true消息（即使没有音频数据也要发送）
+        console.log('[MobilePage] 发送最终音频结束标识');
+        if (wsManager.getState() === 'connected') {
+          // 发送协议格式的音频消息（最终块）
+          const audioMessage: ProtocolMessage = {
+            type: 'audio' as ProtocolMessageType,
+            data: {
+              audioFormat: 'pcm' as AudioFormat,
+              sample_rate: 16000,
+              channels: 1,
+              chunk: '', // 空数据块表示结束
+              is_final: true, // 明确标识这是最后一块音频数据
+              timestamp: new Date().toISOString(),
+              client_id: wsManager.getClientId()
+            }
+          };
+          // 日志记录
+          console.log('[MobilePage] 发送最终音频消息(onstop):', {
+            is_final: audioMessage.data.is_final,
+            chunk_size: 0,
+            timestamp: audioMessage.data.timestamp
+          });
+          wsManager.send(audioMessage);
+        }
+
+        // 通知WebSocket结束语音流
+        if (wsManager.getState() === 'connected') {
+          const controlMessage: ProtocolMessage = {
+            type: 'control' as ProtocolMessageType,
+            data: {
+              action: 'stop_audio_stream' as ControlAction,
+              timestamp: new Date().toISOString(),
+              client_id: wsManager.getClientId()
+            }
+          };
+          wsManager.send(controlMessage);
+        }
+
+        console.log('[MobilePage] 录音完全停止');
+      };
+
+      // 设置录音数据处理
+      recorder.ondataavailable = (event) => {
+        console.log('[MobilePage] ondataavailable触发 - 当前状态:', {
+          isRecording,
+          hasMediaRecorder: !!mediaRecorder,
+          dataSize: event.data.size,
+          recorderState: recorder.state
+        });
+
+        // 检查录音器状态而不是React状态（更可靠）
+        if (recorder.state !== 'recording') {
+          console.log('[MobilePage] MediaRecorder未在录制状态，忽略数据');
+          return;
+        }
+
+        if (event.data.size > 0) {
+          console.log('[MobilePage] 处理音频数据块');
+
+          // 将音频数据发送到WebSocket
+          const reader = new FileReader();
+          reader.onload = () => {
+            // 检查连接状态
+            if (wsManager.getState() !== 'connected') {
+              console.log('[MobilePage] WebSocket未连接，取消发送');
+              return;
+            }
+
+            const base64Data = (reader.result as string).split(',')[1];
+            // 发送协议格式的音频消息（非最终块）
+            const audioMessage: ProtocolMessage = {
+              type: 'audio' as ProtocolMessageType,
+              data: {
+                audioFormat: 'pcm' as AudioFormat,
+                sample_rate: 16000,
+                channels: 1,
+                chunk: base64Data,
+                is_final: false, // 实时传输的音频块都不是最终块
+                timestamp: new Date().toISOString(),
+                client_id: wsManager.getClientId()
+              }
+            };
+            // 日志记录（不显示chunk内容）
+            console.log('[MobilePage] 发送音频消息:', {
+              is_final: audioMessage.data.is_final,
+              chunk_size: base64Data.length,
+              timestamp: audioMessage.data.timestamp
+            });
+            wsManager.send(audioMessage);
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+
+      // 每100ms收集一次数据（但不强制发送，让ondataavailable处理）
+      recorder.start(100);
+
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+
+      // 通知WebSocket开启语音流
+      if (wsManager.getState() === 'connected') {
+        // 发送协议格式的控制消息
+        const controlMessage: ProtocolMessage = {
+          type: 'control' as ProtocolMessageType,
+          data: {
+            action: 'start_audio_stream' as ControlAction,
+            timestamp: new Date().toISOString(),
+            client_id: wsManager.getClientId()
+          }
+        };
+        wsManager.send(controlMessage);
+      }
+
+      console.log('[MobilePage] 录音已开始');
+    } catch (error) {
+      console.error('[MobilePage] 录音启动失败:', error);
+      message.error('无法访问麦克风，请检查权限设置');
+    }
+  };
+
+  // 停止录音
+  const stopRecording = () => {
+    console.log('[MobilePage] 停止录音 - 当前状态:', { isRecording, hasMediaRecorder: !!mediaRecorder });
+
+    if (mediaRecorder && isRecording) {
+      // 立即清理状态，防止后续数据发送
+      setIsRecording(false);
+      console.log('[MobilePage] 已设置isRecording=false');
+
+      // 只需要调用stop()，让onstop事件处理器来处理后续逻辑
+      console.log('[MobilePage] 调用mediaRecorder.stop()');
+      mediaRecorder.stop();
+
+      // 停止所有音轨
+      mediaRecorder.stream.getTracks().forEach(track => {
+        console.log('[MobilePage] 停止音轨:', track.kind);
+        track.stop();
+      });
+
+      console.log('[MobilePage] stopRecording执行完成');
+    } else {
+      console.log('[MobilePage] 无法停止录音 - 条件不满足');
+    }
+  };
+
   const handleVoice = () => {
     console.log('语音按钮被点击');
-    // TODO: 实现语音输入功能
-    message.info('语音功能开发中...');
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -199,7 +383,7 @@ const MobilePage: React.FC = () => {
             <Button
               icon={<AudioOutlined />}
               onClick={handleVoice}
-              className="voice-button"
+              className={`voice-button ${isRecording ? 'recording' : ''}`}
             />
           </Space>
         </div>
@@ -318,6 +502,24 @@ const MobilePage: React.FC = () => {
           align-items: center !important;
           justify-content: center !important;
           pointer-events: auto !important;
+        }
+
+        .voice-button.recording {
+          background-color: #ff4d4f !important;
+          border-color: #ff4d4f !important;
+          color: white !important;
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.1);
+            opacity: 0.8;
+          }
         }
 
         /* 消息泡泡容器 */
