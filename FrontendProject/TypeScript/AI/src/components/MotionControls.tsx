@@ -112,6 +112,7 @@ const MotionControls: React.FC = () => {
           value={selectedMotionNo}
           onChange={(value) => setSelectedMotionNo(value as number)}
           style={{ width: '100%' }}
+          getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
         >
           {motionOptions.map(option => (
             <Option key={option} value={option}>
