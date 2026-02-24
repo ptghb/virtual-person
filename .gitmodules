@@ -1,3 +1,6 @@
 [submodule "Framework"]
 	path = Framework
 	url = https://github.com/ptghb/virtual-person-framework.git
+[submodule "dycast"]
+	path = dycast
+	url = https://github.com/skmcj/dycast.git
