@@ -17,6 +17,7 @@
 - 📺 **虚拟主播/数字人互动**：可用于直播、视频制作等场景
 - 🤖 **AI助手 + 虚拟形象融合实验**：探索AI与虚拟形象的结合应用
 - 👋 **手势交互与动画控制技术演示**：展示MediaPipe与Live2D的深度集成，实现食指追踪和碰撞检测
+- 🎬 **抖音直播互动**：集成抖音弹幕捕获，实现数字人自动回复直播间评论
 
 ## 项目简介
 
@@ -186,6 +187,17 @@ CubismWebSamples/
 - **语音识别**：集成SiliconFlow SenseVoiceSmall，支持语音转文字（WAV格式）
 - **音频流处理**：支持实时音频流传输，格式为PCM，包含sample_rate、channels等参数
 - **图片音频**：支持图片消息转语音功能，可配置音频开关
+
+### 6. 抖音直播互动（新增）
+
+- **弹幕捕获**：集成 [dycast](https://github.com/skmcj/dycast) 项目，实时捕获抖音直播间弹幕
+- **评论推送**：通过 WebSocket 接收抖音直播间评论消息（WebcastChatMessage 类型）
+- **AI自动回复**：数字人自动分析评论内容并生成智能回复
+- **TTS语音合成**：将AI回复转换为语音，通过 Live2D 模型口型同步播放
+- **实时互动**：支持批量处理多条评论，逐条生成回复和语音
+- **直播页面**：提供纯净的直播页面，仅显示 Live2D 模型和消息泡泡
+- **消息过滤**：自动过滤 WebcastChatMessage 类型的消息作为实际评论内容
+- **客户端标识**：使用 `livestream_user_` 前缀的 client_id 进行 WebSocket 连接
 
 ## 快速开始
 
@@ -375,6 +387,18 @@ docker ps
 4. **自动对话**：识别结果自动发送给AI进行对话
 5. **移动端支持**：移动端页面支持语音录音功能，录音时按钮显示红色背景与脉冲动画效果
 6. **音频配置**：支持16kHz采样率、单声道、回声消除、噪声抑制等音频参数配置
+
+### 抖音直播互动（新增）
+
+1. **部署弹幕捕获服务**：
+   - 克隆 [dycast](https://github.com/skmcj/dycast) 项目
+   - 配置转发地址为后端 WebSocket 服务（如 `ws://your-server:8000/ws/livestream_user_123`）
+   - 输入抖音直播间房间号并连接
+2. **启动直播页面**：访问 `/livestream` 路由进入直播页面
+3. **自动接收评论**：系统自动接收抖音直播间的评论消息
+4. **AI智能回复**：数字人自动分析评论并生成回复
+5. **语音播放**：回复内容通过 TTS 转换为语音，Live2D 模型口型同步播放
+6. **消息展示**：回复内容以半透明泡泡形式显示在屏幕下方
 
 ### WebSocket状态
 
@@ -583,6 +607,14 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 如需体验以上功能，请自行部署完整环境
 - 建议使用 Docker Compose 一键部署完整环境
 
+### 11. 抖音直播互动配置
+
+- **弹幕捕获服务**：需要单独部署 [dycast](https://github.com/skmcj/dycast) 项目
+- **WebSocket连接**：配置 dycast 的转发地址为 `ws://your-backend:8000/ws/livestream_user_{client_id}`
+- **评论处理**：后端会自动处理 WebcastChatMessage 类型的评论消息
+- **TTS依赖**：抖音直播互动功能需要启用 TTS 服务（ISAUDIO=True）
+- **客户端标识**：使用 `livestream_user_` 前缀的 client_id 连接 WebSocket
+
 ## 许可证
 
 本项目基于Live2D Open Software License。使用前请阅读 [LICENSE.md](LICENSE.md)。
@@ -605,6 +637,7 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - [OpenAI API](https://platform.openai.com/docs) - OpenAI API文档
 - [智谱AI GLM-4V](https://open.bigmodel.cn/dev/api#glm-4v) - 智谱AI视觉模型文档
 - [SiliconFlow](https://siliconflow.cn/) - SiliconFlow语音识别服务
+- [dycast](https://github.com/skmcj/dycast) - 抖音弹幕姬，实时捕获抖音直播间弹幕
 
 ## 更新日志
 
@@ -625,6 +658,9 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 - 📱 改进移动端支持和响应式布局
 - 🔧 优化WebSocket自动重连机制
 - 🎨 升级到React 19和Ant Design 6
+- 🎬 抖音直播互动：集成 dycast 实现抖音直播间评论自动回复
+- 💬 实时弹幕捕获：支持捕获抖音直播间评论并推送到数字人
+- 🤖 AI智能回复：数字人自动分析评论并生成语音回复
 
 ## 贡献指南
 
