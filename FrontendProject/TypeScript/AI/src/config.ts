@@ -5,10 +5,10 @@
 // 后端服务配置
 export const BACKEND_CONFIG = {
   // WebSocket 连接地址
-  WS_URL: 'ws://47.121.30.160:8000',
+  WS_URL: 'ws://localhost:8000',
 
   // HTTP API 基础地址
-  API_BASE_URL: 'http://47.121.30.160:8000',
+  API_BASE_URL: 'http://localhost:8000',
 
   // TTS 服务端点
   TTS_ENDPOINT: '/api/v1/tts/generate'

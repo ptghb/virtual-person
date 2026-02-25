@@ -56,6 +56,14 @@ audio_files/
 .env.local
 .env.*.local
 
+# Dycast (子模块)
+dycast/node_modules
+dycast/dist
+dycast/.git
+dycast/.idea
+dycast/.vscode
+dycast/*.log
+
 # Logs
 logs/
 *.log

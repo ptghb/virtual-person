@@ -58,6 +58,13 @@
 - **容器化部署**：Docker + Docker Compose
 - **其他库**：httpx 0.25.0+, aiofiles 23.0.0+, Pillow 10.0.0+, emoji 2.15.0+, zhipuai 2.0.0+, numpy 1.24.0+
 
+### 抖音弹幕姬技术栈
+
+- **框架**：Vue 3 + TypeScript + Vite
+- **功能**：抖音直播间弹幕实时获取和转发
+- **通信协议**：WebSocket
+- **容器化部署**：Docker + Docker Compose
+
 ## 项目结构
 
 ```
@@ -124,6 +131,7 @@ CubismWebSamples/
 │           └── copy_resources.js          # 资源复制脚本
 ├── Core/                        # Live2D Cubism Core（Git子模块）
 ├── Framework/                   # Live2D Framework（Git子模块）
+├── dycast/                      # 抖音弹幕姬（Git子模块）
 ├── .gitignore                   # Git忽略文件配置
 ├── .gitmodules                  # Git子模块配置
 ├── CHANGELOG.md                 # 项目更新日志
@@ -198,6 +206,7 @@ CubismWebSamples/
 - **直播页面**：提供纯净的直播页面，仅显示 Live2D 模型和消息泡泡
 - **消息过滤**：自动过滤 WebcastChatMessage 类型的消息作为实际评论内容
 - **客户端标识**：使用 `livestream_user_` 前缀的 client_id 进行 WebSocket 连接
+- **Docker部署**：支持通过 Docker Compose 一键部署抖音弹幕姬服务
 
 ## 快速开始
 
@@ -205,7 +214,7 @@ CubismWebSamples/
 
 - **Node.js**: 20.19.5+ / 22.20.0+ / 24.10.0+
 - **Python**: 3.8+
-- **Docker**: 用于运行EasyVoice TTS服务（可选，如需语音功能则必须）
+- **Docker**: 用于运行EasyVoice TTS服务和抖音弹幕姬服务（可选，如需语音功能则必须）
 - **浏览器**: 支持WebGL的现代浏览器（推荐Chrome、Edge、Firefox最新版）
 - **摄像头**: 如需使用手势控制功能
 
@@ -234,6 +243,7 @@ docker-compose logs -f
 - 前端服务：http://localhost（或 http://localhost:80）
 - 后端服务：http://localhost:8000
 - TTS服务：http://localhost:3000
+- 抖音弹幕姬：http://localhost/dycast/
 
 > 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
 
@@ -330,6 +340,27 @@ docker ps
 
 > ⚠️ 注意：TTS服务端口3000不能被占用，audio目录需要有写入权限。
 
+### 启动抖音弹幕姬服务（可选，如需抖音直播互动功能）
+
+如果使用 Docker Compose 部署，抖音弹幕姬服务会自动启动。访问 http://localhost/dycast/ 即可使用。
+
+如果需要单独部署：
+
+```bash
+# 进入 dycast 目录
+cd dycast
+
+# 安装依赖
+npm install
+
+# 构建项目
+npm run build
+
+# 使用 Docker 部署
+docker build -t dycast .
+docker run -d -p 3001:80 --name dycast dycast
+```
+
 ## 使用说明
 
 ### 基本操作
@@ -390,15 +421,14 @@ docker ps
 
 ### 抖音直播互动（新增）
 
-1. **部署弹幕捕获服务**：
-   - 克隆 [dycast](https://github.com/skmcj/dycast) 项目
-   - 配置转发地址为后端 WebSocket 服务（如 `ws://your-server:8000/ws/livestream_user_123`）
-   - 输入抖音直播间房间号并连接
-2. **启动直播页面**：访问 `/livestream` 路由进入直播页面
-3. **自动接收评论**：系统自动接收抖音直播间的评论消息
-4. **AI智能回复**：数字人自动分析评论并生成回复
-5. **语音播放**：回复内容通过 TTS 转换为语音，Live2D 模型口型同步播放
-6. **消息展示**：回复内容以半透明泡泡形式显示在屏幕下方
+1. **访问弹幕姬服务**：访问 http://localhost/dycast/ 进入抖音弹幕姬界面
+2. **配置转发地址**：在右侧"转发地址"输入框中输入后端 WebSocket 服务地址（如 `ws://backend:8000/ws/livestream_user_123`）
+3. **连接直播间**：输入抖音直播间房间号，点击"连接"按钮
+4. **启动直播页面**：访问 `/livestream` 路由进入直播页面
+5. **自动接收评论**：系统自动接收抖音直播间的评论消息
+6. **AI智能回复**：数字人自动分析评论并生成回复
+7. **语音播放**：回复内容通过 TTS 转换为语音，Live2D 模型口型同步播放
+8. **消息展示**：回复内容以半透明泡泡形式显示在屏幕下方
 
 ### WebSocket状态
 
@@ -468,6 +498,33 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 ```
 
 如需修改TTS服务配置，请编辑后端代码中的TTS API调用部分（`services/http_service.py`）。
+
+### 抖音弹幕姬配置
+
+抖音弹幕姬服务使用Docker容器运行，配置说明：
+
+- **镜像**：dycast（本地构建）
+- **端口映射**：3001:80（通过 Nginx 暴露为 /dycast/）
+- **访问地址**：http://localhost/dycast/
+- **功能**：抖音直播间弹幕实时获取和转发
+- **技术栈**：Vue 3 + TypeScript + Vite
+
+```bash
+# 使用 Docker Compose 启动（推荐）
+docker-compose up -d dycast
+
+# 单独构建和运行
+cd dycast
+docker build -t dycast .
+docker run -d -p 3001:80 --name dycast dycast
+```
+
+使用说明：
+1. 访问 http://localhost/dycast/
+2. 输入抖音直播间房间号
+3. 点击"连接"按钮连接直播间
+4. 在"转发地址"输入框中输入后端 WebSocket 服务地址（如 `ws://backend:8000/ws/livestream_user_123`）
+5. 点击"转发"按钮建立连接，弹幕将实时转发到后端
 
 ## 开发指南
 

@@ -6,8 +6,8 @@
 
 - Docker 20.10+
 - Docker Compose 2.0+
-- 至少 4GB 可用内存
-- 至少 10GB 可用磁盘空间
+- 至少 6GB 可用内存（包含抖音弹幕姬服务）
+- 至少 12GB 可用磁盘空间
 
 ## 快速开始
 
@@ -16,6 +16,9 @@
 ```bash
 git clone <repository-url>
 cd CubismWebSamples
+
+# 初始化并更新子模块（抖音弹幕姬）
+git submodule update --init --recursive
 ```
 
 ### 2. 配置环境变量
@@ -81,8 +84,8 @@ docker-compose logs -f
 
 ### 5. 访问应用
 
-- **HTTP**: http://localhost
-- **HTTPS**: https://localhost（如果配置了 SSL 证书）
+- **主应用**: http://localhost 或 https://localhost（如果配置了 SSL 证书）
+- **抖音弹幕姬**: http://localhost/dycast/ 或 https://localhost/dycast/
 
 ## 服务说明
 
@@ -111,10 +114,16 @@ Docker Compose 包含以下服务：
   - 语音识别
 
 ### 4. TTS（语音合成）
-- **镜像**: coqui-ai/tts
+- **镜像**: cosincox/easyvoice:latest
 - **端口**: 3000（内部）
 - **功能**: 文本转语音服务
 - **资源限制**: 2 CPU, 2GB 内存
+
+### 5. Dycast（抖音弹幕姬）
+- **技术栈**: Vue 3 + TypeScript + Vite
+- **端口**: 3001（内部 80，通过 Nginx 暴露）
+- **功能**: 抖音直播间弹幕实时获取和转发
+- **访问路径**: /dycast/
 
 ## 常用命令
 
@@ -178,6 +187,9 @@ docker-compose exec frontend sh
 
 # 进入 TTS 容器
 docker-compose exec tts bash
+
+# 进入抖音弹幕姬容器
+docker-compose exec dycast sh
 ```
 
 ## 数据持久化
@@ -189,6 +201,10 @@ docker-compose exec tts bash
 ### 环境配置
 
 环境变量配置在 `BackendProject/.env` 文件中，不会被容器删除影响。
+
+### 抖音弹幕姬配置
+
+抖音弹幕姬是纯前端应用，所有配置都在浏览器中完成，无需持久化存储。
 
 ## 故障排查
 
@@ -220,7 +236,14 @@ docker-compose logs <service-name>
 - 确认 TTS 服务 URL 配置正确：`TTS_API_URL=http://tts:3000`
 - 检查资源限制是否足够
 
-### 5. SSL 证书问题
+### 5. 抖音弹幕姬无法连接
+
+- 检查 dycast 容器状态：`docker-compose logs dycast`
+- 确认 Nginx 配置正确，特别是 /dycast/ 和 /dycast/socket/ 路径
+- 检查抖音直播间房间号是否正确
+- 查看浏览器控制台是否有 WebSocket 连接错误
+
+### 6. SSL 证书问题
 
 如果使用自签名证书，浏览器会显示安全警告，这是正常的。对于生产环境，建议使用 Let's Encrypt 或购买正式证书。
 
@@ -284,8 +307,9 @@ location /api/ {
 ## 更新部署
 
 ```bash
-# 拉取最新代码
+# 拉取最新代码（包括子模块）
 git pull
+git submodule update --remote
 
 # 重新构建并启动
 docker-compose up -d --build
@@ -303,6 +327,34 @@ docker-compose down -v
 # 删除项目文件（可选）
 rm -rf /path/to/CubismWebSamples
 ```
+
+## 抖音弹幕姬使用说明
+
+抖音弹幕姬是一个用于获取抖音直播间弹幕的工具，部署后可通过以下方式使用：
+
+### 基本使用
+
+1. 访问 http://localhost/dycast/
+2. 在右侧输入框中输入抖音直播间房间号
+3. 点击"连接"按钮连接直播间
+4. 连接成功后，会实时显示直播间弹幕
+
+### 弹幕转发
+
+如需将弹幕转发到自己的后端：
+
+1. 在右侧"转发地址"输入框中输入 WebSocket 服务端地址
+2. 点击"转发"按钮建立连接
+3. 弹幕信息会实时转发到指定的后端服务
+
+### 支持的弹幕类型
+
+- 聊天弹幕（文本、表情）
+- 礼物弹幕
+- 关注弹幕
+- 点赞弹幕
+- 进入直播间弹幕
+- 其他直播间信息
 
 ## 技术支持
 
