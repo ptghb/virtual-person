@@ -350,14 +350,182 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "comment"
             }
         }
-        await websocket.send_text(json.dumps(response))
+        # await websocket.send_text(json.dumps(response))
         return
 
-    # 过滤出 WebcastChatMessage 类型的消息（实际评论）
+    # 过滤出不同类型的消息
+    member_messages = [
+        msg for msg in comments
+        if msg.get("method") == "WebcastMemberMessage"
+    ]
+
+    social_messages = [
+        msg for msg in comments
+        if msg.get("method") == "WebcastSocialMessage"
+    ]
+
+    like_messages = [
+        msg for msg in comments
+        if msg.get("method") == "WebcastLikeMessage"
+    ]
+
     chat_messages = [
         msg for msg in comments
         if msg.get("method") == "WebcastChatMessage" and msg.get("content")
     ]
+
+    # 打印各类消息统计
+    print(f"[handle_comment_message] 进入直播间消息: {len(member_messages)} 条")
+    print(f"[handle_comment_message] 关注消息: {len(social_messages)} 条")
+    print(f"[handle_comment_message] 点赞消息: {len(like_messages)} 条")
+    print(f"[handle_comment_message] 实际评论消息: {len(chat_messages)} 条")
+
+    # 处理进入直播间的消息
+    if member_messages:
+        member_names = []
+        for msg in member_messages:
+            user_info = msg.get("user", {})
+            user_name = user_info.get("name", "观众")
+            member_names.append(user_name)
+
+        # 生成欢迎消息
+        if len(member_names) == 1:
+            welcome_msg = f"欢迎{member_names[0]}进入直播间"
+        elif len(member_names) == 2:
+            welcome_msg = f"欢迎{member_names[0]}和{member_names[1]}进入直播间"
+        else:
+            welcome_msg = f"欢迎{', '.join(member_names[:-1])}和{member_names[-1]}进入直播间"
+
+        print(f"[handle_comment_message] 生成欢迎消息: {welcome_msg}")
+
+        # 生成 TTS 音频
+        audio_url = ""
+        if os.getenv("ISAUDIO", False) != False:
+            clean_text = remove_emojis(welcome_msg)
+            audio_url = await http_service.generate_tts_audio(clean_text)
+            print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
+
+        # 查找所有 livestream_user_ 开头的客户端
+        livestream_clients = [
+            (cid, ws)
+            for cid, ws in manager.client_connections.items()
+            if cid.startswith("livestream_user_")
+        ]
+
+        # 发送欢迎消息给所有 livestream_user_ 开头的客户端
+        for stream_client_id, stream_websocket in livestream_clients:
+            try:
+                await manager.send_personal_message(
+                    f"小凡: {welcome_msg}",
+                    audio_url,
+                    stream_websocket,
+                    msg_type=1,
+                    animation_index=0,
+                    should_take_photo=False,
+                    prompt=None
+                )
+                print(f"[handle_comment_message] 已发送欢迎消息给客户端 {stream_client_id}")
+            except Exception as e:
+                print(f"[handle_comment_message] 发送欢迎消息给客户端 {stream_client_id} 失败: {str(e)}")
+
+    # 处理关注消息
+    if social_messages:
+        social_names = []
+        for msg in social_messages:
+            user_info = msg.get("user", {})
+            user_name = user_info.get("name", "观众")
+            social_names.append(user_name)
+
+        # 生成感谢关注消息
+        if len(social_names) == 1:
+            thanks_msg = f"感谢{social_names[0]}的关注"
+        elif len(social_names) == 2:
+            thanks_msg = f"感谢{social_names[0]}和{social_names[1]}的关注"
+        else:
+            thanks_msg = f"感谢{', '.join(social_names[:-1])}和{social_names[-1]}的关注"
+
+        print(f"[handle_comment_message] 生成感谢关注消息: {thanks_msg}")
+
+        # 生成 TTS 音频
+        audio_url = ""
+        if os.getenv("ISAUDIO", False) != False:
+            clean_text = remove_emojis(thanks_msg)
+            audio_url = await http_service.generate_tts_audio(clean_text)
+            print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
+
+        # 查找所有 livestream_user_ 开头的客户端
+        livestream_clients = [
+            (cid, ws)
+            for cid, ws in manager.client_connections.items()
+            if cid.startswith("livestream_user_")
+        ]
+
+        # 发送感谢关注消息给所有 livestream_user_ 开头的客户端
+        for stream_client_id, stream_websocket in livestream_clients:
+            try:
+                await manager.send_personal_message(
+                    f"小凡: {thanks_msg}",
+                    audio_url,
+                    stream_websocket,
+                    msg_type=1,
+                    animation_index=0,
+                    should_take_photo=False,
+                    prompt=None
+                )
+                print(f"[handle_comment_message] 已发送感谢关注消息给客户端 {stream_client_id}")
+            except Exception as e:
+                print(f"[handle_comment_message] 发送感谢关注消息给客户端 {stream_client_id} 失败: {str(e)}")
+
+    # 处理点赞消息
+    if like_messages:
+        # 去重：使用集合去除重复的用户名
+        like_names_set = set()
+        for msg in like_messages:
+            user_info = msg.get("user", {})
+            user_name = user_info.get("name", "观众")
+            like_names_set.add(user_name)
+
+        like_names = list(like_names_set)
+
+        # 生成感谢点赞消息
+        if len(like_names) == 1:
+            like_msg = f"感谢{like_names[0]}的点赞"
+        elif len(like_names) == 2:
+            like_msg = f"感谢{like_names[0]}和{like_names[1]}的点赞"
+        else:
+            like_msg = f"感谢{', '.join(like_names[:-1])}和{like_names[-1]}的点赞"
+
+        print(f"[handle_comment_message] 生成感谢点赞消息: {like_msg}")
+
+        # 生成 TTS 音频
+        audio_url = ""
+        if os.getenv("ISAUDIO", False) != False:
+            clean_text = remove_emojis(like_msg)
+            audio_url = await http_service.generate_tts_audio(clean_text)
+            print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
+
+        # 查找所有 livestream_user_ 开头的客户端
+        livestream_clients = [
+            (cid, ws)
+            for cid, ws in manager.client_connections.items()
+            if cid.startswith("livestream_user_")
+        ]
+
+        # 发送感谢点赞消息给所有 livestream_user_ 开头的客户端
+        for stream_client_id, stream_websocket in livestream_clients:
+            try:
+                await manager.send_personal_message(
+                    f"小凡: {like_msg}",
+                    audio_url,
+                    stream_websocket,
+                    msg_type=1,
+                    animation_index=0,
+                    should_take_photo=False,
+                    prompt=None
+                )
+                print(f"[handle_comment_message] 已发送感谢点赞消息给客户端 {stream_client_id}")
+            except Exception as e:
+                print(f"[handle_comment_message] 发送感谢点赞消息给客户端 {stream_client_id} 失败: {str(e)}")
 
     if not chat_messages:
         print(f"[handle_comment_message] 未找到实际评论消息（WebcastChatMessage）")
@@ -370,59 +538,65 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "comment"
             }
         }
-        await websocket.send_text(json.dumps(response))
+        # await websocket.send_text(json.dumps(response))
         return
 
     print(f"[handle_comment_message] 找到 {len(chat_messages)} 条实际评论")
 
     try:
+        # 批量整合评论消息为一个字符串
+        if chat_messages:
+            chat_messages_str = "\n".join([
+                f"{chat_msg.get('user', {}).get('name', '观众')}：{chat_msg.get('content', '')}"
+                for chat_msg in chat_messages
+            ])
+            print(f"[handle_comment_message] 批量评论内容:\n{chat_messages_str}")
+        else:
+            chat_messages_str = ""
+
         # 处理每条评论
         processed_count = 0
-        for chat_msg in chat_messages:
-            comment_text = chat_msg.get("content", "")
-            user_info = chat_msg.get("user", {})
-            user_name = user_info.get("name", "观众")
+        # 批量处理评论消息，传入整合后的评论字符串
+        if chat_messages:
+            print(f"[handle_comment_message] 批量处理 {len(chat_messages)} 条评论")
+            print(f"[handle_comment_message] 评论内容:\n{chat_messages_str}")
 
-            print(f"[handle_comment_message] 处理评论 - 用户: {user_name}, 内容: {comment_text}")
+            # 处理评论，获取 AI 回复和音频，传入批量评论消息
+            result = await comment_processor.process_comment(chat_messages_str)
 
-            # 处理评论，获取 AI 回复和音频
-            result = await comment_processor.process_comment(comment_text, user_name)
+            if result["status"] == "success":
+                ai_response = result["ai_response"]
+                audio_url = result["audio_url"]
 
-            if result["status"] != "success":
+                # 查找所有 livestream_user_ 开头的客户端
+                livestream_clients = [
+                    (cid, ws)
+                    for cid, ws in manager.client_connections.items()
+                    if cid.startswith("livestream_user_")
+                ]
+
+                if livestream_clients:
+                    # 发送给所有 livestream_user_ 开头的客户端
+                    for stream_client_id, stream_websocket in livestream_clients:
+                        try:
+                            await manager.send_personal_message(
+                                f"小凡: {ai_response}",
+                                audio_url,
+                                stream_websocket,
+                                msg_type=1,
+                                animation_index=0,
+                                should_take_photo=False,
+                                prompt=None
+                            )
+                            print(f"[handle_comment_message] 已发送回复给客户端 {stream_client_id}")
+                        except Exception as e:
+                            print(f"[handle_comment_message] 发送给客户端 {stream_client_id} 失败: {str(e)}")
+
+                    processed_count = len(chat_messages)
+                else:
+                    print(f"[handle_comment_message] 未找到 livestream_user_ 开头的客户端")
+            else:
                 print(f"[handle_comment_message] 处理评论失败: {result.get('message')}")
-                continue
-
-            ai_response = result["ai_response"]
-            audio_url = result["audio_url"]
-
-            # 查找所有 livestream_user_ 开头的客户端
-            livestream_clients = [
-                (cid, ws)
-                for cid, ws in manager.client_connections.items()
-                if cid.startswith("livestream_user_")
-            ]
-
-            if not livestream_clients:
-                print(f"[handle_comment_message] 未找到 livestream_user_ 开头的客户端")
-                continue
-
-            # 发送给所有 livestream_user_ 开头的客户端
-            for stream_client_id, stream_websocket in livestream_clients:
-                try:
-                    await manager.send_personal_message(
-                        f"小凡: {ai_response}",
-                        audio_url,
-                        stream_websocket,
-                        msg_type=1,
-                        animation_index=0,
-                        should_take_photo=False,
-                        prompt=None
-                    )
-                    print(f"[handle_comment_message] 已发送回复给客户端 {stream_client_id}")
-                except Exception as e:
-                    print(f"[handle_comment_message] 发送给客户端 {stream_client_id} 失败: {str(e)}")
-
-            processed_count += 1
 
         # 发送确认响应给发送评论的客户端
         response = {
@@ -436,7 +610,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "comment"
             }
         }
-        await websocket.send_text(json.dumps(response))
+        # await websocket.send_text(json.dumps(response))
 
     except Exception as e:
         print(f"[handle_comment_message] 处理评论推送失败: {str(e)}")
@@ -448,7 +622,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 "request_type": "comment"
             }
         }
-        await websocket.send_text(json.dumps(response))
+        # await websocket.send_text(json.dumps(response))
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理文本消息 - 重用原有的AI对话逻辑"""

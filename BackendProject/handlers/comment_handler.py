@@ -31,8 +31,7 @@ class CommentProcessor:
 
     async def process_comment(
         self,
-        comment_text: str,
-        user_name: str = "观众"
+        chat_messages_str: str = ""
     ) -> Dict:
         """
         处理评论推送
@@ -40,18 +39,21 @@ class CommentProcessor:
         Args:
             comment_text: 评论文字内容
             user_name: 评论用户名
+            chat_messages_str: 批量评论消息字符串（格式：说话人：说话内容）
 
         Returns:
             处理结果字典，包含 AI 回复和音频 URL
         """
         try:
-            print(f"[CommentProcessor] 接收到评论推送 - 用户: {user_name}, 内容: {comment_text}")
+            if chat_messages_str:
+                print(f"[CommentProcessor] 批量评论消息:\n{chat_messages_str}")
 
-            # 构造用户消息
-            user_message = f"{user_name}说: {comment_text}"
+            # 构造用户消息，包含批量评论上下文
+            if chat_messages_str:
+                user_message = f"以下是当前直播间的评论消息:\n{chat_messages_str}\n\n请回复评论:"
 
-            # 添加到历史记录
-            self.message_history.append(HumanMessage(content=user_message))
+                # 添加到历史记录
+                self.message_history.append(HumanMessage(content=user_message))
 
             # 调用大模型获取回复
             system_prompt = """你叫小凡，是一个知心主播，可爱的小女生，要有同理心。
@@ -97,8 +99,8 @@ class CommentProcessor:
 
             return {
                 "status": "success",
-                "comment": comment_text,
-                "user_name": user_name,
+                "comment": chat_messages_str,
+                "user_name": "",
                 "ai_response": ai_response,
                 "audio_url": audio_url
             }
