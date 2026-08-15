@@ -12,6 +12,7 @@ import { LAppDelegate } from './lappdelegate';
 import { WebSocketManager } from './websocketmanager';
 import { LAppLive2DManager } from './lapplive2dmanager';
 import * as LAppDefine from './lappdefine';
+import './styles/app.css';
 
 
 /**
@@ -29,11 +30,9 @@ window.addEventListener(
 
     // 渲染 React 应用
     const root = createRoot(document.getElementById('root')!);
-    root.render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
+    // 媒体流和 WebSocket 都具有外部生命周期，避免 StrictMode
+    // 在开发环境重复挂载时产生双连接和重复权限请求。
+    root.render(<App />);
   },
   { passive: true }
 );

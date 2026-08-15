@@ -114,6 +114,52 @@ def remove_emojis(text: str) -> str:
 
 manager = ConnectionManager()
 
+# 直播控制台运行策略。当前为单进程内存状态；后续如需多实例部署，
+# 应迁移到 Redis 或数据库。
+livestream_settings = {
+    "auto_reply_enabled": True,
+    "policies": {
+        "chat": True,
+        "member": True,
+        "social": True,
+        "like": True,
+    }
+}
+
+
+def get_livestream_output_clients():
+    """获取直播舞台和控制台连接。"""
+    return [
+        (cid, ws)
+        for cid, ws in manager.client_connections.items()
+        if cid.startswith("livestream_user_")
+        or cid.startswith("livestream_console_")
+    ]
+
+
+async def broadcast_livestream_event_batch(comments: list):
+    """把原始直播事件同步给直播控制台，用于事件流和统计展示。"""
+    payload = json.dumps({
+        "type": "livestream.event_batch",
+        "data": {
+            "comments": comments,
+            "settings": livestream_settings,
+        }
+    })
+    console_clients = [
+        (cid, ws)
+        for cid, ws in manager.client_connections.items()
+        if cid.startswith("livestream_console_")
+    ]
+    for console_client_id, console_websocket in console_clients:
+        try:
+            await console_websocket.send_text(payload)
+        except Exception as e:
+            print(
+                f"[broadcast_livestream_event_batch] "
+                f"发送给 {console_client_id} 失败: {str(e)}"
+            )
+
 
 @app.get("/")
 async def root():
@@ -213,8 +259,11 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
 
     elif action == "stop_audio_stream":
         # 先处理完整音频，获取识别结果
-        transcription = await audio_processor._process_complete_audio(client_id)
-        await websocket.send_text(transcription)
+        transcription = (
+            await audio_processor._process_complete_audio(client_id)
+        ) or ""
+        if transcription:
+            await websocket.send_text(transcription)
 
         audio_processor.stop_audio_stream(client_id)
 
@@ -238,6 +287,40 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
             }
         }
         print(f"[handle_control_message] 发送响应: {response}")
+        await websocket.send_text(json.dumps(response))
+
+    elif action == "livestream_set_auto_reply":
+        enabled = bool(msg_data.get("enabled", True))
+        livestream_settings["auto_reply_enabled"] = enabled
+        response = {
+            "type": "livestream.policy",
+            "data": livestream_settings,
+        }
+        await websocket.send_text(json.dumps(response))
+
+    elif action == "livestream_update_policy":
+        incoming_policies = msg_data.get("policies", {})
+        allowed_policies = livestream_settings["policies"]
+        if isinstance(incoming_policies, dict):
+            for key in allowed_policies:
+                if key in incoming_policies:
+                    allowed_policies[key] = bool(incoming_policies[key])
+        response = {
+            "type": "livestream.policy",
+            "data": livestream_settings,
+        }
+        await websocket.send_text(json.dumps(response))
+
+    elif action == "livestream_clear_queue":
+        # 当前直播消息为即时批处理，尚无持久化队列。
+        response = {
+            "type": "response",
+            "data": {
+                "status": "success",
+                "message": "当前没有待清理的持久化直播队列",
+                "request_type": "control",
+            }
+        }
         await websocket.send_text(json.dumps(response))
 
     else:
@@ -353,25 +436,38 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # await websocket.send_text(json.dumps(response))
         return
 
+    await broadcast_livestream_event_batch(comments)
+
+    if not livestream_settings["auto_reply_enabled"]:
+        print("[handle_comment_message] 自动回复已暂停，仅同步事件到控制台")
+        return
+
+    policies = livestream_settings["policies"]
+
     # 过滤出不同类型的消息
     member_messages = [
         msg for msg in comments
-        if msg.get("method") == "WebcastMemberMessage"
+        if policies["member"]
+        and msg.get("method") == "WebcastMemberMessage"
     ]
 
     social_messages = [
         msg for msg in comments
-        if msg.get("method") == "WebcastSocialMessage"
+        if policies["social"]
+        and msg.get("method") == "WebcastSocialMessage"
     ]
 
     like_messages = [
         msg for msg in comments
-        if msg.get("method") == "WebcastLikeMessage"
+        if policies["like"]
+        and msg.get("method") == "WebcastLikeMessage"
     ]
 
     chat_messages = [
         msg for msg in comments
-        if msg.get("method") == "WebcastChatMessage" and msg.get("content")
+        if policies["chat"]
+        and msg.get("method") == "WebcastChatMessage"
+        and msg.get("content")
     ]
 
     # 打印各类消息统计
@@ -406,11 +502,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = [
-            (cid, ws)
-            for cid, ws in manager.client_connections.items()
-            if cid.startswith("livestream_user_")
-        ]
+        livestream_clients = get_livestream_output_clients()
 
         # 发送欢迎消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
@@ -454,11 +546,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = [
-            (cid, ws)
-            for cid, ws in manager.client_connections.items()
-            if cid.startswith("livestream_user_")
-        ]
+        livestream_clients = get_livestream_output_clients()
 
         # 发送感谢关注消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
@@ -505,11 +593,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = [
-            (cid, ws)
-            for cid, ws in manager.client_connections.items()
-            if cid.startswith("livestream_user_")
-        ]
+        livestream_clients = get_livestream_output_clients()
 
         # 发送感谢点赞消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
@@ -569,11 +653,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 audio_url = result["audio_url"]
 
                 # 查找所有 livestream_user_ 开头的客户端
-                livestream_clients = [
-                    (cid, ws)
-                    for cid, ws in manager.client_connections.items()
-                    if cid.startswith("livestream_user_")
-                ]
+                livestream_clients = get_livestream_output_clients()
 
                 if livestream_clients:
                     # 发送给所有 livestream_user_ 开头的客户端

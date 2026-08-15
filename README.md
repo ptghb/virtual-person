@@ -1,5 +1,7 @@
 # 小凡AI - 你的智能虚拟伴侣
 
+> 工程交接文档：[架构文档](docs/ARCHITECTURE.md) · [设计文档](docs/DESIGN.md) · [前端重构设计](docs/FRONTEND_REDESIGN.md) · [协议文档](docs/PROTOCOL.md) · [部署文档](docs/DEPLOYMENT.md)
+
 一个深度融合Live2D虚拟形象与AI对话引擎的智能陪伴系统。通过集成OpenAI/智谱AI的自然语言理解、实时WebSocket通信、手势识别（MediaPipe）与TTS语音合成，打造出可交互、有情感的AI虚拟伴侣"小凡"。
 
 ## 核心亮点
@@ -753,8 +755,6 @@ docker run -d -p 3001:80 --name dycast dycast
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
 
 <img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
-
-
 
 
 

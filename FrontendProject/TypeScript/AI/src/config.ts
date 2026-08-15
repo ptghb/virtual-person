@@ -2,16 +2,35 @@
  * 应用配置文件
  */
 
+const isBrowser = typeof window !== 'undefined';
+const pageProtocol = isBrowser ? window.location.protocol : 'http:';
+const pageHostname = isBrowser ? window.location.hostname : 'localhost';
+const pageHost = isBrowser ? window.location.host : 'localhost';
+const isLocalFrontend =
+  isBrowser && ['8080', '5173'].includes(window.location.port);
+const wsProtocol = pageProtocol === 'https:' ? 'wss:' : 'ws:';
+const httpProtocol = pageProtocol === 'https:' ? 'https:' : 'http:';
+
+// 本地 Vite 开发时后端使用 8000；部署后默认使用同源 Nginx。
+const backendHost = isLocalFrontend ? `${pageHostname}:8000` : pageHost;
+
 // 后端服务配置
 export const BACKEND_CONFIG = {
   // WebSocket 连接地址
-  WS_URL: 'ws://localhost:8000',
+  WS_URL: `${wsProtocol}//${backendHost}`,
 
   // HTTP API 基础地址
-  API_BASE_URL: 'http://localhost:8000',
+  API_BASE_URL: `${httpProtocol}//${backendHost}`,
 
   // TTS 服务端点
   TTS_ENDPOINT: '/api/v1/tts/generate'
+} as const;
+
+export const APP_CONFIG = {
+  DYCAST_URL:
+    isBrowser && window.location.port === '8080'
+      ? `${httpProtocol}//${pageHostname}:5173`
+      : '/dycast/'
 } as const;
 
 // 图片配置
@@ -42,3 +61,5 @@ export const getWebSocketUrl = (clientId: string): string => {
 export const getTTSApiUrl = (): string => {
   return `${BACKEND_CONFIG.API_BASE_URL}${BACKEND_CONFIG.TTS_ENDPOINT}`;
 };
+
+export const getDycastUrl = (): string => APP_CONFIG.DYCAST_URL;

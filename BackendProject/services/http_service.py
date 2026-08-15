@@ -5,6 +5,7 @@ HTTP服务层
 """
 import httpx
 import os
+import mimetypes
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
@@ -148,7 +149,12 @@ class HTTPService:
         try:
             with open(audio_filepath, "rb") as audio_file:
                 files = {
-                    "file": (os.path.basename(audio_filepath), audio_file, "audio/wav"),
+                    "file": (
+                        os.path.basename(audio_filepath),
+                        audio_file,
+                        mimetypes.guess_type(audio_filepath)[0]
+                        or "application/octet-stream",
+                    ),
                     "model": (None, "FunAudioLLM/SenseVoiceSmall")
                 }
 
