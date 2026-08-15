@@ -1,4 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react';
 import { Button, Empty, Input, Switch, Tooltip } from 'antd';
 import {
   ClearOutlined,
@@ -8,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import type { ConversationMessage } from '../hooks/useConversationSession';
 import { avatarService } from '../services/avatar.service';
+import { TypewriterText } from './TypewriterText';
 
 interface ConversationPanelProps {
   messages: ConversationMessage[];
@@ -34,10 +40,13 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
 }) => {
   const [value, setValue] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollToEnd = useCallback(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, thinking]);
+    scrollToEnd();
+  }, [messages, scrollToEnd, thinking]);
 
   const submit = () => {
     if (onSend(value)) setValue('');
@@ -86,6 +95,11 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
             >
               {message.contentType === 'image' ? (
                 <img src={message.content} alt="发送给小凡的照片" />
+              ) : message.type === 'received' ? (
+                <TypewriterText
+                  text={message.content}
+                  onProgress={scrollToEnd}
+                />
               ) : (
                 <span>{message.content}</span>
               )}

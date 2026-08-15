@@ -413,6 +413,26 @@ textarea {
   opacity: 0.52;
 }
 
+.typewriter-text {
+  white-space: pre-wrap;
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: typewriter-blink 0.75s steps(1, end) infinite;
+}
+
+@keyframes typewriter-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 .chat-message--thinking {
   display: flex;
   gap: 5px;

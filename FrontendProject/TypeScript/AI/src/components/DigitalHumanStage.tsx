@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { avatarService } from '../services/avatar.service';
+import { TypewriterText } from './TypewriterText';
 
 interface DigitalHumanStageProps {
   subtitle?: string;
@@ -39,7 +40,7 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
       {children}
       {subtitle && (
         <div className="assistant-subtitle" role="status">
-          {subtitle}
+          <TypewriterText text={subtitle} />
         </div>
       )}
     </div>
