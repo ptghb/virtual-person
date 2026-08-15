@@ -7,7 +7,8 @@ const pageProtocol = isBrowser ? window.location.protocol : 'http:';
 const pageHostname = isBrowser ? window.location.hostname : 'localhost';
 const pageHost = isBrowser ? window.location.host : 'localhost';
 const isLocalFrontend =
-  isBrowser && ['8080', '5173'].includes(window.location.port);
+  isBrowser &&
+  document.querySelector('script[src="/@vite/client"]') !== null;
 const wsProtocol = pageProtocol === 'https:' ? 'wss:' : 'ws:';
 const httpProtocol = pageProtocol === 'https:' ? 'https:' : 'http:';
 
