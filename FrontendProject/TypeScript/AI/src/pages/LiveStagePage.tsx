@@ -16,6 +16,7 @@ export const LiveStagePage: React.FC = () => {
         transparent={transparent}
         subtitle={showSubtitle ? session.latestAssistantText : ''}
         thinking={session.isThinking}
+        streaming={session.isStreamingReply}
       />
       {showStatus && (
         <div className="live-stage__status">

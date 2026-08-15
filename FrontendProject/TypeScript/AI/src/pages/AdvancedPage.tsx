@@ -67,6 +67,7 @@ export const AdvancedPage: React.FC = () => {
           <DigitalHumanStage
             subtitle={session.latestAssistantText}
             thinking={session.isThinking}
+            streaming={session.isStreamingReply}
           >
             {hearing.isListening && (
               <div className="hearing-level glass-panel">

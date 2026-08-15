@@ -6,7 +6,7 @@ HTTP服务层
 import httpx
 import os
 import mimetypes
-from typing import Dict, Optional
+from typing import AsyncIterator, Dict, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -125,6 +125,28 @@ class HTTPService:
         except Exception as e:
             print(f"[HTTPService] TTS音频生成失败: {str(e)}")
             return None
+
+    async def stream_tts_audio(self, text: str) -> AsyncIterator[bytes]:
+        """代理 EasyVoice 流式音频响应。"""
+        payload = {
+            "text": text,
+            "voice": "zh-CN-XiaoxiaoNeural",
+            "rate": "0%",
+            "pitch": "0Hz",
+            "volume": "0%",
+            "useLLM": False,
+        }
+        timeout = httpx.Timeout(60.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream(
+                "POST",
+                f"{self.tts_api_url}/api/v1/tts/createStream",
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
 
     async def transcribe_audio(self, audio_filepath: str) -> Optional[str]:
         """

@@ -404,6 +404,81 @@ Content-Type: application/json
 
 最终给浏览器的 URL 为：`AUDIO_URL + data.audio`。
 
+### 9.1 流式聊天与流式 TTS
+
+普通文字聊天采用以下服务端事件：
+
+```json
+{
+  "type": "assistant.start",
+  "data": {
+    "reply_id": "reply_uuid",
+    "prompt": "用户输入"
+  }
+}
+```
+
+```json
+{
+  "type": "assistant.delta",
+  "data": {
+    "reply_id": "reply_uuid",
+    "delta": "增量文字"
+  }
+}
+```
+
+后端检测到完整句子后注册流式语音片段：
+
+```json
+{
+  "type": "assistant.audio_segment",
+  "data": {
+    "reply_id": "reply_uuid",
+    "sequence": 0,
+    "text": "当前完整句子。",
+    "audio_url": "/api/tts/stream/segment_uuid"
+  }
+}
+```
+
+浏览器按 `sequence` 排队，通过后端流式代理读取 EasyVoice 分块 MP3：
+
+```http
+GET /api/tts/stream/{segment_id}
+Content-Type: audio/mpeg
+Transfer-Encoding: chunked
+```
+
+回答完成：
+
+```json
+{
+  "type": "assistant.complete",
+  "data": {
+    "reply_id": "reply_uuid",
+    "content": "完整回答",
+    "audio_segments": 2
+  }
+}
+```
+
+动作和视觉授权元数据：
+
+```json
+{
+  "type": "assistant.meta",
+  "data": {
+    "reply_id": "reply_uuid",
+    "animation_index": 7,
+    "should_take_photo": false,
+    "prompt": "用户输入"
+  }
+}
+```
+
+前端收到新回复或用户主动停止时，必须清空旧 `reply_id` 的待播放语音队列。
+
 ## 10. ASR 协议
 
 ```http

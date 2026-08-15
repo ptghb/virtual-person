@@ -96,6 +96,9 @@ export interface DisplayMessage {
   contentType?: 'text' | 'audio' | 'image'; // 显示内容类型
   audioUrl?: string; // 音频URL
   isError?: boolean; // 是否为错误消息
+  replyId?: string;
+  sequence?: number;
+  streamEvent?: 'start' | 'delta' | 'complete' | 'audio' | 'error';
 }
 
 export class WebSocketManager {
@@ -208,6 +211,14 @@ export class WebSocketManager {
               message?: string;
               request_type?: string;
               comments?: unknown[];
+              reply_id?: string;
+              delta?: string;
+              content?: string;
+              audio_url?: string;
+              sequence?: number;
+              animation_index?: number;
+              should_take_photo?: boolean;
+              prompt?: string;
               [key: string]: unknown;
             };
           };
@@ -227,6 +238,66 @@ export class WebSocketManager {
                 detail: parsedData.data
               })
             );
+            return;
+          }
+
+          if (
+            typeof parsedData.type === 'string' &&
+            parsedData.type.startsWith('assistant.')
+          ) {
+            const streamData = parsedData.data ?? {};
+            const replyId = streamData.reply_id ?? '';
+
+            if (parsedData.type === 'assistant.meta') {
+              if (typeof streamData.animation_index === 'number') {
+                window.dispatchEvent(
+                  new CustomEvent('change-animation', {
+                    detail: {
+                      animationIndex: streamData.animation_index
+                    }
+                  })
+                );
+              }
+              if (streamData.should_take_photo === true) {
+                window.dispatchEvent(
+                  new CustomEvent('should-take-photo', {
+                    detail: {
+                      shouldTakePhoto: true,
+                      prompt: streamData.prompt
+                    }
+                  })
+                );
+              }
+              return;
+            }
+
+            const eventType = parsedData.type.slice('assistant.'.length);
+            const streamEvent =
+              eventType === 'audio_segment'
+                ? 'audio'
+                : eventType === 'start' ||
+                    eventType === 'delta' ||
+                    eventType === 'complete' ||
+                    eventType === 'error'
+                  ? eventType
+                  : undefined;
+
+            if (streamEvent) {
+              this._emitMessage({
+                type: streamEvent === 'error' ? 'error' : 'received',
+                content:
+                  streamEvent === 'delta'
+                    ? (streamData.delta ?? '')
+                    : (streamData.content ?? streamData.message ?? ''),
+                timestamp: new Date(),
+                contentType: streamEvent === 'audio' ? 'audio' : 'text',
+                audioUrl: streamData.audio_url,
+                isError: streamEvent === 'error',
+                replyId,
+                sequence: streamData.sequence,
+                streamEvent
+              });
+            }
             return;
           }
 

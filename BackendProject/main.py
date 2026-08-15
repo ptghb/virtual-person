@@ -2,9 +2,13 @@
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import List, Dict, Optional
 import os
 import json
+import re
+import time
+import uuid
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 import emoji
@@ -114,6 +118,107 @@ def remove_emojis(text: str) -> str:
 
 manager = ConnectionManager()
 
+# EasyVoice 流式任务暂存。前端收到 segment_id 后，通过 HTTP GET 拉取
+# 对应的分块 MP3。当前部署为单进程内存状态。
+tts_stream_segments: Dict[str, Dict[str, object]] = {}
+TTS_SEGMENT_TTL_SECONDS = 10 * 60
+
+
+def register_tts_stream_segment(text: str) -> str:
+    now = time.time()
+    expired_ids = [
+        segment_id
+        for segment_id, item in tts_stream_segments.items()
+        if now - float(item["created_at"]) > TTS_SEGMENT_TTL_SECONDS
+    ]
+    for segment_id in expired_ids:
+        tts_stream_segments.pop(segment_id, None)
+
+    segment_id = uuid.uuid4().hex
+    tts_stream_segments[segment_id] = {
+        "text": text,
+        "created_at": now,
+    }
+    return segment_id
+
+
+def normalize_tts_text(text: str) -> str:
+    clean_text = remove_emojis(text).strip()
+    # EasyVoice 流式接口要求至少 5 个字符；只补停顿符，不改变语义。
+    if clean_text and len(clean_text) < 5:
+        clean_text += "，" * (5 - len(clean_text))
+    return clean_text
+
+
+def take_ready_tts_segments(buffer: str, force: bool = False):
+    """从增量文本中提取适合语音合成的完整句子。"""
+    segments = []
+    remaining = buffer
+
+    while remaining:
+        boundaries = list(re.finditer(r"[。！？!?；;\n]", remaining))
+        selected_end = None
+        for boundary in boundaries:
+            candidate = remaining[:boundary.end()].strip()
+            if len(candidate) >= 8:
+                selected_end = boundary.end()
+                break
+
+        if selected_end is None and len(remaining) >= 80:
+            comma_positions = [
+                match.end() for match in re.finditer(r"[，,、：:]", remaining[:80])
+            ]
+            selected_end = comma_positions[-1] if comma_positions else 80
+
+        if selected_end is None:
+            break
+
+        segment = remaining[:selected_end].strip()
+        remaining = remaining[selected_end:].lstrip()
+        if segment:
+            segments.append(segment)
+
+    if force and remaining.strip():
+        segments.append(remaining.strip())
+        remaining = ""
+
+    return segments, remaining
+
+
+def select_animation_index(text: str, model_name: str) -> int:
+    """使用本地关键词选择动作，避免为了动作额外请求一次大模型。"""
+    sad_words = (
+        "难过", "伤心", "心情不好", "累", "疲惫", "委屈", "哭",
+        "失望", "压力", "加班",
+    )
+    serious_words = (
+        "生气", "严肃", "认真", "担心", "害怕", "焦虑", "紧张",
+    )
+    model_motions = {
+        "Hiyori": {"happy": 1, "serious": 3, "sad": 7},
+        "Haru": {"happy": 1, "serious": 2, "sad": 1},
+        "Mark": {"happy": 3, "serious": 4, "sad": 3},
+        "Natori": {"happy": 5, "serious": 6, "sad": 5},
+        "Rice": {"happy": 2, "serious": 3, "sad": 1},
+        "Mao": {"happy": 4, "serious": 3, "sad": 2},
+        "Wanko": {"happy": 1, "serious": 3, "sad": 2},
+    }
+    emotion = "happy"
+    if any(word in text for word in sad_words):
+        emotion = "sad"
+    elif any(word in text for word in serious_words):
+        emotion = "serious"
+    return model_motions.get(model_name, model_motions["Hiyori"])[emotion]
+
+
+def should_request_photo(text: str) -> bool:
+    photo_words = (
+        "看看我", "看我", "我的脸", "脸色", "皮肤", "妆容", "发型",
+        "化妆", "粉底", "口红", "眉毛", "染发", "指甲", "美颜",
+        "滤镜", "拍照", "照片", "合影", "自拍", "相机", "镜头",
+    )
+    return any(word in text for word in photo_words)
+
 # 直播控制台运行策略。当前为单进程内存状态；后续如需多实例部署，
 # 应迁移到 Redis 或数据库。
 livestream_settings = {
@@ -169,6 +274,22 @@ async def root():
 @app.get("/hello/{name}")
 async def say_hello(name: str):
     return {"message": f"Hello {name}"}
+
+
+@app.get("/api/tts/stream/{segment_id}")
+async def stream_tts_segment(segment_id: str):
+    segment = tts_stream_segments.get(segment_id)
+    if not segment:
+        raise HTTPException(status_code=404, detail="语音片段不存在或已过期")
+
+    return StreamingResponse(
+        http_service.stream_tts_audio(str(segment["text"])),
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.websocket("/ws/{client_id}")
@@ -705,7 +826,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # await websocket.send_text(json.dumps(response))
 
 async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: dict):
-    """处理文本消息 - 重用原有的AI对话逻辑"""
+    """处理文本消息：流式文字 + 分句流式 TTS。"""
     text = msg_data.get("content", "")
     model = msg_data.get("model", "Hiyori")
     is_audio = msg_data.get("is_audio", False)
@@ -723,9 +844,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         await websocket.send_text(json.dumps(response))
         return
 
-    # 重用原有的AI对话处理逻辑
     try:
-        # 使用大模型服务调用AI
         system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
             你的性格特点：
             - 温柔体贴，善于倾听
@@ -740,61 +859,104 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
 
            """
 
-        # 获取历史消息
         message_history = manager.get_message_history(client_id)
-
-        # 构建消息列表：历史消息 + 当前用户消息
         messages: List[BaseMessage] = message_history + [HumanMessage(content=text)]
+        reply_id = f"reply_{uuid.uuid4().hex}"
+        audio_requested = bool(is_audio) and os.getenv(
+            "ISAUDIO", "false"
+        ).lower() in {"1", "true", "yes", "on"}
 
-        # 调用大模型服务获取回复
-        ai_response = await llm_service.chat(messages, system_prompt)
+        await websocket.send_text(json.dumps({
+            "type": "assistant.start",
+            "data": {
+                "reply_id": reply_id,
+                "prompt": text,
+            },
+        }))
+        await websocket.send_text(json.dumps({
+            "type": "assistant.meta",
+            "data": {
+                "reply_id": reply_id,
+                "animation_index": select_animation_index(text, model),
+                "should_take_photo": (
+                    client_id.startswith("advanced_user_")
+                    and not has_image
+                    and should_request_photo(text)
+                ),
+                "prompt": text,
+            },
+        }))
 
-        # messages.append(AIMessage(content=ai_response))
-        # 调用大模型服务获取动画索引
-        animation_index = await llm_service.get_animation_index(messages, model)
+        response_parts = []
+        tts_buffer = ""
+        segment_sequence = 0
 
-        should_take_photo = False
-        if not has_image:
-          # 调用大模型服务判断是否需要拍照
-          should_take_photo = await llm_service.should_take_photo(messages)
-          print(f"[handle_text_message] 是否需要拍照: {should_take_photo}")
+        async for delta in llm_service.stream_chat(messages, system_prompt):
+            response_parts.append(delta)
+            await websocket.send_text(json.dumps({
+                "type": "assistant.delta",
+                "data": {
+                    "reply_id": reply_id,
+                    "delta": delta,
+                },
+            }))
 
-        # 将用户消息和AI回复添加到历史记录
+            if audio_requested:
+                tts_buffer += delta
+                ready_segments, tts_buffer = take_ready_tts_segments(tts_buffer)
+                for segment_text in ready_segments:
+                    clean_segment = normalize_tts_text(segment_text)
+                    if not clean_segment:
+                        continue
+                    segment_id = register_tts_stream_segment(clean_segment)
+                    await websocket.send_text(json.dumps({
+                        "type": "assistant.audio_segment",
+                        "data": {
+                            "reply_id": reply_id,
+                            "sequence": segment_sequence,
+                            "text": segment_text,
+                            "audio_url": f"/api/tts/stream/{segment_id}",
+                        },
+                    }))
+                    segment_sequence += 1
+
+        ai_response = "".join(response_parts).strip()
+
+        if audio_requested:
+            final_segments, _ = take_ready_tts_segments(tts_buffer, force=True)
+            for segment_text in final_segments:
+                clean_segment = normalize_tts_text(segment_text)
+                if not clean_segment:
+                    continue
+                segment_id = register_tts_stream_segment(clean_segment)
+                await websocket.send_text(json.dumps({
+                    "type": "assistant.audio_segment",
+                    "data": {
+                        "reply_id": reply_id,
+                        "sequence": segment_sequence,
+                        "text": segment_text,
+                        "audio_url": f"/api/tts/stream/{segment_id}",
+                    },
+                }))
+                segment_sequence += 1
+
         manager.add_message_to_history(client_id, HumanMessage(content=text))
         manager.add_message_to_history(client_id, AIMessage(content=ai_response))
 
-        # TTS处理
-        audio_url = ""
-        if os.getenv("ISAUDIO", False) != False and is_audio:
-            clean_text = remove_emojis(ai_response)
-            audio_url = await http_service.generate_tts_audio(clean_text)
-
-        # 发送 AI 回复
-        await manager.send_personal_message(
-            f"小凡: {ai_response}",
-            audio_url,
-            websocket,
-            msg_type=1,
-            animation_index=int(animation_index),
-            should_take_photo=should_take_photo,
-            prompt=text
-        )
-
-        # # 发送确认响应
-        # response_msg = {
-        #     "type": "response",
-        #     "data": {
-        #         "status": "success",
-        #         "message": "文本处理完成",
-        #         "request_type": "text"
-        #     }
-        # }
-        # await websocket.send_text(json.dumps(response_msg))
+        await websocket.send_text(json.dumps({
+            "type": "assistant.complete",
+            "data": {
+                "reply_id": reply_id,
+                "content": ai_response,
+                "audio_segments": segment_sequence,
+            },
+        }))
 
     except Exception as e:
         response_msg = {
-            "type": "response",
+            "type": "assistant.error",
             "data": {
+                "reply_id": locals().get("reply_id"),
                 "status": "error",
                 "message": f"AI处理错误: {str(e)}",
                 "request_type": "text"

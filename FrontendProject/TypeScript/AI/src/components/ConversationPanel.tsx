@@ -95,6 +95,11 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
             >
               {message.contentType === 'image' ? (
                 <img src={message.content} alt="发送给小凡的照片" />
+              ) : message.streaming ? (
+                <span className="typewriter-text">
+                  {message.content}
+                  <i className="typewriter-cursor" aria-hidden="true" />
+                </span>
               ) : message.type === 'received' ? (
                 <TypewriterText
                   text={message.content}

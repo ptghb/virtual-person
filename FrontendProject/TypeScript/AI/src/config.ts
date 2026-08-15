@@ -62,4 +62,9 @@ export const getTTSApiUrl = (): string => {
   return `${BACKEND_CONFIG.API_BASE_URL}${BACKEND_CONFIG.TTS_ENDPOINT}`;
 };
 
+export const getBackendApiUrl = (path: string): string => {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${BACKEND_CONFIG.API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
 export const getDycastUrl = (): string => APP_CONFIG.DYCAST_URL;

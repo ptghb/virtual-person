@@ -15,6 +15,7 @@ export const BasicChatPage: React.FC = () => {
         <DigitalHumanStage
           subtitle={session.latestAssistantText}
           thinking={session.isThinking}
+          streaming={session.isStreamingReply}
         />
       }
     >

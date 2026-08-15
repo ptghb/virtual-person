@@ -5,6 +5,7 @@ import { TypewriterText } from './TypewriterText';
 interface DigitalHumanStageProps {
   subtitle?: string;
   thinking?: boolean;
+  streaming?: boolean;
   transparent?: boolean;
   children?: React.ReactNode;
 }
@@ -12,6 +13,7 @@ interface DigitalHumanStageProps {
 export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
   subtitle,
   thinking = false,
+  streaming = false,
   transparent = false,
   children
 }) => {
@@ -40,7 +42,14 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
       {children}
       {subtitle && (
         <div className="assistant-subtitle" role="status">
-          <TypewriterText text={subtitle} />
+          {streaming ? (
+            <span className="typewriter-text">
+              {subtitle}
+              <i className="typewriter-cursor" aria-hidden="true" />
+            </span>
+          ) : (
+            <TypewriterText text={subtitle} />
+          )}
         </div>
       )}
     </div>

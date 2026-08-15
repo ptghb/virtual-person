@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWebSocketUrl } from '../config';
+import { getBackendApiUrl, getWebSocketUrl } from '../config';
 import { avatarService } from '../services/avatar.service';
 import {
   type ConnectionState,
@@ -10,6 +10,7 @@ import {
 
 export interface ConversationMessage extends DisplayMessage {
   id: number;
+  streaming?: boolean;
 }
 
 export function useConversationSession(
@@ -22,7 +23,9 @@ export function useConversationSession(
   const [connectionState, setConnectionState] =
     useState<ConnectionState>('disconnected');
   const [audioEnabled, setAudioEnabled] = useState(defaultAudioEnabled);
+  const audioEnabledRef = useRef(defaultAudioEnabled);
   const [isThinking, setIsThinking] = useState(false);
+  const [isStreamingReply, setIsStreamingReply] = useState(false);
   const [latestAssistantText, setLatestAssistantText] = useState('');
 
   const appendMessage = useCallback((message: DisplayMessage) => {
@@ -35,6 +38,84 @@ export function useConversationSession(
   useEffect(() => {
     manager.clearMessages();
     const unsubscribeMessage = manager.subscribeMessage(message => {
+      if (message.streamEvent === 'start' && message.replyId) {
+        setMessages(previous => [
+          ...previous.slice(-99),
+          {
+            ...message,
+            content: '',
+            id: ++idRef.current,
+            streaming: true
+          }
+        ]);
+        setLatestAssistantText('');
+        setIsStreamingReply(true);
+        setIsThinking(false);
+        return;
+      }
+
+      if (message.streamEvent === 'delta' && message.replyId) {
+        setMessages(previous => {
+          const index = previous.findIndex(
+            item => item.replyId === message.replyId
+          );
+          if (index < 0) {
+            return [
+              ...previous.slice(-99),
+              {
+                ...message,
+                id: ++idRef.current,
+                streaming: true
+              }
+            ];
+          }
+          return previous.map((item, itemIndex) =>
+            itemIndex === index
+              ? {
+                  ...item,
+                  content: item.content + message.content,
+                  streaming: true
+                }
+              : item
+          );
+        });
+        setLatestAssistantText(previous => previous + message.content);
+        return;
+      }
+
+      if (message.streamEvent === 'audio' && message.audioUrl) {
+        if (!audioEnabledRef.current) return;
+        avatarService.enqueueStreamingAudio(
+          message.replyId ?? '',
+          message.sequence ?? 0,
+          getBackendApiUrl(message.audioUrl)
+        );
+        return;
+      }
+
+      if (message.streamEvent === 'complete' && message.replyId) {
+        setMessages(previous =>
+          previous.map(item =>
+            item.replyId === message.replyId
+              ? {
+                  ...item,
+                  content: message.content || item.content,
+                  streaming: false
+                }
+              : item
+          )
+        );
+        if (message.content) setLatestAssistantText(message.content);
+        setIsStreamingReply(false);
+        setIsThinking(false);
+        return;
+      }
+
+      if (message.streamEvent === 'error') {
+        setIsStreamingReply(false);
+        setIsThinking(false);
+      }
+
       appendMessage(message);
       if (message.type === 'received' && message.content.trim()) {
         setLatestAssistantText(message.content);
@@ -65,6 +146,7 @@ export function useConversationSession(
     (text: string) => {
       const content = text.trim();
       if (!content || connectionState !== 'connected') return false;
+      avatarService.stopAudio();
       const sent = manager.send({
         text: content,
         model: avatarService.getCurrentModelName(),
@@ -107,7 +189,15 @@ export function useConversationSession(
     manager.clearMessages();
     setMessages([]);
     setLatestAssistantText('');
+    setIsStreamingReply(false);
+    avatarService.stopAudio();
   }, [manager]);
+
+  const changeAudioEnabled = useCallback((enabled: boolean) => {
+    audioEnabledRef.current = enabled;
+    setAudioEnabled(enabled);
+    if (!enabled) avatarService.stopAudio();
+  }, []);
 
   return {
     manager,
@@ -115,9 +205,10 @@ export function useConversationSession(
     connectionState,
     isConnected: connectionState === 'connected',
     isThinking,
+    isStreamingReply,
     latestAssistantText,
     audioEnabled,
-    setAudioEnabled,
+    setAudioEnabled: changeAudioEnabled,
     sendText,
     sendImage,
     clearMessages
