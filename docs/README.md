@@ -11,6 +11,7 @@
 | [FRONTEND_REDESIGN.md](./FRONTEND_REDESIGN.md) | AI 女友三模式的产品交互、页面布局、前端架构和重构路线 | 产品、设计、前端开发 |
 | [PROTOCOL.md](./PROTOCOL.md) | HTTP/WebSocket、消息字段、时序、弹幕转发、外部服务协议 | 前后端开发、联调人员 |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | 本地开发、构建、Docker Compose、Nginx、环境变量、验收与排障 | 运维、开发 |
+| [CHANGELOG_2026-08-14_2026-08-15.md](./CHANGELOG_2026-08-14_2026-08-15.md) | 2026-08-14 至 2026-08-15 的工程梳理、前端重构、流式文字和流式 TTS 修改记录 | 项目负责人、开发、测试 |
 
 ## 当前工程结论
 
