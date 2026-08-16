@@ -186,14 +186,13 @@ export class LAppLive2DManager {
     if (model && this._audioManager) {
       model.setAudioManager(this._audioManager);
 
-      // 设置音频播放时停止动画的回调
-      this._audioManager.setOnMotionStopCallback(() => {
-        model.stopAllMotions();
-      });
-
-      // 设置音频停止时重启动画的回调
+      // 回答音频结束后停止人物动作，不回退到待机动画。
+      // 音频开始前的音源切换不会触发此回调，故动作能与说话同时播放。
       this._audioManager.setOnMotionRestartCallback(() => {
-        model.restartIdleMotion();
+        const activeModel = this._models.at(0);
+        if (!activeModel) return;
+        activeModel.stopMotion();
+        activeModel.stopAllMotions();
       });
     }
   }

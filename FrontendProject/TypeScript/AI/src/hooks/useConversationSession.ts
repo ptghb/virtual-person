@@ -11,6 +11,7 @@ import {
 export interface ConversationMessage extends DisplayMessage {
   id: number;
   streaming?: boolean;
+  hasStreamed?: boolean;
 }
 
 export function useConversationSession(
@@ -45,7 +46,8 @@ export function useConversationSession(
             ...message,
             content: '',
             id: ++idRef.current,
-            streaming: true
+            streaming: true,
+            hasStreamed: true
           }
         ]);
         setLatestAssistantText('');
@@ -63,10 +65,11 @@ export function useConversationSession(
             return [
               ...previous.slice(-99),
               {
-                ...message,
-                id: ++idRef.current,
-                streaming: true
-              }
+                  ...message,
+                  id: ++idRef.current,
+                  streaming: true,
+                  hasStreamed: true
+                }
             ];
           }
           return previous.map((item, itemIndex) =>
@@ -79,7 +82,6 @@ export function useConversationSession(
               : item
           );
         });
-        setLatestAssistantText(previous => previous + message.content);
         return;
       }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Modal, Space } from 'antd';
+import { createPortal } from 'react-dom';
+import { Alert, Button, Input, Space } from 'antd';
 import {
   CameraOutlined,
   CheckOutlined,
@@ -11,13 +12,15 @@ interface VisionControlProps {
   openSignal: number;
   requestedPrompt?: string | null;
   onSend: (base64: string, previewUrl: string, prompt: string | null) => boolean;
+  compact?: boolean;
 }
 
 export const VisionControl: React.FC<VisionControlProps> = ({
   connected,
   openSignal,
   requestedPrompt,
-  onSend
+  onSend,
+  compact = false
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -99,15 +102,7 @@ export const VisionControl: React.FC<VisionControlProps> = ({
     }
   };
 
-  return (
-    <div className="capability-card">
-      <div className="capability-card__heading">
-        <span className="capability-icon">📷</span>
-        <div>
-          <strong>视觉</strong>
-          <span>只有你允许后，小凡才能看到照片</span>
-        </div>
-      </div>
+  const trigger = (
       <Button
         icon={<CameraOutlined />}
         disabled={!connected}
@@ -115,55 +110,92 @@ export const VisionControl: React.FC<VisionControlProps> = ({
       >
         让我看看
       </Button>
-      {error && <Alert type="error" showIcon message={error} />}
+  );
 
-      <Modal
-        open={cameraOpen}
-        title="拍照前请确认画面"
-        width={720}
-        destroyOnHidden
-        onCancel={() => {
-          setPreview('');
-          closeCamera();
-        }}
-        footer={null}
-      >
-        <div className="camera-dialog">
-          {preview ? (
-            <img src={preview} alt="待发送照片预览" />
-          ) : (
-            <video ref={videoRef} muted playsInline autoPlay />
-          )}
-          <Input
-            value={prompt}
-            onChange={event => setPrompt(event.target.value)}
-            placeholder="想让小凡看什么？例如：看看我的气色"
-          />
-          <Space>
-            {preview ? (
-              <>
-                <Button onClick={() => setPreview('')}>重新拍摄</Button>
-                <Button
-                  type="primary"
-                  icon={<CheckOutlined />}
-                  onClick={confirm}
-                >
-                  确认发送
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button icon={<CloseOutlined />} onClick={closeCamera}>
-                  取消
-                </Button>
-                <Button type="primary" icon={<CameraOutlined />} onClick={capture}>
-                  拍照
-                </Button>
-              </>
-            )}
-          </Space>
+  return (
+    <>
+      {compact ? (
+        <div className="vision-control__compact">
+          {trigger}
+          {error && <Alert type="error" showIcon message={error} />}
         </div>
-      </Modal>
-    </div>
+      ) : (
+        <div className="capability-card">
+          <div className="capability-card__heading">
+            <span className="capability-icon">📷</span>
+            <div>
+              <strong>视觉</strong>
+              <span>只有你允许后，小凡才能看到照片</span>
+            </div>
+          </div>
+          {trigger}
+          {error && <Alert type="error" showIcon message={error} />}
+        </div>
+      )}
+      {cameraOpen &&
+        createPortal(
+          <div className="camera-confirm-overlay" role="presentation">
+            <div
+              className="camera-confirm-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="camera-confirm-title"
+            >
+              <div className="camera-confirm-dialog__header">
+                <strong id="camera-confirm-title">拍照前请确认画面</strong>
+                <Button
+                  type="text"
+                  icon={<CloseOutlined />}
+                  aria-label="关闭拍照窗口"
+                  onClick={() => {
+                    setPreview('');
+                    closeCamera();
+                  }}
+                />
+              </div>
+              <div className="camera-dialog">
+                {preview ? (
+                  <img src={preview} alt="待发送照片预览" />
+                ) : (
+                  <video ref={videoRef} muted playsInline autoPlay />
+                )}
+                <Input
+                  value={prompt}
+                  onChange={event => setPrompt(event.target.value)}
+                  placeholder="想让小凡看什么？例如：看看我的气色"
+                />
+                <Space>
+                  {preview ? (
+                    <>
+                      <Button onClick={() => setPreview('')}>重新拍摄</Button>
+                      <Button
+                        type="primary"
+                        icon={<CheckOutlined />}
+                        onClick={confirm}
+                      >
+                        确认发送
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button icon={<CloseOutlined />} onClick={closeCamera}>
+                        取消
+                      </Button>
+                      <Button
+                        type="primary"
+                        icon={<CameraOutlined />}
+                        onClick={capture}
+                      >
+                        拍照
+                      </Button>
+                    </>
+                  )}
+                </Space>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 };

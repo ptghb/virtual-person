@@ -137,8 +137,21 @@ export class LAppView {
       const x: number = width * 0.5;
       const y: number = height * 0.5;
 
-      const fwidth = textureInfo.width * 2.0;
-      const fheight = height * 0.95;
+      // 按 cover 方式铺满 Canvas，避免原先 95% 高度在上下露出
+      // WebGL 的黑色清屏背景，同时保持背景图宽高比不被拉伸。
+      const canvasAspect = width / height;
+      const textureAspect = textureInfo.width / textureInfo.height;
+      let fwidth: number;
+      let fheight: number;
+
+      if (canvasAspect > textureAspect) {
+        fwidth = width;
+        fheight = width / textureAspect;
+      } else {
+        fheight = height;
+        fwidth = height * textureAspect;
+      }
+
       this._back = new LAppSprite(x, y, fwidth, fheight, textureInfo.id);
       this._back.setSubdelegate(this._subdelegate);
     };
@@ -149,13 +162,16 @@ export class LAppView {
       initBackGroundTexture
     );
 
-    // 齿轮图像初始化
+    // 角色切换按钮初始化
     imageName = LAppDefine.GearImageName;
     const initGearTexture = (textureInfo: TextureInfo): void => {
-      const x = width - textureInfo.width * 0.5;
-      const y = height - textureInfo.height * 0.5;
-      const fwidth = textureInfo.width;
-      const fheight = textureInfo.height;
+      const pixelRatio = window.devicePixelRatio || 1;
+      const inset = 22 * pixelRatio;
+      const controlSize = 52 * pixelRatio;
+      const x = width - inset - controlSize * 0.5;
+      const y = height - inset - controlSize * 0.5;
+      const fwidth = controlSize;
+      const fheight = controlSize;
       this._gear = new LAppSprite(x, y, fwidth, fheight, textureInfo.id);
       this._gear.setSubdelegate(this._subdelegate);
     };

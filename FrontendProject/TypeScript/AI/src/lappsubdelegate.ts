@@ -254,8 +254,7 @@ export class LAppSubdelegate {
     }
     this._captured = true;
 
-    const localX: number = pageX - this._canvas.offsetLeft;
-    const localY: number = pageY - this._canvas.offsetTop;
+    const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
     this._view.onTouchesBegan(localX, localY);
   }
@@ -268,8 +267,7 @@ export class LAppSubdelegate {
       return;
     }
 
-    const localX: number = pageX - this._canvas.offsetLeft;
-    const localY: number = pageY - this._canvas.offsetTop;
+    const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
     this._view.onTouchesMoved(localX, localY);
   }
@@ -285,8 +283,7 @@ export class LAppSubdelegate {
       return;
     }
 
-    const localX: number = pageX - this._canvas.offsetLeft;
-    const localY: number = pageY - this._canvas.offsetTop;
+    const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
     this._view.onTouchesEnded(localX, localY);
   }
@@ -302,10 +299,20 @@ export class LAppSubdelegate {
       return;
     }
 
-    const localX: number = pageX - this._canvas.offsetLeft;
-    const localY: number = pageY - this._canvas.offsetTop;
+    const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
     this._view.onTouchesEnded(localX, localY);
+  }
+
+  private toCanvasPoint(
+    pageX: number,
+    pageY: number
+  ): { x: number; y: number } {
+    const bounds = this._canvas.getBoundingClientRect();
+    return {
+      x: pageX - window.scrollX - bounds.left,
+      y: pageY - window.scrollY - bounds.top
+    };
   }
 
   public isContextLost(): boolean {

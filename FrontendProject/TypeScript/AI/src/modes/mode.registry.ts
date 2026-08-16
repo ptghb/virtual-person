@@ -22,7 +22,7 @@ export const MODE_REGISTRY: Record<AppMode, ModeDefinition> = {
   advanced: {
     id: 'advanced',
     title: '升级模式',
-    subtitle: '语音、视觉与持续聆听',
+    subtitle: '语音与视觉',
     route: '/advanced',
     icon: '✨',
     capabilities: {

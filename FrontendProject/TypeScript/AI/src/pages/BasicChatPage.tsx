@@ -27,7 +27,7 @@ export const BasicChatPage: React.FC = () => {
         onAudioEnabledChange={session.setAudioEnabled}
         onSend={session.sendText}
         onClear={session.clearMessages}
-        title="普通聊天"
+        title="对话记录"
       />
     </AppShell>
   );

@@ -37,6 +37,7 @@ export class LAppAudioManager {
     this._audioSource = null;
     this._analyser = this._audioContext.createAnalyser();
     this._analyser.fftSize = 2048;
+    this._analyser.connect(this._audioContext.destination);
     this._isPlaying = false;
     this._startTime = 0;
     this._pauseTime = 0;
@@ -94,13 +95,20 @@ export class LAppAudioManager {
     }
 
     if (this._isPlaying) {
-      this.stop();
+      this.stop(false);
+    }
+
+    // AudioContext 可能因浏览器自动播放策略处于 suspended 状态。
+    // 恢复后已有的 source 会继续输出到 analyser，供口型同步读取。
+    if (this._audioContext.state === 'suspended') {
+      void this._audioContext.resume().catch(error => {
+        console.warn('Failed to resume audio context:', error);
+      });
     }
 
     this._audioSource = this._audioContext.createBufferSource();
     this._audioSource.buffer = this._audioBuffer;
     this._audioSource.connect(this._analyser);
-    this._analyser.connect(this._audioContext.destination);
 
     this._audioSource.onended = () => {
       this._isPlaying = false;
@@ -131,7 +139,7 @@ export class LAppAudioManager {
    * 播放可边下载边解码的 HTMLAudioElement，用于流式 TTS。
    */
   public async playStreamingAudio(audio: HTMLAudioElement): Promise<void> {
-    this.stop();
+    this.stop(false);
     if (this._audioContext.state === 'suspended') {
       await this._audioContext.resume();
     }
@@ -140,7 +148,6 @@ export class LAppAudioManager {
     this._streamingAudioSource =
       this._audioContext.createMediaElementSource(audio);
     this._streamingAudioSource.connect(this._analyser);
-    this._analyser.connect(this._audioContext.destination);
     this._isPlaying = true;
     this._startTime = this._audioContext.currentTime;
 
@@ -181,7 +188,7 @@ export class LAppAudioManager {
   /**
    * 停止音频
    */
-  public stop(): void {
+  public stop(notifyMotionEnd = true): void {
     if (this._audioSource) {
       try {
         this._audioSource.stop();
@@ -209,8 +216,8 @@ export class LAppAudioManager {
       this._onStopCallback();
     }
 
-    // 停止音频时重启动画
-    if (this._onMotionRestartCallback) {
+    // 切换音频源时不应触发“音频结束”动作；只有真正结束/手动停止时通知。
+    if (notifyMotionEnd && this._onMotionRestartCallback) {
       this._onMotionRestartCallback();
     }
   }
@@ -224,15 +231,14 @@ export class LAppAudioManager {
       return 0.0;
     }
 
-    const bufferLength = this._analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    this._analyser.getByteTimeDomainData(dataArray);
+    const bufferLength = this._analyser.fftSize;
+    const dataArray = new Float32Array(bufferLength);
+    this._analyser.getFloatTimeDomainData(dataArray);
 
     // 计算RMS值
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
-      const x = (dataArray[i] - 128) / 128.0;
-      sum += x * x;
+      sum += dataArray[i] * dataArray[i];
     }
     const rms = Math.sqrt(sum / bufferLength);
 

@@ -143,7 +143,26 @@ def register_tts_stream_segment(text: str) -> str:
 
 
 def normalize_tts_text(text: str) -> str:
-    clean_text = remove_emojis(text).strip()
+    # 括号中的内容通常是动作/表情注释，例如“（微笑）”“[害羞]”，
+    # 不应被 TTS 朗读。循环处理可覆盖多个相邻的注释。
+    clean_text = text
+    bracket_patterns = (
+        r"（[^（）]*）",
+        r"\([^()]*\)",
+        r"【[^【】]*】",
+        r"\[[^\[\]]*\]",
+        r"\{[^{}]*\}",
+    )
+    previous_text = None
+    while clean_text != previous_text:
+        previous_text = clean_text
+        for pattern in bracket_patterns:
+            clean_text = re.sub(pattern, "", clean_text)
+
+    clean_text = remove_emojis(clean_text)
+    # 波浪线在文本中表示语气延长，TTS 不应将其作为字符朗读。
+    clean_text = re.sub(r"[~～]+", "。", clean_text)
+    clean_text = re.sub(r"[ \t]+", " ", clean_text).strip()
     # EasyVoice 流式接口要求至少 5 个字符；只补停顿符，不改变语义。
     if clean_text and len(clean_text) < 5:
         clean_text += "，" * (5 - len(clean_text))
@@ -357,7 +376,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, client_id)
-        await manager.broadcast(f"Client {client_id} left the chat")
 
 # 新增的处理函数
 async def handle_control_message(websocket: WebSocket, client_id: str, msg_data: dict):
@@ -383,13 +401,18 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
         transcription = (
             await audio_processor._process_complete_audio(client_id)
         ) or ""
-        if transcription:
-            await websocket.send_text(transcription)
 
         audio_processor.stop_audio_stream(client_id)
 
         # 如果有识别结果，将其传递给AI对话系统
         if transcription:
+            await websocket.send_text(json.dumps({
+                "type": "speech.transcription",
+                "data": {
+                    "content": transcription,
+                },
+            }))
+
             # 构造文本消息并处理
             text_msg_data = {
                 "content": transcription,
@@ -397,18 +420,18 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "is_audio": True
             }
             await handle_text_message(websocket, client_id, text_msg_data)
-
-        response = {
-            "type": "response",
-            "data": {
-                "status": "success",
-                "message": f"音频流已停止，识别结果: {transcription}",
-                "request_type": "control",
-                "transcription": transcription
+        else:
+            response = {
+                "type": "response",
+                "data": {
+                    "status": "error",
+                    "message": "语音识别失败，请检查 SILICONFLOW_API_KEY 是否有效",
+                    "request_type": "control",
+                    "transcription": ""
+                }
             }
-        }
-        print(f"[handle_control_message] 发送响应: {response}")
-        await websocket.send_text(json.dumps(response))
+            print(f"[handle_control_message] 发送响应: {response}")
+            await websocket.send_text(json.dumps(response))
 
     elif action == "livestream_set_auto_reply":
         enabled = bool(msg_data.get("enabled", True))
@@ -497,7 +520,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
         # TTS处理
         audio_url = ""
         if os.getenv("ISAUDIO", False) != False and is_audio:
-          clean_text = remove_emojis(ai_response)
+          clean_text = normalize_tts_text(ai_response)
           audio_url = await http_service.generate_tts_audio(clean_text)
 
         # 发送 AI 回复
@@ -618,7 +641,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # 生成 TTS 音频
         audio_url = ""
         if os.getenv("ISAUDIO", False) != False:
-            clean_text = remove_emojis(welcome_msg)
+            clean_text = normalize_tts_text(welcome_msg)
             audio_url = await http_service.generate_tts_audio(clean_text)
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
@@ -662,7 +685,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # 生成 TTS 音频
         audio_url = ""
         if os.getenv("ISAUDIO", False) != False:
-            clean_text = remove_emojis(thanks_msg)
+            clean_text = normalize_tts_text(thanks_msg)
             audio_url = await http_service.generate_tts_audio(clean_text)
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
@@ -709,7 +732,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # 生成 TTS 音频
         audio_url = ""
         if os.getenv("ISAUDIO", False) != False:
-            clean_text = remove_emojis(like_msg)
+            clean_text = normalize_tts_text(like_msg)
             audio_url = await http_service.generate_tts_audio(clean_text)
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 

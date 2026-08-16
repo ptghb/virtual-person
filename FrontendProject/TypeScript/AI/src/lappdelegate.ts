@@ -247,6 +247,8 @@ export class LAppDelegate {
     for (let i = 0; i < LAppDefine.CanvasNum; i++) {
       const canvas = document.createElement('canvas');
       this._canvases.pushBack(canvas);
+      canvas.className = 'live2d-canvas';
+      canvas.dataset.canvasIndex = String(i);
       canvas.style.width = `${width}vw`;
       canvas.style.height = `${height}vh`;
       canvas.style.position = 'fixed';

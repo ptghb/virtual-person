@@ -7,6 +7,7 @@ from typing import Dict, Optional
 from langchain_core.messages import HumanMessage, AIMessage
 import os
 import emoji
+import re
 
 from services.llm_service import llm_service
 from services.http_service import http_service
@@ -19,15 +20,25 @@ class CommentProcessor:
         """初始化评论处理器"""
         self.message_history = []
 
-    def remove_emojis(self, text: str) -> str:
-        """
-        移除文本中的表情符号
-        :param text: 原始文本
-        :return: 移除了表情符号的文本
-        """
-        newtext = emoji.replace_emoji(text, replace='')
-        newtext = newtext.replace('（*^^*）', '')
-        return newtext
+    def normalize_tts_text(self, text: str) -> str:
+        """清理只用于语音合成的表情注释与特殊语气符号。"""
+        clean_text = text
+        bracket_patterns = (
+            r"（[^（）]*）",
+            r"\([^()]*\)",
+            r"【[^【】]*】",
+            r"\[[^\[\]]*\]",
+            r"\{[^{}]*\}",
+        )
+        previous_text = None
+        while clean_text != previous_text:
+            previous_text = clean_text
+            for pattern in bracket_patterns:
+                clean_text = re.sub(pattern, "", clean_text)
+
+        clean_text = emoji.replace_emoji(clean_text, replace='')
+        clean_text = re.sub(r"[~～]+", "。", clean_text)
+        return re.sub(r"[ \t]+", " ", clean_text).strip()
 
     async def process_comment(
         self,
@@ -96,7 +107,7 @@ class CommentProcessor:
             # 生成 TTS 音频
             audio_url = ""
             if os.getenv("ISAUDIO", False) != False:
-                clean_text = self.remove_emojis(ai_response)
+                clean_text = self.normalize_tts_text(ai_response)
                 audio_url = await http_service.generate_tts_audio(clean_text)
                 print(f"[CommentProcessor] TTS 音频生成完成: {audio_url}")
 

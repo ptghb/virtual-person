@@ -596,14 +596,20 @@ export class LAppModel extends CubismUserModel {
         }
       }
 
-      // 如果没有外部音频管理器，使用原有的wav文件处理器
-      if (value === 0.0) {
+      // 只有外部音频管理器未接管时，才使用旧的 wav 回退链路。
+      // 静音片段的 RMS 本来就可能为 0，不能据此误判外部音频不可用。
+      const isExternalAudioActive =
+        this._audioManager != null &&
+        (this._audioManager.isPlaying() || this._audioManager.isRecording());
+      if (!isExternalAudioActive) {
         this._wavFileHandler.update(deltaTimeSeconds);
         value = this._wavFileHandler.getRms();
       }
 
       for (let i = 0; i < this._lipSyncIds.getSize(); ++i) {
-        this._model.addParameterValueById(this._lipSyncIds.at(i), value, 0.95);
+        // 口型由当前音量绝对驱动，不能再叠加动作/表情留下的嘴部值；
+        // 否则 ParamMouthOpenY 可能被动作曲线钳制，视觉上完全不动。
+        this._model.setParameterValueById(this._lipSyncIds.at(i), value);
       }
     }
 

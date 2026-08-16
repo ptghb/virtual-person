@@ -4,6 +4,7 @@ import type { WebSocketManager } from '../websocketmanager';
 export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,6 +37,7 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
         : 'audio/webm';
       const recorder = new MediaRecorder(stream, { mimeType });
       recorderRef.current = recorder;
+      chunksRef.current = [];
 
       manager.send({
         type: 'control',
@@ -47,42 +49,64 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
       });
 
       recorder.ondataavailable = event => {
-        if (!event.data.size || manager.getState() !== 'connected') return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result !== 'string') return;
-          const chunk = reader.result.split(',')[1] || '';
-          if (!chunk) return;
-          manager.send({
-            type: 'audio',
-            data: {
-              audioFormat: 'webm',
-              sample_rate: 16000,
-              channels: 1,
-              chunk,
-              is_final: false,
-              client_id: manager.getClientId(),
-              timestamp: new Date().toISOString()
-            }
-          });
-        };
-        reader.readAsDataURL(event.data);
+        if (event.data.size) chunksRef.current.push(event.data);
       };
 
       recorder.onstop = () => {
         setIsRecording(false);
         stopTracks();
         recorderRef.current = null;
-        if (manager.getState() === 'connected') {
-          manager.send({
-            type: 'control',
-            data: {
-              action: 'stop_audio_stream',
-              client_id: manager.getClientId(),
-              timestamp: new Date().toISOString()
+        const recordedChunks = chunksRef.current;
+        chunksRef.current = [];
+
+        void (async () => {
+          if (
+            manager.getState() !== 'connected' ||
+            recordedChunks.length === 0
+          ) {
+            setError('没有录到有效的语音数据');
+            return;
+          }
+
+          try {
+            // 停止后一次性发送完整 WebM，避免 FileReader 尚未完成时
+            // stop_audio_stream 已先到达后端，导致最后一块音频被丢弃。
+            const audioBlob = new Blob(recordedChunks, { type: mimeType });
+            const bytes = new Uint8Array(await audioBlob.arrayBuffer());
+            let binary = '';
+            const batchSize = 0x8000;
+            for (let offset = 0; offset < bytes.length; offset += batchSize) {
+              binary += String.fromCharCode(
+                ...bytes.subarray(offset, offset + batchSize)
+              );
             }
-          });
-        }
+
+            manager.send({
+              type: 'audio',
+              data: {
+                audioFormat: 'webm',
+                sample_rate: 16000,
+                channels: 1,
+                chunk: btoa(binary),
+                is_final: true,
+                client_id: manager.getClientId(),
+                timestamp: new Date().toISOString()
+              }
+            });
+            manager.send({
+              type: 'control',
+              data: {
+                action: 'stop_audio_stream',
+                client_id: manager.getClientId(),
+                timestamp: new Date().toISOString()
+              }
+            });
+          } catch (reason) {
+            setError(
+              reason instanceof Error ? reason.message : '录音数据处理失败'
+            );
+          }
+        })();
       };
 
       recorder.start(150);

@@ -209,6 +209,7 @@ export class WebSocketManager {
             data?: {
               status?: string;
               message?: string;
+              transcription?: string;
               request_type?: string;
               comments?: unknown[];
               reply_id?: string;
@@ -238,6 +239,19 @@ export class WebSocketManager {
                 detail: parsedData.data
               })
             );
+            return;
+          }
+
+          if (
+            parsedData.type === 'speech.transcription' &&
+            typeof parsedData.data?.content === 'string'
+          ) {
+            this._emitMessage({
+              type: 'sent',
+              content: parsedData.data.content,
+              timestamp: new Date(),
+              contentType: 'text'
+            });
             return;
           }
 

@@ -88,7 +88,12 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
             description="跟小凡说句话吧"
           />
         ) : (
-          messages.map(message => (
+          messages
+            .filter(message => message.type !== 'system')
+            .filter(
+              message => !(message.type === 'received' && message.streaming)
+            )
+            .map(message => (
             <div
               key={message.id}
               className={`chat-message chat-message--${message.type}`}
@@ -115,7 +120,7 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
                 })}
               </time>
             </div>
-          ))
+            ))
         )}
         {thinking && (
           <div className="chat-message chat-message--received chat-message--thinking">
