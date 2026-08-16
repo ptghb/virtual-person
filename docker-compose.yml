@@ -13,6 +13,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./FrontendProject/TypeScript/AI/dist:/usr/share/nginx/html:ro
     depends_on:
+      - dycast
       - frontend
       - backend
     networks:
@@ -73,6 +74,18 @@ services:
         reservations:
           cpus: '1'
           memory: 1G
+
+  # 抖音弹幕姬服务
+  dycast:
+    build:
+      context: ./dycast
+      dockerfile: Dockerfile
+    container_name: cubism_dycast
+    ports:
+      - "5173:5173"
+    networks:
+      - cubism_network
+    restart: unless-stopped
 
 networks:
   cubism_network:

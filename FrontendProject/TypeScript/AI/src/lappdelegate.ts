@@ -146,13 +146,16 @@ export class LAppDelegate {
    * 移除事件监听器。
    */
   private releaseEventListener(): void {
-    document.removeEventListener('pointerup', this.pointBeganEventListener);
+    document.removeEventListener('pointerdown', this.pointBeganEventListener);
     this.pointBeganEventListener = null;
     document.removeEventListener('pointermove', this.pointMovedEventListener);
     this.pointMovedEventListener = null;
-    document.removeEventListener('pointerdown', this.pointEndedEventListener);
+    document.removeEventListener('pointerup', this.pointEndedEventListener);
     this.pointEndedEventListener = null;
-    document.removeEventListener('pointerdown', this.pointCancelEventListener);
+    document.removeEventListener(
+      'pointercancel',
+      this.pointCancelEventListener
+    );
     this.pointCancelEventListener = null;
   }
 
@@ -244,6 +247,8 @@ export class LAppDelegate {
     for (let i = 0; i < LAppDefine.CanvasNum; i++) {
       const canvas = document.createElement('canvas');
       this._canvases.pushBack(canvas);
+      canvas.className = 'live2d-canvas';
+      canvas.dataset.canvasIndex = String(i);
       canvas.style.width = `${width}vw`;
       canvas.style.height = `${height}vh`;
       canvas.style.position = 'fixed';

@@ -1,53 +1,36 @@
-/**
- * Copyright(c) Live2D Inc. All rights reserved.
- *
- * Use of this source code is governed by the Live2D Open Software license
- * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
- */
+import React from 'react';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes
+} from 'react-router-dom';
+import { AdvancedPage } from './pages/AdvancedPage';
+import { BasicChatPage } from './pages/BasicChatPage';
+import { LiveConsolePage } from './pages/LiveConsolePage';
+import { LiveStagePage } from './pages/LiveStagePage';
+import { ModeSelectPage } from './pages/ModeSelectPage';
+import { SettingsPage } from './pages/SettingsPage';
 
-import * as React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import AudioControls from './components/AudioControls';
-import WebSocketPanel from './components/WebSocketPanel';
-import MotionControls from './components/MotionControls';
-import ZoomControls from './components/ZoomControls';
-import HandGestureControls from './components/HandGestureControls';
-import MobilePage from './pages/MobilePage';
-import LiveStreamPage from './pages/LiveStreamPage';
-import { Button } from 'antd';
+const App: React.FC = () => (
+  <BrowserRouter>
+    <Routes>
+      <Route path="/" element={<ModeSelectPage />} />
+      <Route path="/chat" element={<BasicChatPage />} />
+      <Route path="/advanced" element={<AdvancedPage />} />
+      <Route path="/live/console" element={<LiveConsolePage />} />
+      <Route path="/live/stage" element={<LiveStagePage />} />
+      <Route path="/settings" element={<SettingsPage />} />
 
-const HomePage: React.FC = () => {
-  return (
-    <>
-      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 2000, display: 'flex', gap: '10px' }}>
-        <Link to="/mobile">
-          <Button type="primary">进入手机页面</Button>
-        </Link>
-        <Link to="/livestream">
-          <Button type="default">进入直播页面</Button>
-        </Link>
-      </div>
-      <div id="controls-container">
-        <AudioControls />
-        <MotionControls />
-        <ZoomControls />
-        <HandGestureControls />
-      </div>
-      <WebSocketPanel />
-    </>
-  );
-};
-
-const App: React.FC = () => {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/mobile" element={<MobilePage />} />
-        <Route path="/livestream" element={<LiveStreamPage />} />
-      </Routes>
-    </Router>
-  );
-};
+      {/* 兼容旧地址 */}
+      <Route path="/mobile" element={<Navigate to="/advanced" replace />} />
+      <Route
+        path="/livestream"
+        element={<Navigate to="/live/stage" replace />}
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  </BrowserRouter>
+);
 
 export default App;

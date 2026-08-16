@@ -13,10 +13,12 @@ class AudioProcessor:
     def __init__(self):
         self.audio_buffers: Dict[str, List[bytes]] = {}
         self.is_recording: Dict[str, bool] = {}
+        self.audio_formats: Dict[str, str] = {}
 
     def start_audio_stream(self, client_id: str):
         self.audio_buffers[client_id] = []
         self.is_recording[client_id] = True
+        self.audio_formats[client_id] = "webm"
         print(f"[AudioProcessor] 开始处理客户端 {client_id} 的音频流")
 
     def stop_audio_stream(self, client_id: str):
@@ -31,6 +33,8 @@ class AudioProcessor:
 
             audio_chunk_base64 = audio_data.get("chunk", "")
             is_final = audio_data.get("is_final", False)
+            audio_format = audio_data.get("audioFormat", "webm")
+            self.audio_formats[client_id] = audio_format
             print(f"is_final: {is_final}")
             if not audio_chunk_base64:
                 return {"status": "error", "message": "音频数据为空"}
@@ -59,7 +63,11 @@ class AudioProcessor:
         print(f"[AudioProcessor] 处理完整音频，总大小: {len(all_audio_data)} 字节")
 
         # 保存音频到本地
-        audio_filename = await self._save_audio_file(client_id, all_audio_data)
+        audio_filename = await self._save_audio_file(
+            client_id,
+            all_audio_data,
+            self.audio_formats.get(client_id, "webm"),
+        )
 
         # 调用语音识别API
         transcription = await self._transcribe_audio(audio_filename)
@@ -69,7 +77,12 @@ class AudioProcessor:
 
         return transcription
 
-    async def _save_audio_file(self, client_id: str, audio_data: bytes) -> str:
+    async def _save_audio_file(
+        self,
+        client_id: str,
+        audio_data: bytes,
+        audio_format: str = "webm",
+    ) -> str:
         """保存音频数据到本地文件"""
         # 创建音频目录
         audio_dir = "audio_files"
@@ -78,7 +91,8 @@ class AudioProcessor:
 
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{audio_dir}/audio_{client_id}_{timestamp}.wav"
+        extension = audio_format if audio_format in {"webm", "wav", "mp3"} else "webm"
+        filename = f"{audio_dir}/audio_{client_id}_{timestamp}.{extension}"
 
         # 保存文件
         async with aiofiles.open(filename, "wb") as f:

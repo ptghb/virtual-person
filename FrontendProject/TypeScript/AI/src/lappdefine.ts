@@ -36,10 +36,10 @@ export const ViewLogicalMaxTop = 2.0;
 export const ResourcesPath = '../../Resources/';
 
 // 模型后面的背景图片文件
-export const BackImageName = 'back_class_normal.png';
+export const BackImageName = 'back_live.png';
 
-// 齿轮
-export const GearImageName = 'icon_gear.png';
+// 角色切换按钮
+export const GearImageName = 'icon_character_switch.png';
 
 // 关闭按钮
 export const PowerImageName = 'CloseNormal.png';

@@ -24,6 +24,9 @@ export class LAppAudioManager {
   private _onMotionRestartCallback: (() => void) | null;
   private _mediaStream: MediaStream | null;
   private _mediaStreamSource: MediaStreamAudioSourceNode | null;
+  private _streamingAudio: HTMLAudioElement | null;
+  private _streamingAudioSource: MediaElementAudioSourceNode | null;
+  private _streamingResolve: (() => void) | null;
   private _isRecording: boolean;
 
   constructor() {
@@ -34,6 +37,7 @@ export class LAppAudioManager {
     this._audioSource = null;
     this._analyser = this._audioContext.createAnalyser();
     this._analyser.fftSize = 2048;
+    this._analyser.connect(this._audioContext.destination);
     this._isPlaying = false;
     this._startTime = 0;
     this._pauseTime = 0;
@@ -42,6 +46,9 @@ export class LAppAudioManager {
     this._onEndCallback = null;
     this._mediaStream = null;
     this._mediaStreamSource = null;
+    this._streamingAudio = null;
+    this._streamingAudioSource = null;
+    this._streamingResolve = null;
     this._isRecording = false;
   }
 
@@ -88,13 +95,20 @@ export class LAppAudioManager {
     }
 
     if (this._isPlaying) {
-      this.stop();
+      this.stop(false);
+    }
+
+    // AudioContext 可能因浏览器自动播放策略处于 suspended 状态。
+    // 恢复后已有的 source 会继续输出到 analyser，供口型同步读取。
+    if (this._audioContext.state === 'suspended') {
+      void this._audioContext.resume().catch(error => {
+        console.warn('Failed to resume audio context:', error);
+      });
     }
 
     this._audioSource = this._audioContext.createBufferSource();
     this._audioSource.buffer = this._audioBuffer;
     this._audioSource.connect(this._analyser);
-    this._analyser.connect(this._audioContext.destination);
 
     this._audioSource.onended = () => {
       this._isPlaying = false;
@@ -122,9 +136,59 @@ export class LAppAudioManager {
   }
 
   /**
+   * 播放可边下载边解码的 HTMLAudioElement，用于流式 TTS。
+   */
+  public async playStreamingAudio(audio: HTMLAudioElement): Promise<void> {
+    this.stop(false);
+    if (this._audioContext.state === 'suspended') {
+      await this._audioContext.resume();
+    }
+
+    this._streamingAudio = audio;
+    this._streamingAudioSource =
+      this._audioContext.createMediaElementSource(audio);
+    this._streamingAudioSource.connect(this._analyser);
+    this._isPlaying = true;
+    this._startTime = this._audioContext.currentTime;
+
+    if (this._onPlayCallback) this._onPlayCallback();
+    if (this._onMotionStopCallback) this._onMotionStopCallback();
+
+    await new Promise<void>((resolve, reject) => {
+      this._streamingResolve = resolve;
+
+      const cleanup = () => {
+        this._streamingAudioSource?.disconnect();
+        this._streamingAudioSource = null;
+        this._streamingAudio = null;
+        this._streamingResolve = null;
+        this._isPlaying = false;
+      };
+
+      audio.onended = () => {
+        cleanup();
+        if (this._onEndCallback) this._onEndCallback();
+        if (this._onMotionRestartCallback) {
+          this._onMotionRestartCallback();
+        }
+        resolve();
+      };
+      audio.onerror = () => {
+        cleanup();
+        reject(new Error('流式音频播放失败'));
+      };
+
+      void audio.play().catch(error => {
+        cleanup();
+        reject(error instanceof Error ? error : new Error('流式音频播放失败'));
+      });
+    });
+  }
+
+  /**
    * 停止音频
    */
-  public stop(): void {
+  public stop(notifyMotionEnd = true): void {
     if (this._audioSource) {
       try {
         this._audioSource.stop();
@@ -133,6 +197,18 @@ export class LAppAudioManager {
       }
       this._audioSource = null;
     }
+    if (this._streamingAudio) {
+      this._streamingAudio.onended = null;
+      this._streamingAudio.onerror = null;
+      this._streamingAudio.pause();
+      this._streamingAudio.removeAttribute('src');
+      this._streamingAudio.load();
+      this._streamingAudio = null;
+    }
+    this._streamingAudioSource?.disconnect();
+    this._streamingAudioSource = null;
+    this._streamingResolve?.();
+    this._streamingResolve = null;
     this._isPlaying = false;
     this._pauseTime = 0;
 
@@ -140,8 +216,8 @@ export class LAppAudioManager {
       this._onStopCallback();
     }
 
-    // 停止音频时重启动画
-    if (this._onMotionRestartCallback) {
+    // 切换音频源时不应触发“音频结束”动作；只有真正结束/手动停止时通知。
+    if (notifyMotionEnd && this._onMotionRestartCallback) {
       this._onMotionRestartCallback();
     }
   }
@@ -151,19 +227,18 @@ export class LAppAudioManager {
    * @returns RMS值（0-1范围）
    */
   public getRms(): number {
-    if (!this._isPlaying || !this._audioBuffer) {
+    if (!this._isPlaying) {
       return 0.0;
     }
 
-    const bufferLength = this._analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    this._analyser.getByteTimeDomainData(dataArray);
+    const bufferLength = this._analyser.fftSize;
+    const dataArray = new Float32Array(bufferLength);
+    this._analyser.getFloatTimeDomainData(dataArray);
 
     // 计算RMS值
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
-      const x = (dataArray[i] - 128) / 128.0;
-      sum += x * x;
+      sum += dataArray[i] * dataArray[i];
     }
     const rms = Math.sqrt(sum / bufferLength);
 
@@ -176,6 +251,11 @@ export class LAppAudioManager {
    * @returns 音频时长
    */
   public getDuration(): number {
+    if (this._streamingAudio) {
+      return Number.isFinite(this._streamingAudio.duration)
+        ? this._streamingAudio.duration
+        : 0;
+    }
     return this._audioBuffer ? this._audioBuffer.duration : 0;
   }
 
@@ -184,6 +264,7 @@ export class LAppAudioManager {
    * @returns 当前播放时间
    */
   public getCurrentTime(): number {
+    if (this._streamingAudio) return this._streamingAudio.currentTime;
     if (!this._isPlaying) {
       return this._pauseTime;
     }
@@ -203,7 +284,7 @@ export class LAppAudioManager {
    * @returns 是否已加载音频
    */
   public isLoaded(): boolean {
-    return this._audioBuffer !== null;
+    return this._audioBuffer !== null || this._streamingAudio !== null;
   }
 
   /**

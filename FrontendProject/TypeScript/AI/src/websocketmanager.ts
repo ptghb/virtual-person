@@ -19,17 +19,21 @@ export type ProtocolMessageType =
   | 'audio'
   | 'control'
   | 'response'
-  | 'image';
+  | 'image'
+  | 'comment';
 
 // 控制消息动作类型
 export type ControlAction =
   | 'start_audio_stream'
   | 'stop_audio_stream'
+  | 'livestream_set_auto_reply'
+  | 'livestream_update_policy'
+  | 'livestream_clear_queue'
   | 'ping'
   | 'pong';
 
 // 音频格式
-export type AudioFormat = 'pcm' | 'wav' | 'mp3';
+export type AudioFormat = 'pcm' | 'wav' | 'mp3' | 'webm';
 
 // 协议消息数据接口
 export interface ProtocolMessageData {
@@ -58,6 +62,8 @@ export interface ProtocolMessageData {
   model?: string;
   is_audio?: boolean;
   prompt?: string;
+  enabled?: boolean;
+  policies?: Record<string, boolean>;
 }
 
 // 完整的协议消息结构
@@ -90,6 +96,9 @@ export interface DisplayMessage {
   contentType?: 'text' | 'audio' | 'image'; // 显示内容类型
   audioUrl?: string; // 音频URL
   isError?: boolean; // 是否为错误消息
+  replyId?: string;
+  sequence?: number;
+  streamEvent?: 'start' | 'delta' | 'complete' | 'audio' | 'error';
 }
 
 export class WebSocketManager {
@@ -106,6 +115,9 @@ export class WebSocketManager {
   private _reconnectTimer: NodeJS.Timeout | null = null;
   private _messageCallback: ((message: DisplayMessage) => void) | null = null;
   private _stateCallback: ((state: ConnectionState) => void) | null = null;
+  private _messageListeners = new Set<(message: DisplayMessage) => void>();
+  private _stateListeners = new Set<(state: ConnectionState) => void>();
+  private _manualDisconnect: boolean = false;
 
   private constructor(
     url: string = 'ws://localhost:8000',
@@ -128,7 +140,13 @@ export class WebSocketManager {
   public connect(url?: string): void {
     if (url) {
       this._url = url;
+      const urlParts = url.split('/').filter(Boolean);
+      const clientId = urlParts[urlParts.length - 1];
+      if (clientId) {
+        this._clientId = decodeURIComponent(clientId);
+      }
     }
+    this._manualDisconnect = false;
 
     console.log('[WebSocketManager.connect] 开始连接到:', this._url);
     console.log(
@@ -182,13 +200,120 @@ export class WebSocketManager {
         try {
           // 尝试解析JSON格式的消息
           const parsedData = JSON.parse(event.data as string) as {
-            type?: number;
+            type?: number | string;
             content?: unknown;
             animation_index?: number;
             audio?: string;
             should_take_photo?: boolean;
             prompt?: string;
+            data?: {
+              status?: string;
+              message?: string;
+              transcription?: string;
+              request_type?: string;
+              comments?: unknown[];
+              reply_id?: string;
+              delta?: string;
+              content?: string;
+              audio_url?: string;
+              sequence?: number;
+              animation_index?: number;
+              should_take_photo?: boolean;
+              prompt?: string;
+              [key: string]: unknown;
+            };
           };
+
+          if (parsedData.type === 'livestream.event_batch') {
+            window.dispatchEvent(
+              new CustomEvent('livestream-event-batch', {
+                detail: parsedData.data
+              })
+            );
+            return;
+          }
+
+          if (parsedData.type === 'livestream.policy') {
+            window.dispatchEvent(
+              new CustomEvent('livestream-policy', {
+                detail: parsedData.data
+              })
+            );
+            return;
+          }
+
+          if (
+            parsedData.type === 'speech.transcription' &&
+            typeof parsedData.data?.content === 'string'
+          ) {
+            this._emitMessage({
+              type: 'sent',
+              content: parsedData.data.content,
+              timestamp: new Date(),
+              contentType: 'text'
+            });
+            return;
+          }
+
+          if (
+            typeof parsedData.type === 'string' &&
+            parsedData.type.startsWith('assistant.')
+          ) {
+            const streamData = parsedData.data ?? {};
+            const replyId = streamData.reply_id ?? '';
+
+            if (parsedData.type === 'assistant.meta') {
+              if (typeof streamData.animation_index === 'number') {
+                window.dispatchEvent(
+                  new CustomEvent('change-animation', {
+                    detail: {
+                      animationIndex: streamData.animation_index
+                    }
+                  })
+                );
+              }
+              if (streamData.should_take_photo === true) {
+                window.dispatchEvent(
+                  new CustomEvent('should-take-photo', {
+                    detail: {
+                      shouldTakePhoto: true,
+                      prompt: streamData.prompt
+                    }
+                  })
+                );
+              }
+              return;
+            }
+
+            const eventType = parsedData.type.slice('assistant.'.length);
+            const streamEvent =
+              eventType === 'audio_segment'
+                ? 'audio'
+                : eventType === 'start' ||
+                    eventType === 'delta' ||
+                    eventType === 'complete' ||
+                    eventType === 'error'
+                  ? eventType
+                  : undefined;
+
+            if (streamEvent) {
+              this._emitMessage({
+                type: streamEvent === 'error' ? 'error' : 'received',
+                content:
+                  streamEvent === 'delta'
+                    ? (streamData.delta ?? '')
+                    : (streamData.content ?? streamData.message ?? ''),
+                timestamp: new Date(),
+                contentType: streamEvent === 'audio' ? 'audio' : 'text',
+                audioUrl: streamData.audio_url,
+                isError: streamEvent === 'error',
+                replyId,
+                sequence: streamData.sequence,
+                streamEvent
+              });
+            }
+            return;
+          }
 
           // 根据type字段确定内容类型
           let contentType: 'text' | 'audio' = 'text';
@@ -196,10 +321,19 @@ export class WebSocketManager {
             contentType = 'audio';
           }
 
+          const responseContent =
+            parsedData.type === 'response' && parsedData.data?.message
+              ? parsedData.data.message
+              : undefined;
           const message: DisplayMessage = {
-            type: 'received',
+            type:
+              parsedData.type === 'response' &&
+              parsedData.data?.status === 'error'
+                ? 'error'
+                : 'received',
             content:
-              typeof parsedData.content === 'string'
+              responseContent ??
+              (typeof parsedData.content === 'string'
                 ? parsedData.content
                 : typeof parsedData.content === 'object' &&
                     parsedData.content !== null
@@ -207,18 +341,15 @@ export class WebSocketManager {
                   : typeof parsedData.content === 'number' ||
                       typeof parsedData.content === 'boolean'
                     ? String(parsedData.content)
-                    : '',
+                    : ''),
             timestamp: new Date(),
             contentType: contentType,
-            audioUrl: parsedData.audio
+            audioUrl: parsedData.audio,
+            isError:
+              parsedData.type === 'response' &&
+              parsedData.data?.status === 'error'
           };
-          this._displayMessages.push(message);
-          if (this._displayMessages.length > this._maxMessages) {
-            this._displayMessages.shift();
-          }
-          if (this._messageCallback) {
-            this._messageCallback(message);
-          }
+          this._emitMessage(message);
           if (parsedData.animation_index !== undefined) {
             console.log(
               '[WebSocketManager.onmessage] 收到动画指令，切换到动画索引:',
@@ -255,13 +386,7 @@ export class WebSocketManager {
             timestamp: new Date(),
             contentType: 'text'
           };
-          this._displayMessages.push(message);
-          if (this._displayMessages.length > this._maxMessages) {
-            this._displayMessages.shift();
-          }
-          if (this._messageCallback) {
-            this._messageCallback(message);
-          }
+          this._emitMessage(message);
         }
       };
 
@@ -297,19 +422,21 @@ export class WebSocketManager {
         // _ws 会在下次 connect 时被清理
 
         // 自动重连
-        if (this._reconnectAttempts < this._maxReconnectAttempts) {
-          this._reconnectAttempts++;
-          this.addDisplayMessage(
-            'system',
-            `${this._reconnectDelay / 1000}秒后尝试第${this._reconnectAttempts}次重连...`
-          );
+        if (!this._manualDisconnect) {
+          if (this._reconnectAttempts < this._maxReconnectAttempts) {
+            this._reconnectAttempts++;
+            this.addDisplayMessage(
+              'system',
+              `${this._reconnectDelay / 1000}秒后尝试第${this._reconnectAttempts}次重连...`
+            );
 
-          this._reconnectTimer = setTimeout(() => {
-            console.log('[WebSocketManager.onclose] 开始重连...');
-            this.connect();
-          }, this._reconnectDelay);
-        } else {
-          this.addDisplayMessage('error', '已达到最大重连次数，停止重连');
+            this._reconnectTimer = setTimeout(() => {
+              console.log('[WebSocketManager.onclose] 开始重连...');
+              this.connect();
+            }, this._reconnectDelay);
+          } else {
+            this.addDisplayMessage('error', '已达到最大重连次数，停止重连');
+          }
         }
       };
     } catch (error) {
@@ -326,6 +453,7 @@ export class WebSocketManager {
    * 断开WebSocket连接
    */
   public disconnect(): void {
+    this._manualDisconnect = true;
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
@@ -427,13 +555,7 @@ export class WebSocketManager {
           timestamp: new Date(),
           contentType: 'text'
         };
-        this._displayMessages.push(msg);
-        if (this._displayMessages.length > this._maxMessages) {
-          this._displayMessages.shift();
-        }
-        if (this._messageCallback) {
-          this._messageCallback(msg);
-        }
+        this._emitMessage(msg);
       }
 
       console.log('[WebSocketManager.send] 发送成功');
@@ -491,10 +613,28 @@ export class WebSocketManager {
   }
 
   /**
+   * 订阅消息。新页面使用订阅方式，避免不同模式互相覆盖回调。
+   */
+  public subscribeMessage(
+    callback: (message: DisplayMessage) => void
+  ): () => void {
+    this._messageListeners.add(callback);
+    return () => this._messageListeners.delete(callback);
+  }
+
+  /**
    * 设置状态变化回调
    */
   public onStateChange(callback: (state: ConnectionState) => void): void {
     this._stateCallback = callback;
+  }
+
+  public subscribeState(
+    callback: (state: ConnectionState) => void
+  ): () => void {
+    this._stateListeners.add(callback);
+    callback(this._state);
+    return () => this._stateListeners.delete(callback);
   }
 
   /**
@@ -542,6 +682,10 @@ export class WebSocketManager {
       isError
     };
 
+    this._emitMessage(message);
+  }
+
+  private _emitMessage(message: DisplayMessage): void {
     this._displayMessages.push(message);
     if (this._displayMessages.length > this._maxMessages) {
       this._displayMessages.shift();
@@ -550,6 +694,7 @@ export class WebSocketManager {
     if (this._messageCallback) {
       this._messageCallback(message);
     }
+    this._messageListeners.forEach(listener => listener(message));
   }
 
   /**
@@ -560,6 +705,7 @@ export class WebSocketManager {
     if (this._stateCallback) {
       this._stateCallback(state);
     }
+    this._stateListeners.forEach(listener => listener(state));
   }
 
   /**

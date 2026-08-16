@@ -3,7 +3,7 @@
 大模型服务层
 负责所有与大模型交互的逻辑
 """
-from typing import List
+from typing import AsyncIterator, List
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage
 import os
@@ -84,6 +84,46 @@ class LLMService:
                 return await self._chat_with_openai(final_messages)
         except Exception as e:
             print(f"[LLMService] 大模型调用失败: {str(e)}")
+            raise
+
+    async def stream_chat(
+        self,
+        messages: List[BaseMessage],
+        system_prompt: str = None
+    ) -> AsyncIterator[str]:
+        """流式生成聊天回复。
+
+        OpenAI 兼容模型使用 LangChain 的 astream；暂不支持流式调用的
+        提供方自动降级为一次性回复，保持上层协议一致。
+        """
+        if system_prompt:
+            final_messages = [SystemMessage(content=system_prompt)] + messages
+        else:
+            final_messages = messages
+
+        try:
+            if self.model_type == "zhipu":
+                yield await self._chat_with_zhipu(final_messages)
+                return
+
+            if not self.llm:
+                raise Exception("OpenAI客户端未初始化")
+
+            async for chunk in self.llm.astream(final_messages):
+                content = chunk.content
+                if isinstance(content, str):
+                    if content:
+                        yield content
+                elif isinstance(content, list):
+                    text = "".join(
+                        item.get("text", "")
+                        for item in content
+                        if isinstance(item, dict)
+                    )
+                    if text:
+                        yield text
+        except Exception as e:
+            print(f"[LLMService] 流式大模型调用失败: {str(e)}")
             raise
 
     async def _chat_with_openai(self, messages: List[BaseMessage]) -> str:
