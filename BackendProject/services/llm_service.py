@@ -3,11 +3,13 @@
 大模型服务层
 负责所有与大模型交互的逻辑
 """
-from typing import AsyncIterator, List
+from typing import Any, AsyncIterator, List
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage
 import os
 import base64
+import json
+import re
 from dotenv import load_dotenv
 from zhipuai import ZhipuAI
 
@@ -133,6 +135,15 @@ class LLMService:
         response = await self.llm.ainvoke(messages)
         return response.content
 
+    async def simple_json(self, prompt: str) -> dict[str, Any]:
+        """请求模型返回 JSON，并尽量从代码块中提取结构化内容。"""
+        response = await self.chat([], prompt)
+        if isinstance(response, str):
+            fenced_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", response, re.S)
+            json_text = fenced_match.group(1) if fenced_match else response.strip()
+            return json.loads(json_text)
+        raise Exception("模型未返回可解析的 JSON 文本")
+
     async def _chat_with_zhipu(self, messages: List[BaseMessage]) -> str:
         """使用智谱AI进行对话"""
         if not self.zhipu_client:
@@ -159,7 +170,13 @@ class LLMService:
         else:
             raise Exception("模型返回结果格式异常")
 
-    async def analyze_image(self, image_bytes: bytes, prompt: str = None) -> str:
+    async def analyze_image(
+        self,
+        image_bytes: bytes,
+        prompt: str = None,
+        companion_name: str = "小凡",
+        personality: str = "",
+    ) -> str:
         """
         使用智谱AI GLM-4V-Flash模型分析图片
 
@@ -173,19 +190,16 @@ class LLMService:
         if not self.zhipu_client:
             raise Exception("智谱AI客户端未初始化")
 
-        prompt = f"""你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
-            你的性格特点：
-            - 温柔体贴，善于倾听
-            - 说话亲切自然，像好朋友一样聊天
-            - 能够理解对方的情绪，给予安慰和支持
-            - 回复时使用轻松活泼的语气，适当使用表情符号
-            - 避免过于正式或机械的表达
+        user_question = prompt or "请描述图片内容，并自然地和我聊聊。"
+        prompt = f"""你的名字是{companion_name}，是用户的 AI 女友和知心朋友，要有同理心。
+           用户为你设定的性格与交流方式如下：
+           {personality}
 
-           请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
+           请记住，你的主要任务是与用户进行轻松、自然的对话。
            不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
            请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
 
-           根据图片的内容和我的问题{prompt}进行回答
+           请根据图片内容回答这个问题：{user_question}
            """
         # if not prompt:
         #     prompt = "描述一下我的表情，心情，穿着，动作，背景，以及我所处的环境，我正在做什么。回答主语要用我。"

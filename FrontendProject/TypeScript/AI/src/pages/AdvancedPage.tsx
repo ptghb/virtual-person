@@ -4,12 +4,15 @@ import { AudioOutlined, StopOutlined } from '@ant-design/icons';
 import { AppShell } from '../components/AppShell';
 import { ConversationPanel } from '../components/ConversationPanel';
 import { DigitalHumanStage } from '../components/DigitalHumanStage';
+import { MemoryStatusStrip } from '../components/MemoryStatusStrip';
 import { VisionControl } from '../components/VisionControl';
 import { useConversationSession } from '../hooks/useConversationSession';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 export const AdvancedPage: React.FC = () => {
   const session = useConversationSession('advanced_user', true);
+  const { profile } = useCompanionProfile();
   const voice = useVoiceRecorder(session.manager, session.isConnected);
   const [cameraOpenSignal, setCameraOpenSignal] = useState(0);
   const [requestedPrompt, setRequestedPrompt] = useState<string | null>(null);
@@ -74,6 +77,13 @@ export const AdvancedPage: React.FC = () => {
             onSend={session.sendText}
             onClear={session.clearMessages}
             title="多模态聊天"
+              statusStrip={
+                <MemoryStatusStrip
+                  relationship={session.memorySnapshot.relationship}
+                  followups={session.memorySnapshot.followups}
+                  refreshing={session.memorySnapshot.refreshing}
+                />
+              }
             footerExtras={
               <div className="quick-capability-row">
                 {voiceButton}
@@ -95,7 +105,7 @@ export const AdvancedPage: React.FC = () => {
         centered
         zIndex={3000}
         getContainer={() => document.body}
-        title="小凡想看看你"
+        title={`${profile.name}想看看你`}
         okText="允许一次"
         cancelText="这次不要"
         onCancel={() => setPermissionRequestOpen(false)}

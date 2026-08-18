@@ -6,6 +6,7 @@ import {
   CheckOutlined,
   CloseOutlined
 } from '@ant-design/icons';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 interface VisionControlProps {
   connected: boolean;
@@ -22,6 +23,7 @@ export const VisionControl: React.FC<VisionControlProps> = ({
   onSend,
   compact = false
 }) => {
+  const { profile } = useCompanionProfile();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -125,7 +127,7 @@ export const VisionControl: React.FC<VisionControlProps> = ({
             <span className="capability-icon">📷</span>
             <div>
               <strong>视觉</strong>
-              <span>只有你允许后，小凡才能看到照片</span>
+              <span>只有你允许后，{profile.name}才能看到照片</span>
             </div>
           </div>
           {trigger}
@@ -162,7 +164,7 @@ export const VisionControl: React.FC<VisionControlProps> = ({
                 <Input
                   value={prompt}
                   onChange={event => setPrompt(event.target.value)}
-                  placeholder="想让小凡看什么？例如：看看我的气色"
+                  placeholder={`想让${profile.name}看什么？例如：看看我的气色`}
                 />
                 <Space>
                   {preview ? (

@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { avatarService } from '../services/avatar.service';
 import { TypewriterText } from './TypewriterText';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 interface DigitalHumanStageProps {
   subtitle?: string;
@@ -18,6 +19,7 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
   children
 }) => {
   const stageRef = useRef<HTMLDivElement>(null);
+  const { profile } = useCompanionProfile();
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -79,7 +81,7 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
     >
       <div className="digital-human-stage__label">
         <span className={thinking ? 'thinking-pulse' : ''} />
-        {thinking ? '小凡正在想…' : '小凡陪着你'}
+        {thinking ? `${profile.name}正在想…` : `${profile.name}陪着你`}
       </div>
       {children}
       {subtitle && (

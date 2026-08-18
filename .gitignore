@@ -21,3 +21,4 @@ temp/
 BackendProject/.env
 
 BackendProject/audio_files
+/BackendProject/data/app.db

@@ -26,7 +26,6 @@ export class LAppView {
   public constructor() {
     this._programId = null;
     this._back = null;
-    this._gear = null;
 
     // 触摸相关事件管理
     this._touchManager = new TouchManager();
@@ -85,9 +84,6 @@ export class LAppView {
     this._touchManager = null;
     this._deviceToScreen = null;
 
-    this._gear.release();
-    this._gear = null;
-
     this._back.release();
     this._back = null;
 
@@ -104,10 +100,6 @@ export class LAppView {
     if (this._back) {
       this._back.render(this._programId);
     }
-    if (this._gear) {
-      this._gear.render(this._programId);
-    }
-
     this._subdelegate.getGlManager().getGl().flush();
 
     const lapplive2dmanager = this._subdelegate.getLive2DManager();
@@ -160,26 +152,6 @@ export class LAppView {
       resourcesPath + imageName,
       false,
       initBackGroundTexture
-    );
-
-    // 角色切换按钮初始化
-    imageName = LAppDefine.GearImageName;
-    const initGearTexture = (textureInfo: TextureInfo): void => {
-      const pixelRatio = window.devicePixelRatio || 1;
-      const inset = 22 * pixelRatio;
-      const controlSize = 52 * pixelRatio;
-      const x = width - inset - controlSize * 0.5;
-      const y = height - inset - controlSize * 0.5;
-      const fwidth = controlSize;
-      const fheight = controlSize;
-      this._gear = new LAppSprite(x, y, fwidth, fheight, textureInfo.id);
-      this._gear.setSubdelegate(this._subdelegate);
-    };
-
-    textureManager.createTextureFromPngFile(
-      resourcesPath + imageName,
-      false,
-      initGearTexture
     );
 
     // 创建着色器
@@ -245,10 +217,6 @@ export class LAppView {
     }
     lapplive2dmanager.onTap(x, y);
 
-    // 是否点击了齿轮
-    if (this._gear.isHit(posX, posY)) {
-      lapplive2dmanager.nextScene();
-    }
   }
 
   /**
@@ -293,8 +261,6 @@ export class LAppView {
   _viewMatrix: CubismViewMatrix; // 视图矩阵
   _programId: WebGLProgram; // 着色器 ID
   _back: LAppSprite; // 背景图像
-  _gear: LAppSprite; // 齿轮图像
-  _changeModel: boolean; // 模型切换标志
   _isClick: boolean; // 点击中
   private _subdelegate: LAppSubdelegate;
 }

@@ -6,6 +6,7 @@ import type { AppMode } from '../modes/mode.types';
 import { MODE_REGISTRY } from '../modes/mode.registry';
 import { ConnectionBadge } from './ConnectionBadge';
 import type { ConnectionState } from '../websocketmanager';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 interface AppShellProps {
   mode: AppMode;
@@ -23,6 +24,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   statusItems
 }) => {
   const definition = MODE_REGISTRY[mode];
+  const { profile } = useCompanionProfile();
   return (
     <div className={`app-shell app-shell--${mode}`}>
       <header className="mode-header glass-panel">
@@ -31,7 +33,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             <Button type="text" icon={<HomeOutlined />} />
           </Link>
           <div>
-            <strong>小凡</strong>
+            <strong>{profile.name}</strong>
             <span>{definition.title}</span>
           </div>
         </div>

@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { WebSocketManager, DisplayMessage, ConnectionState, ProtocolMessage, ProtocolMessageType, AudioFormat, ControlAction } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
 import { getWebSocketUrl } from '../config';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 interface MessageDisplay extends DisplayMessage {
   id: number;
@@ -19,6 +20,7 @@ interface MessageDisplay extends DisplayMessage {
 }
 
 const WebSocketPanel: React.FC = () => {
+  const { profile } = useCompanionProfile();
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [messages, setMessages] = useState<MessageDisplay[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
@@ -761,7 +763,7 @@ const WebSocketPanel: React.FC = () => {
   return (
     <div id="websocket-container">
       <div id="websocket-header">
-        <h3>小凡AI</h3>
+        <h3>{profile.name} AI</h3>
         <div id="websocket-status">
           <span id="status-dot" style={{ color: getStatusColor() }}>
             ●

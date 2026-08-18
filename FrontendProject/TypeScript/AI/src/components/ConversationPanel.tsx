@@ -14,6 +14,7 @@ import {
 import type { ConversationMessage } from '../hooks/useConversationSession';
 import { avatarService } from '../services/avatar.service';
 import { TypewriterText } from './TypewriterText';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
 interface ConversationPanelProps {
   messages: ConversationMessage[];
@@ -25,6 +26,7 @@ interface ConversationPanelProps {
   onClear: () => void;
   title?: string;
   footerExtras?: React.ReactNode;
+  statusStrip?: React.ReactNode;
 }
 
 export const ConversationPanel: React.FC<ConversationPanelProps> = ({
@@ -35,9 +37,12 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
   onAudioEnabledChange,
   onSend,
   onClear,
-  title = '和小凡聊天',
-  footerExtras
+  title,
+  footerExtras,
+  statusStrip
 }) => {
+  const { profile } = useCompanionProfile();
+  const panelTitle = title ?? `和${profile.name}聊天`;
   const [value, setValue] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const scrollToEnd = useCallback(() => {
@@ -56,7 +61,7 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
     <div className="conversation-panel glass-panel">
       <div className="conversation-panel__header">
         <div>
-          <strong>{title}</strong>
+          <strong>{panelTitle}</strong>
           <span>{connected ? '随时可以说话' : '正在等待连接'}</span>
         </div>
         <div className="conversation-panel__tools">
@@ -82,10 +87,13 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
       </div>
 
       <div className="conversation-panel__messages">
+          {statusStrip && (
+            <div className="conversation-panel__status-strip">{statusStrip}</div>
+          )}
         {messages.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="跟小凡说句话吧"
+            description={`跟${profile.name}说句话吧`}
           />
         ) : (
           messages
@@ -99,7 +107,7 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
               className={`chat-message chat-message--${message.type}`}
             >
               {message.contentType === 'image' ? (
-                <img src={message.content} alt="发送给小凡的照片" />
+                <img src={message.content} alt={`发送给${profile.name}的照片`} />
               ) : message.streaming ? (
                 <span className="typewriter-text">
                   {message.content}
