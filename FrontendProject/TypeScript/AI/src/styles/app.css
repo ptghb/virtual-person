@@ -1153,8 +1153,7 @@ textarea {
 }
 
 .avatar-setting-summary span,
-.avatar-selection-modal__hint,
-.avatar-option > span:last-child {
+.avatar-selection-modal__hint {
   color: var(--muted);
 }
 
@@ -1170,63 +1169,40 @@ textarea {
   margin: 0 0 18px;
 }
 
-.avatar-selection-grid {
+.avatar-selection-modal__body {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  max-height: min(62vh, 590px);
-  overflow-y: auto;
-  padding: 4px;
+  justify-items: center;
+  gap: 18px;
 }
 
-.avatar-option {
-  display: grid;
-  gap: 7px;
-  padding: 10px;
-  border: 2px solid transparent;
-  border-radius: 20px;
-  color: var(--ink);
-  background: rgba(250, 245, 250, 0.88);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.avatar-option:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(103, 62, 83, 0.14);
-}
-
-.avatar-option.is-selected {
-  border-color: var(--rose-500);
-  box-shadow: 0 0 0 4px rgba(233, 109, 152, 0.13);
-}
-
-.avatar-option__preview {
-  display: grid;
-  height: 180px;
+.avatar-live-preview {
+  position: relative;
+  width: min(100%, 620px);
+  height: min(58vh, 560px);
   overflow: hidden;
-  place-items: center;
-  border-radius: 14px;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 50% 30%, #fff 0%, #f8eaf1 48%, #eadff5 100%);
 }
 
-.avatar-option__preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.avatar-live-preview__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 
-.avatar-option > strong {
-  font-size: 16px;
-}
-
-.avatar-option > span:last-child {
-  font-size: 12px;
+.avatar-live-preview__name {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 2;
+  padding: 8px 16px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 18px;
+  font-weight: 700;
+  backdrop-filter: blur(12px);
 }
 
 .setting-row {
@@ -1415,11 +1391,7 @@ textarea {
     flex-direction: column;
   }
 
-  .avatar-selection-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .avatar-option__preview {
-    height: 145px;
+  .avatar-live-preview {
+    height: min(54vh, 460px);
   }
 }

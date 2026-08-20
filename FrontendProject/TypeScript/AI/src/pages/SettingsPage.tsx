@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Button,
@@ -13,7 +13,11 @@ import {
   Space,
   Switch
 } from 'antd';
-import { ArrowLeftOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import {
+  ArrowLeftOutlined,
+  RightOutlined,
+  UserSwitchOutlined
+} from '@ant-design/icons';
 import { useCompanionProfile } from '../services/companion-profile.service';
 import { ModelDir } from '../lappdefine';
 import { avatarService } from '../services/avatar.service';
@@ -22,15 +26,66 @@ import { memoryService } from '../services/memory.service';
 import type { MemoryItem } from '../services/memory.types';
 import { useUserIdentity } from '../services/user-identity.service';
 
-const AVATAR_PREVIEWS: Record<string, string> = {
-  Haru: '/Resources/Haru/Haru.2048/texture_00.png',
-  Hiyori: '/Resources/Hiyori/Hiyori.2048/texture_00.png',
-  Mao: '/Resources/Mao/Mao.2048/texture_00.png',
-  Mark: '/Resources/Mark/Mark.2048/texture_00.png',
-  Natori: '/Resources/Natori/Natori.2048/texture_00.png',
-  Ren: '/Resources/Ren/Ren.2048/texture_00.png',
-  Rice: '/Resources/Rice/Rice.2048/texture_00.png',
-  Wanko: '/Resources/Wanko/Wanko.1024/texture_00.png'
+interface AvatarLivePreviewProps {
+  active: boolean;
+  modelName: string;
+}
+
+const AvatarLivePreview: React.FC<AvatarLivePreviewProps> = ({
+  active,
+  modelName
+}) => {
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!active) return;
+
+    const preview = previewRef.current;
+    const canvas = document.querySelector<HTMLCanvasElement>('.live2d-canvas');
+    if (!preview || !canvas) return;
+
+    const originalParent = canvas.parentNode;
+    const originalNextSibling = canvas.nextSibling;
+    const originalStyle = canvas.getAttribute('style');
+
+    preview.appendChild(canvas);
+    Object.assign(canvas.style, {
+      position: 'absolute',
+      inset: '0',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      zIndex: '1',
+      borderRadius: 'inherit',
+      boxShadow: 'none',
+      pointerEvents: 'none'
+    });
+
+    const resizeFrame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(resizeFrame);
+      if (originalParent) {
+        originalParent.insertBefore(canvas, originalNextSibling);
+      }
+      if (originalStyle === null) {
+        canvas.removeAttribute('style');
+      } else {
+        canvas.setAttribute('style', originalStyle);
+      }
+      window.dispatchEvent(new Event('resize'));
+    };
+  }, [active]);
+
+  return (
+    <div className="avatar-live-preview">
+      <div className="avatar-live-preview__canvas" ref={previewRef} />
+      <div className="avatar-live-preview__name">{modelName}</div>
+    </div>
+  );
 };
 
 export const SettingsPage: React.FC = () => {
@@ -1104,30 +1159,24 @@ export const SettingsPage: React.FC = () => {
         ]}
       >
         <p className="avatar-selection-modal__hint">
-          点击人物即可预览，确认后会固定为首页和聊天页的虚拟人物。
+          当前展示一位虚拟人物，点击“下一个”浏览下一位，点击“点他”确认选择。
         </p>
-        <div className="avatar-selection-grid">
-          {ModelDir.map(modelName => (
-            <button
-              type="button"
-              key={modelName}
-              className={`avatar-option ${
-                selectedAvatar === modelName ? 'is-selected' : ''
-              }`}
-              onClick={() => previewAvatar(modelName)}
-            >
-              <span className="avatar-option__preview">
-                <img
-                  src={AVATAR_PREVIEWS[modelName]}
-                  alt={`${modelName} 虚拟人物预览`}
-                />
-              </span>
-              <strong>{modelName}</strong>
-              <span>
-                {selectedAvatar === modelName ? '当前预览' : '点击预览'}
-              </span>
-            </button>
-          ))}
+        <div className="avatar-selection-modal__body">
+          <AvatarLivePreview
+            active={avatarModalOpen}
+            modelName={selectedAvatar}
+          />
+          <Button
+            icon={<RightOutlined />}
+            onClick={() => {
+              const currentIndex = ModelDir.indexOf(selectedAvatar);
+              const nextModel =
+                ModelDir[(currentIndex + 1) % ModelDir.length];
+              previewAvatar(nextModel);
+            }}
+          >
+            下一个
+          </Button>
         </div>
       </Modal>
     </div>
