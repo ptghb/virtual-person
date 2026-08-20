@@ -1,4 +1,5 @@
 import { LAppDelegate } from '../lappdelegate';
+import { setSelectedAvatarModel } from './avatar-preference.service';
 
 interface StreamingAudioItem {
   replyId: string;
@@ -26,6 +27,22 @@ class AvatarService {
     } catch {
       return 'Hiyori';
     }
+  }
+
+  public previewModel(modelName: string): boolean {
+    try {
+      this.stopAudio();
+      return this.getManager().changeModel(modelName);
+    } catch (error) {
+      console.error('[AvatarService] 切换虚拟人物失败:', error);
+      return false;
+    }
+  }
+
+  public selectModel(modelName: string): boolean {
+    if (!this.previewModel(modelName)) return false;
+    setSelectedAvatarModel(modelName);
+    return true;
   }
 
   public playMotion(index: number): void {

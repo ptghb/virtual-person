@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+import asyncio
+from dataclasses import asdict
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Optional
@@ -12,10 +14,20 @@ import uuid
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 import emoji
+from pydantic import BaseModel
 
+from domain.memory_extractor import memory_extractor
+from domain.memory_retriever import memory_retriever
+from domain.memory_service import memory_service
+from domain.prompt_builder import prompt_builder
 from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
 from handlers.comment_handler import comment_processor
+from infrastructure.db import db_cursor, init_db
+from repositories.session_repository import SessionRepository
+from repositories.user_repository import UserRepository
+from schemas.memory import MemoryCreateInput, MemoryStatus, MemoryType
+from schemas.session import ResolvedIdentity
 from services.llm_service import llm_service
 from services.http_service import http_service
 
@@ -23,6 +35,28 @@ from services.http_service import http_service
 load_dotenv()
 
 app = FastAPI()
+init_db()
+
+DEFAULT_COMPANION_ID = "companion_default"
+user_repository = UserRepository()
+session_repository = SessionRepository()
+
+
+class CreateMemoryRequest(BaseModel):
+    user_id: str
+    companion_id: str = DEFAULT_COMPANION_ID
+    session_id: Optional[str] = None
+    memory_type: str
+    content: str
+    title: Optional[str] = None
+    importance: int = 5
+
+
+class UpdateMemoryRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    importance: Optional[int] = None
+    status: Optional[str] = None
 
 # 配置 CORS
 app.add_middleware(
@@ -41,6 +75,8 @@ class ConnectionManager:
         self.client_connections: Dict[str, WebSocket] = {}
         # 存储每个客户端的消息历史记录
         self.message_history: Dict[str, List[BaseMessage]] = {}
+        self.companion_profiles: Dict[str, Dict[str, str]] = {}
+        self.identities: Dict[str, ResolvedIdentity] = {}
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -53,6 +89,8 @@ class ConnectionManager:
             self.active_connections.remove(websocket)
         if client_id in self.client_connections:
             del self.client_connections[client_id]
+        self.companion_profiles.pop(client_id, None)
+        self.identities.pop(client_id, None)
         print(f"[ConnectionManager] 客户端 {client_id} 已断开")
 
     async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None, prompt: str = None):
@@ -103,6 +141,38 @@ class ConnectionManager:
     def get_client_by_id(self, client_id: str) -> Optional[WebSocket]:
         """根据 client_id 获取 WebSocket 连接"""
         return self.client_connections.get(client_id)
+
+    def set_identity(self, client_id: str, identity: ResolvedIdentity):
+        self.identities[client_id] = identity
+
+    def get_identity(self, client_id: str) -> Optional[ResolvedIdentity]:
+        return self.identities.get(client_id)
+
+    def set_companion_profile(
+        self,
+        client_id: str,
+        name: Optional[str] = None,
+        personality: Optional[str] = None,
+    ) -> Dict[str, str]:
+        current = self.get_companion_profile(client_id)
+        clean_name = re.sub(r"\s+", " ", str(name or "")).strip()[:20]
+        clean_personality = str(personality or "").strip()[:500]
+        profile = {
+            "name": clean_name or current["name"],
+            "personality": clean_personality or current["personality"],
+        }
+        self.companion_profiles[client_id] = profile
+        return profile
+
+    def get_companion_profile(self, client_id: str) -> Dict[str, str]:
+        return self.companion_profiles.get(client_id, {
+            "name": "小凡",
+            "personality": (
+                "温柔体贴、善于倾听，能理解用户的情绪并给予支持；"
+                "说话亲切自然、轻松活泼，像亲密的朋友一样，"
+                "不过分正式或机械。"
+            ),
+        })
 
 
 def remove_emojis(text: str) -> str:
@@ -251,6 +321,126 @@ livestream_settings = {
 }
 
 
+def clean_identifier(value: Optional[str], fallback: str) -> str:
+    candidate = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(value or "")).strip("_")
+    return candidate[:80] or fallback
+
+
+def resolve_mode(client_id: str, msg_data: dict) -> str:
+    if msg_data.get("mode"):
+        return str(msg_data["mode"])
+    if client_id.startswith("advanced_user_"):
+        return "advanced"
+    if client_id.startswith("mobile_user_"):
+        return "mobile"
+    if client_id.startswith("livestream_console_"):
+        return "livestream_console"
+    if client_id.startswith("livestream_user_"):
+        return "livestream_stage"
+    return "chat"
+
+
+def resolve_identity(client_id: str, msg_data: dict) -> ResolvedIdentity:
+    previous_identity = manager.get_identity(client_id)
+    user_id = clean_identifier(
+        msg_data.get("user_id") or getattr(previous_identity, "user_id", None),
+        f"user_{client_id}",
+    )
+    session_id = clean_identifier(
+        msg_data.get("session_id") or getattr(previous_identity, "session_id", None),
+        f"session_{client_id}",
+    )
+    companion_id = clean_identifier(
+        msg_data.get("companion_id") or getattr(previous_identity, "companion_id", None),
+        DEFAULT_COMPANION_ID,
+    )
+    identity = ResolvedIdentity(
+        connection_id=client_id,
+        client_id=client_id,
+        user_id=user_id,
+        session_id=session_id,
+        companion_id=companion_id,
+        mode=resolve_mode(client_id, msg_data),
+    )
+    manager.set_identity(client_id, identity)
+    return identity
+
+
+def upsert_companion_record(companion_id: str, name: str, personality: str) -> None:
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    with db_cursor(commit=True) as cursor:
+        cursor.execute(
+            """
+            INSERT INTO companions (id, name, base_personality, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              base_personality = excluded.base_personality,
+              updated_at = excluded.updated_at
+            """,
+            (companion_id, name, personality, now, now),
+        )
+
+
+def register_identity_context(identity: ResolvedIdentity, profile: Dict[str, str]) -> None:
+    user_repository.upsert_user(identity.user_id)
+    upsert_companion_record(
+        identity.companion_id,
+        profile["name"],
+        profile["personality"],
+    )
+    session_repository.upsert_session(
+        session_id=identity.session_id,
+        user_id=identity.user_id,
+        companion_id=identity.companion_id,
+        mode=identity.mode,
+        metadata={"client_id": identity.client_id},
+    )
+
+
+def memory_item_to_dict(memory_item) -> dict:
+    payload = asdict(memory_item)
+    payload["memory_type"] = memory_item.memory_type.value
+    payload["status"] = memory_item.status.value
+    return payload
+
+
+async def update_memories_after_reply(
+    identity: ResolvedIdentity,
+    user_message: str,
+    ai_message: str,
+) -> None:
+    try:
+        memory_service.resolve_followups_from_message(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            user_message=user_message,
+        )
+        extracted = await memory_extractor.extract(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            session_id=identity.session_id,
+            user_message=user_message,
+            ai_message=ai_message,
+        )
+        if extracted.summary and extracted.summary.content.strip():
+            session_repository.update_summary(identity.session_id, extracted.summary.content)
+            memory_service.create_memory(extracted.summary)
+        for fact in extracted.facts:
+            if fact.content.strip():
+                memory_service.create_memory(fact)
+        for event in extracted.events:
+            if event.content.strip():
+                memory_service.create_memory(event)
+        for followup in extracted.followups:
+            if followup.content.strip():
+                memory_service.create_memory(followup)
+        if extracted.relationship and extracted.relationship.content.strip():
+            memory_service.create_memory(extracted.relationship)
+    except Exception as error:
+        print(f"[memory] 更新记忆失败: {error}")
+
+
 def get_livestream_output_clients():
     """获取直播舞台和控制台连接。"""
     return [
@@ -295,6 +485,103 @@ async def say_hello(name: str):
     return {"message": f"Hello {name}"}
 
 
+@app.get("/api/memories")
+async def list_memories(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+    memory_type: Optional[str] = Query(None),
+    status: str = Query(MemoryStatus.ACTIVE.value),
+    limit: int = Query(20, ge=1, le=100),
+    keyword: Optional[str] = Query(None),
+):
+    try:
+        parsed_type = MemoryType(memory_type) if memory_type else None
+        parsed_status = MemoryStatus(status)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    items = memory_service.list_memories(
+        user_id=user_id,
+        companion_id=companion_id,
+        memory_type=parsed_type,
+        status=parsed_status,
+        limit=limit,
+        keyword=keyword,
+    )
+    return {
+        "items": [memory_item_to_dict(item) for item in items],
+        "total": len(items),
+    }
+
+
+@app.post("/api/memories")
+async def create_memory(payload: CreateMemoryRequest):
+    try:
+        memory_type = MemoryType(payload.memory_type)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if memory_type != MemoryType.PINNED:
+        raise HTTPException(status_code=400, detail="Phase 1 仅支持手动创建 pinned 记忆")
+    user_repository.upsert_user(payload.user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        payload.companion_id,
+        name=default_profile["name"],
+        personality=default_profile["personality"],
+    )
+    if payload.session_id:
+        session_repository.upsert_session(
+            session_id=payload.session_id,
+            user_id=payload.user_id,
+            companion_id=payload.companion_id,
+            mode="chat",
+        )
+    item = memory_service.upsert_pinned_memory(
+        user_id=payload.user_id,
+        companion_id=payload.companion_id,
+        content=payload.content,
+        title=payload.title,
+        session_id=payload.session_id,
+        importance=payload.importance,
+    )
+    return {"id": item.id, "status": item.status.value}
+
+
+@app.patch("/api/memories/{memory_id}")
+async def update_memory(memory_id: str, payload: UpdateMemoryRequest):
+    parsed_status = None
+    if payload.status is not None:
+        try:
+            parsed_status = MemoryStatus(payload.status)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+    item = memory_service.update_memory(
+        memory_id=memory_id,
+        title=payload.title,
+        content=payload.content,
+        importance=payload.importance,
+        status=parsed_status,
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="记忆不存在")
+    return {"id": item.id, "status": item.status.value}
+
+
+@app.delete("/api/memories/{memory_id}")
+async def delete_memory(memory_id: str):
+    item = memory_service.delete_memory(memory_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="记忆不存在")
+    return {"id": item.id, "status": item.status.value}
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    session = session_repository.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return asdict(session)
+
+
 @app.get("/api/tts/stream/{segment_id}")
 async def stream_tts_segment(segment_id: str):
     segment = tts_stream_segments.get(segment_id)
@@ -316,7 +603,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         # 发送欢迎消息
-        await manager.send_personal_message("你好，我是你的好朋友，小凡...", "", websocket, msg_type=1)
+        await manager.send_personal_message(
+            "你好，很高兴见到你，我们来聊聊天吧～",
+            "",
+            websocket,
+            msg_type=1,
+        )
 
         while True:
             data = await websocket.receive_text()
@@ -381,6 +673,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 async def handle_control_message(websocket: WebSocket, client_id: str, msg_data: dict):
     """处理控制消息"""
     action = msg_data.get("action", "")
+    identity = resolve_identity(client_id, msg_data)
     print(f"[handle_control_message] 接收到控制消息，客户端: {client_id}, 动作: {action}")
 
     if action == "start_audio_stream":
@@ -417,7 +710,8 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
             text_msg_data = {
                 "content": transcription,
                 "model": "Hiyori",
-                "is_audio": True
+                "is_audio": True,
+                **manager.get_companion_profile(client_id),
             }
             await handle_text_message(websocket, client_id, text_msg_data)
         else:
@@ -467,6 +761,31 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
         }
         await websocket.send_text(json.dumps(response))
 
+    elif action == "update_companion_profile":
+        profile = manager.set_companion_profile(
+            client_id,
+            msg_data.get("companion_name"),
+            msg_data.get("personality"),
+        )
+        register_identity_context(identity, profile)
+
+    elif action == "memory.list":
+        items = memory_service.list_memories(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            memory_type=MemoryType.PINNED,
+            limit=20,
+        )
+        await websocket.send_text(json.dumps({
+            "type": "response",
+            "data": {
+                "status": "success",
+                "message": "记忆列表获取成功",
+                "request_type": "control",
+                "items": [memory_item_to_dict(item) for item in items],
+            }
+        }))
+
     else:
         response = {
             "type": "response",
@@ -503,6 +822,16 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
     print(f"[handle_image_message] 消息数据长度: {len(msg_data.get('image', '')) if 'image' in msg_data else 0} 字符")
     is_audio = msg_data.get("is_audio", False)
     print(f"[handle_image_message] 是否音频消息: {is_audio}")
+    identity = resolve_identity(client_id, msg_data)
+
+    profile = manager.set_companion_profile(
+        client_id,
+        msg_data.get("companion_name"),
+        msg_data.get("personality"),
+    )
+    register_identity_context(identity, profile)
+    msg_data["companion_name"] = profile["name"]
+    msg_data["personality"] = profile["personality"]
 
     # 处理图片消息
     result = await image_processor.process_image_message(msg_data)
@@ -514,8 +843,8 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
 
         humanMessage = msg_data.get("prompt", None) if msg_data.get("prompt", None) else "拍照"
         # 将用户消息和AI回复添加到历史记录
-        manager.add_message_to_history(client_id, HumanMessage(content=humanMessage))
-        manager.add_message_to_history(client_id, AIMessage(content=ai_response))
+        manager.add_message_to_history(identity.session_id, HumanMessage(content=humanMessage))
+        manager.add_message_to_history(identity.session_id, AIMessage(content=ai_response))
 
         # TTS处理
         audio_url = ""
@@ -525,7 +854,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
 
         # 发送 AI 回复
         await manager.send_personal_message(
-          f"小凡: {ai_response}",
+          f"{profile['name']}: {ai_response}",
           audio_url,
           websocket,
           msg_type=1,
@@ -587,6 +916,13 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         return
 
     policies = livestream_settings["policies"]
+    livestream_clients = get_livestream_output_clients()
+    livestream_profile = (
+        manager.get_companion_profile(livestream_clients[0][0])
+        if livestream_clients
+        else manager.get_companion_profile(client_id)
+    )
+    companion_name = livestream_profile["name"]
 
     # 过滤出不同类型的消息
     member_messages = [
@@ -646,13 +982,11 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = get_livestream_output_clients()
-
         # 发送欢迎消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
             try:
                 await manager.send_personal_message(
-                    f"小凡: {welcome_msg}",
+                    f"{companion_name}: {welcome_msg}",
                     audio_url,
                     stream_websocket,
                     msg_type=1,
@@ -690,13 +1024,11 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = get_livestream_output_clients()
-
         # 发送感谢关注消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
             try:
                 await manager.send_personal_message(
-                    f"小凡: {thanks_msg}",
+                    f"{companion_name}: {thanks_msg}",
                     audio_url,
                     stream_websocket,
                     msg_type=1,
@@ -737,13 +1069,11 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] TTS 音频生成完成: {audio_url}")
 
         # 查找所有 livestream_user_ 开头的客户端
-        livestream_clients = get_livestream_output_clients()
-
         # 发送感谢点赞消息给所有 livestream_user_ 开头的客户端
         for stream_client_id, stream_websocket in livestream_clients:
             try:
                 await manager.send_personal_message(
-                    f"小凡: {like_msg}",
+                    f"{companion_name}: {like_msg}",
                     audio_url,
                     stream_websocket,
                     msg_type=1,
@@ -790,7 +1120,11 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             print(f"[handle_comment_message] 评论内容:\n{chat_messages_str}")
 
             # 处理评论，获取 AI 回复和音频，传入批量评论消息
-            result = await comment_processor.process_comment(chat_messages_str)
+            result = await comment_processor.process_comment(
+                chat_messages_str,
+                companion_name=companion_name,
+                personality=livestream_profile["personality"],
+            )
 
             if result["status"] == "success":
                 ai_response = result["ai_response"]
@@ -804,7 +1138,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                     for stream_client_id, stream_websocket in livestream_clients:
                         try:
                             await manager.send_personal_message(
-                                f"小凡: {ai_response}",
+                                f"{companion_name}: {ai_response}",
                                 audio_url,
                                 stream_websocket,
                                 msg_type=1,
@@ -854,6 +1188,13 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
     model = msg_data.get("model", "Hiyori")
     is_audio = msg_data.get("is_audio", False)
     has_image = msg_data.get("has_image", False)
+    identity = resolve_identity(client_id, msg_data)
+    profile = manager.set_companion_profile(
+        client_id,
+        msg_data.get("companion_name") or msg_data.get("name"),
+        msg_data.get("personality"),
+    )
+    register_identity_context(identity, profile)
 
     if not text:
         response = {
@@ -868,22 +1209,19 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         return
 
     try:
-        system_prompt = """你叫小凡，是一个知心朋友，可爱的小女生，要有同理心。
-            你的性格特点：
-            - 温柔体贴，善于倾听
-            - 说话亲切自然，像好朋友一样聊天
-            - 能够理解对方的情绪，给予安慰和支持
-            - 回复时使用轻松活泼的语气，适当使用表情符号
-            - 避免过于正式或机械的表达
-
-           请记住，你是一个可爱的小女生，你的主要任务是与用户进行轻松、自然的对话。
-           不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
-           请尽量使用表情符号来增加对话的趣味性。请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
-
-           """
-
-        message_history = manager.get_message_history(client_id)
-        messages: List[BaseMessage] = message_history + [HumanMessage(content=text)]
+        memory_pack = memory_retriever.retrieve(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            current_text=text,
+            session_id=identity.session_id,
+        )
+        system_prompt = prompt_builder.build_system_prompt(
+            companion_name=profile["name"],
+            personality=profile["personality"],
+            memory_pack=memory_pack,
+        )
+        message_history = manager.get_message_history(identity.session_id)
+        messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)
         reply_id = f"reply_{uuid.uuid4().hex}"
         audio_requested = bool(is_audio) and os.getenv(
             "ISAUDIO", "false"
@@ -902,7 +1240,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
                 "reply_id": reply_id,
                 "animation_index": select_animation_index(text, model),
                 "should_take_photo": (
-                    client_id.startswith("advanced_user_")
+                        identity.mode == "advanced"
                     and not has_image
                     and should_request_photo(text)
                 ),
@@ -963,8 +1301,15 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
                 }))
                 segment_sequence += 1
 
-        manager.add_message_to_history(client_id, HumanMessage(content=text))
-        manager.add_message_to_history(client_id, AIMessage(content=ai_response))
+        manager.add_message_to_history(identity.session_id, HumanMessage(content=text))
+        manager.add_message_to_history(identity.session_id, AIMessage(content=ai_response))
+        asyncio.create_task(
+            update_memories_after_reply(
+                identity=identity,
+                user_message=text,
+                ai_message=ai_response,
+            )
+        )
 
         await websocket.send_text(json.dumps({
             "type": "assistant.complete",

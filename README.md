@@ -2,11 +2,14 @@
 
 > 工程交接文档：[架构文档](docs/ARCHITECTURE.md) · [设计文档](docs/DESIGN.md) · [前端重构设计](docs/FRONTEND_REDESIGN.md) · [协议文档](docs/PROTOCOL.md) · [部署文档](docs/DEPLOYMENT.md)
 
-一个深度融合Live2D虚拟形象与AI对话引擎的智能陪伴系统。通过集成OpenAI/智谱AI的自然语言理解、实时WebSocket通信、手势识别（MediaPipe）与TTS语音合成，打造出可交互、有情感的AI虚拟伴侣"小凡"。
+一个深度融合 Live2D 虚拟形象与 AI 对话引擎的智能陪伴系统。通过集成 OpenAI/智谱 AI 的自然语言理解、实时 WebSocket 通信、长期记忆、手势识别（MediaPipe）与 TTS 语音合成，打造可配置称呼、性格和虚拟人物的情感陪伴体验。
 
 ## 核心亮点
 
-- 🪆 **生动Live2D形象**：基于Cubism SDK的3D化虚拟角色，支持拖拽、缩放、动画联动，内置9款精美模型
+- 🪆 **生动Live2D形象**：基于 Cubism SDK 的虚拟角色，支持拖拽、缩放、动画联动，内置 8 款模型
+- 🎛️ **可配置伴侣设定**：可在“隐私与设置”中配置 AI 伴侣称呼、性格和默认虚拟人物
+- 👤 **实时选妃预览**：设置弹窗每次渲染一个真实 Live2D 人物，可点击“下一个”轮换并通过“点他”确认
+- 🧠 **长期记忆管理**：支持置顶记忆、自动记忆、已归档待办和关系历史的读取与维护
 - 🗣️ **智能对话与语音**：接入OpenAI/智谱AI API，具备上下文记忆与角色人格；集成EasyVoice TTS，实现文本转语音
 - 👋 **手势交互控制**：通过摄像头识别手势，伸出食指显示小手光标，碰到模型触发随机动画
 - 🎭 **多模态交互体验**：支持文字、图片、音频消息，动画与音频深度同步
@@ -23,9 +26,12 @@
 
 ## 项目简介
 
-小凡AI是一个集成了Live2D虚拟形象的智能对话系统，具有以下特点：
+小凡 AI 是一个集成了 Live2D 虚拟形象的智能对话系统，默认伴侣称呼可在设置中修改，具有以下特点：
 
-- **Live2D虚拟形象**：使用Live2D Cubism SDK渲染的可爱虚拟角色"小凡"，支持9款官方模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **Live2D虚拟形象**：使用 Live2D Cubism SDK 渲染虚拟角色，支持 8 款模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **伴侣设定**：称呼和性格均可在“隐私与设置”页面配置并持久化
+- **人物选择**：虚拟人物统一在设置页选择，首页和聊天页固定展示已确认的人物
+- **长期记忆**：支持按伴侣保存和管理置顶、自动、待办及关系类记忆
 - **AI智能对话**：支持OpenAI和智谱AI双引擎切换，具备自然语言理解能力
 - **实时通信**：通过WebSocket实现前后端实时消息交互，支持自动重连
 - **动画控制**：支持多种动画播放模式和音频联动，智能选择动画
@@ -146,7 +152,11 @@ CubismWebSamples/
 
 ### 1. Live2D虚拟形象
 
-- **多模型支持**：内置9款官方Live2D模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **多模型支持**：内置 8 款 Live2D 模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **统一人物设置**：人物切换入口已从首页和聊天页移至“隐私与设置”
+- **实时单人物预览**：“选妃”弹窗直接渲染真实 Live2D 人物，每次只展示一位
+- **轮换确认**：点击“下一个”循环预览人物，点击“点他”保存选择
+- **选择持久化**：确认后首页和聊天页持续显示同一虚拟人物
 - **交互功能**：支持鼠标拖拽、缩放控制（0.5x - 2.0x）、触摸交互
 - **动画系统**：多种动画效果（待机动画、随机动画、说话动画），支持循环播放
 - **音频联动**：音频播放时自动停止动画，停止后恢复待机动画
@@ -157,15 +167,25 @@ CubismWebSamples/
 
 - **双引擎支持**：支持OpenAI和智谱AI双引擎切换（通过MODEL_TYPE配置）
 - **自然语言理解**：基于LangChain框架，具备强大的对话能力
-- **上下文记忆**：保持对话连续性，支持多轮对话
-- **角色设定**：知心朋友"小凡"，温柔体贴、亲切自然的人格设定
+- **上下文与长期记忆**：保持多轮对话连续性，并按用户和伴侣保存长期记忆
+- **角色设定**：伴侣称呼和性格可在“隐私与设置”页面配置，不再固定为“小凡”
 - **多客户端管理**：每个客户端独立会话，互不干扰
 - **智能动画选择**：根据对话氛围自动选择合适的Live2D动画
 - **多模态输入**：支持文字、图片、语音三种输入方式
 - **图片分析**：集成智谱AI GLM-4V-Flash模型，支持图片内容分析与描述
 - **自动拍照**：支持前端拍照指令，自动捕获画面并发送给AI分析
 
-### 3. WebSocket实时通信
+### 3. 隐私、设置与记忆
+
+- **伴侣称呼**：在设置页修改 AI 伴侣称呼并持久化
+- **伴侣性格**：支持自定义性格描述，后续对话使用已保存设定
+- **虚拟人物**：通过“选妃”弹窗预览、轮换并确认 Live2D 人物
+- **置顶记忆**：支持创建、编辑和删除用户主动维护的重要记忆
+- **自动记忆**：展示系统从对话中提取的长期信息
+- **待办与关系历史**：支持查看已归档待办和已被替代的关系状态记录
+- **记忆接口**：后端提供 `GET/POST /api/memories` 与 `PATCH/DELETE /api/memories/{memory_id}`
+
+### 4. WebSocket实时通信
 
 - **自动重连机制**：连接断开后自动重连（最多5次，间隔3秒）
 - **多消息类型**：支持文字、图片、音频、控制指令等多种消息类型
@@ -175,7 +195,7 @@ CubismWebSamples/
 - **消息格式**：JSON格式，包含clientId、message、modelName、isAudio、should_take_photo等字段
 - **图片消息音频**：支持图片消息转语音功能，可配置音频开关
 
-### 4. 动画控制系统
+### 5. 动画控制系统
 
 - **循环播放**：支持循环播放随机动画或指定动画序号
 - **动画选择**：通过playMotionByNo()方法播放预设动画索引
@@ -186,7 +206,7 @@ CubismWebSamples/
 - **配置驱动**：动画循环由motion3.json配置文件中的Loop字段控制
 - **动画切换事件**：新增动画切换事件机制，支持动态切换动画索引
 
-### 5. 音频管理
+### 6. 音频管理
 
 - **本地音频上传**：支持上传本地音频文件（MP3、WAV等格式）
 - **播放控制**：音频播放/停止控制，状态实时显示
@@ -198,7 +218,7 @@ CubismWebSamples/
 - **音频流处理**：支持实时音频流传输，格式为PCM，包含sample_rate、channels等参数
 - **图片音频**：支持图片消息转语音功能，可配置音频开关
 
-### 6. 抖音直播互动（新增）
+### 7. 抖音直播互动
 
 - **弹幕捕获**：集成 [dycast](https://github.com/skmcj/dycast) 项目，实时捕获抖音直播间弹幕
 - **评论推送**：通过 WebSocket 接收抖音直播间评论消息（WebcastChatMessage 类型）
@@ -231,14 +251,14 @@ cd virtual-person
 cp BackendProject/.env.example BackendProject/.env
 # 编辑 BackendProject/.env 填入你的 API 密钥
 
-# 一键启动所有服务
-docker-compose up -d
+# 首次构建并启动所有服务
+docker compose up -d --build
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
 
 # 查看日志
-docker-compose logs -f
+docker compose logs -f
 ```
 
 服务启动后访问：
@@ -248,6 +268,14 @@ docker-compose logs -f
 - 抖音弹幕姬：http://localhost/dycast/
 
 > 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
+>
+> 本地部署会将 `BackendProject` 挂载到后端容器的 `/app`，修改后端源码后重新创建后端容器即可加载最新接口：
+>
+> ```bash
+> docker compose up -d --no-build --force-recreate backend nginx
+> ```
+>
+> Nginx 会保留 `/api` 路径前缀转发到 FastAPI，例如浏览器请求 `/api/memories` 时，后端收到的仍是 `/api/memories`。
 
 ### 后端部署
 
@@ -454,11 +482,18 @@ export const BACKEND_CONFIG = {
 
 ### AI角色设定
 
-在 `BackendProject/main.py` 中修改系统提示词：
+伴侣称呼和性格不再固定写在后端代码中。打开：
 
-```python
-system_message = """你是一个知心朋友，名字叫小凡..."""
-```
+1. 访问 `http://localhost/settings`
+2. 在“伴侣设定”中修改称呼和性格
+3. 保存后，设定会持久化并用于后续对话
+
+虚拟人物也在同一设置页配置：
+
+1. 点击“选择人物”打开“选妃”弹窗
+2. 弹窗每次显示一个真实 Live2D 人物
+3. 点击“下一个”切换人物
+4. 点击“点他”确认，首页和聊天页将固定显示该人物
 
 ### 模型类型配置
 
@@ -474,7 +509,7 @@ MODEL_TYPE=openai
 
 ### Live2D模型配置
 
-模型文件位于 `public/Resources/` 目录，当前支持9款官方模型：
+模型文件位于 `public/Resources/` 目录，当前支持 8 款模型：
 - Haru：支持 Body 碰撞区域，适合手势交互
 - Hiyori：完整模型支持
 - Mao：支持完整的肘部关节控制
@@ -629,18 +664,18 @@ docker run -d -p 3001:80 --name dycast dycast
 - 确认环境变量`ISAUDIO`设置为`True`
 - 测试TTS服务是否可访问：`curl http://localhost:3000`
 
-### 10. Docker Compose 部署问题
+### 7. Docker Compose 部署问题
 
-- 确认Docker和Docker Compose已安装：`docker --version` 和 `docker-compose --version`
+- 确认 Docker 和 Docker Compose 已安装：`docker --version` 和 `docker compose version`
 - 检查端口是否被占用：80（Nginx入口）、8000（后端）、3000（TTS）
-- 查看服务状态：`docker-compose ps`
-- 查看服务日志：`docker-compose logs -f <service_name>`
+- 查看服务状态：`docker compose ps`
+- 查看服务日志：`docker compose logs -f <service_name>`
 - 确认环境变量已正确配置在 `BackendProject/.env` 文件中
 - 检查Git子模块是否已初始化：`git submodule status`
-- 如需重新构建镜像：`docker-compose build --no-cache`
+- 如需重新构建镜像：`docker compose build --no-cache`
 - 前端服务通过 Nginx 反向代理访问，请访问 http://localhost 而非 8080 端口
 
-### 7. 图片识别功能不工作
+### 8. 图片识别功能不工作
 
 - 确认已配置`ZHIPUAI_API_KEY`环境变量且有效
 - 检查智谱AI API密钥是否有足够的配额和权限
@@ -650,7 +685,7 @@ docker run -d -p 3001:80 --name dycast dycast
 - 测试智谱AI API是否可访问
 - 确认 `MODEL_TYPE` 设置为 `zhipu`
 
-### 8. 语音识别功能不工作
+### 9. 语音识别功能不工作
 
 - 确认已配置`SILICONFLOW_API_KEY`环境变量且有效
 - 检查SiliconFlow API密钥是否有足够的配额和权限
@@ -659,7 +694,7 @@ docker run -d -p 3001:80 --name dycast dycast
 - 检查`audio_files`目录是否存在且有写入权限：`ls -la BackendProject/audio_files/`
 - 测试SiliconFlow API是否可访问
 
-### 9. 示例环境限制（https://xiaofan.laogeworld.cn）
+### 10. 示例环境限制（https://xiaofan.laogeworld.cn）
 
 ⚠️ 注意事项：
 - 此环境没有部署TTS服务，不支持开启语音功能（ISAUDIO=False）
@@ -673,6 +708,18 @@ docker run -d -p 3001:80 --name dycast dycast
 - **评论处理**：后端会自动处理 WebcastChatMessage 类型的评论消息
 - **TTS依赖**：抖音直播互动功能需要启用 TTS 服务（ISAUDIO=True）
 - **客户端标识**：使用 `livestream_user_` 前缀的 client_id 连接 WebSocket
+
+### 12. 隐私与设置页面的记忆接口返回 404
+
+- 确认 Nginx 的 `/api/` 代理保留路径前缀：`proxy_pass http://backend:8000;`
+- 确认后端已加载 `/api/memories` 路由：访问 `http://localhost:8000/openapi.json`
+- 本地源码更新后重新创建后端与 Nginx：
+
+```bash
+docker compose up -d --no-build --force-recreate backend nginx
+```
+
+- 验证接口：`curl "http://localhost/api/memories?user_id=test&companion_id=Hiyori&status=active&limit=50"`
 
 ## 许可证
 
@@ -704,6 +751,11 @@ docker run -d -p 3001:80 --name dycast dycast
 
 ### 最新更新亮点
 
+- 🎛️ 伴侣设定可配置：称呼和性格不再固定为“小凡”
+- 👤 Live2D 选妃弹窗：真实渲染单个人物，支持“下一个”和“点他”
+- 🧠 长期记忆管理：支持置顶、自动、待办和关系历史
+- 🔧 API 转发修复：Nginx 保留 `/api` 前缀，修复设置页记忆请求 404
+- 🐳 本地部署优化：后端容器直接挂载最新源码
 - 🎤 移动端语音录音：实现移动端语音录音与实时传输功能
 - 🎙️ MediaRecorder集成：支持麦克风录音及WebSocket推流
 - 🎵 音频参数配置：16kHz采样率、单声道、回声消除、噪声抑制
@@ -713,7 +765,7 @@ docker run -d -p 3001:80 --name dycast dycast
 - 🚀 更新节流机制：限制更新频率，避免闪烁
 - 🎬 动画完成回调：精确控制动画播放状态
 - ✨ 支持OpenAI和智谱AI双引擎切换
-- 🎭 新增9款Live2D官方模型支持
+- 🎭 支持 8 款 Live2D 模型
 - 📱 改进移动端支持和响应式布局
 - 🔧 优化WebSocket自动重连机制
 - 🎨 升级到React 19和Ant Design 6
@@ -762,9 +814,5 @@ docker run -d -p 3001:80 --name dycast dycast
 多少都是心意，一分也是对我莫大的鼓励！谢谢您的支持！
 
 <img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
-
-
-
-
 
 

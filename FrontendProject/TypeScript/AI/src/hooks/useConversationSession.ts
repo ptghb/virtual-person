@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getBackendApiUrl, getWebSocketUrl } from '../config';
 import { avatarService } from '../services/avatar.service';
+import { getSelectedAvatarModel } from '../services/avatar-preference.service';
+import { useCompanionProfile } from '../services/companion-profile.service';
+import { memoryService } from '../services/memory.service';
+import type { MemoryItem } from '../services/memory.types';
+import {
+  getUserIdentity,
+  rotateSessionId
+} from '../services/user-identity.service';
 import {
   type ConnectionState,
   type DisplayMessage,
@@ -14,11 +22,19 @@ export interface ConversationMessage extends DisplayMessage {
   hasStreamed?: boolean;
 }
 
+interface MemorySnapshot {
+  relationship: MemoryItem | null;
+  followups: MemoryItem[];
+  refreshing: boolean;
+}
+
 export function useConversationSession(
   clientPrefix: string,
   defaultAudioEnabled = true
 ) {
   const manager = WebSocketManager.getInstance();
+  const { profile } = useCompanionProfile();
+  const identityRef = useRef(getUserIdentity());
   const idRef = useRef(0);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [connectionState, setConnectionState] =
@@ -28,12 +44,44 @@ export function useConversationSession(
   const [isThinking, setIsThinking] = useState(false);
   const [isStreamingReply, setIsStreamingReply] = useState(false);
   const [latestAssistantText, setLatestAssistantText] = useState('');
+  const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot>({
+    relationship: null,
+    followups: [],
+    refreshing: false
+  });
 
   const appendMessage = useCallback((message: DisplayMessage) => {
     setMessages(previous => [
       ...previous.slice(-99),
       { ...message, id: ++idRef.current }
     ]);
+  }, []);
+
+  const refreshMemorySnapshot = useCallback(async () => {
+    setMemorySnapshot(previous => ({ ...previous, refreshing: true }));
+    try {
+      const companionId = getSelectedAvatarModel();
+      const [relationshipResult, followupResult] = await Promise.all([
+        memoryService.listMemories(
+          identityRef.current.userId,
+          companionId,
+          'relationship'
+        ),
+        memoryService.listMemories(
+          identityRef.current.userId,
+          companionId,
+          'followup'
+        )
+      ]);
+      setMemorySnapshot({
+        relationship: relationshipResult.items[0] ?? null,
+        followups: followupResult.items,
+        refreshing: false
+      });
+    } catch (error) {
+      console.warn('[useConversationSession] 刷新记忆摘要失败', error);
+      setMemorySnapshot(previous => ({ ...previous, refreshing: false }));
+    }
   }, []);
 
   useEffect(() => {
@@ -110,6 +158,9 @@ export function useConversationSession(
         if (message.content) setLatestAssistantText(message.content);
         setIsStreamingReply(false);
         setIsThinking(false);
+          window.setTimeout(() => {
+            void refreshMemorySnapshot();
+          }, 500);
         return;
       }
 
@@ -134,7 +185,12 @@ export function useConversationSession(
     const clientId = `${clientPrefix}_${Date.now()}_${Math.random()
       .toString(36)
       .slice(2, 8)}`;
+    manager.setIdentity({
+      ...identityRef.current,
+      companionId: getSelectedAvatarModel()
+    });
     manager.connect(getWebSocketUrl(clientId));
+      void refreshMemorySnapshot();
 
     return () => {
       unsubscribeMessage();
@@ -142,7 +198,25 @@ export function useConversationSession(
       avatarService.stopAudio();
       manager.disconnect();
     };
-  }, [appendMessage, clientPrefix, manager]);
+    }, [appendMessage, clientPrefix, manager, refreshMemorySnapshot]);
+
+  useEffect(() => {
+    if (connectionState !== 'connected') return;
+    manager.send({
+      type: 'control',
+      data: {
+        action: 'update_companion_profile',
+        companion_name: profile.name,
+        personality: profile.personality,
+          client_id: manager.getClientId(),
+          user_id: identityRef.current.userId,
+          session_id: identityRef.current.sessionId,
+          companion_id: getSelectedAvatarModel(),
+        timestamp: new Date().toISOString()
+      }
+    });
+      void refreshMemorySnapshot();
+    }, [connectionState, manager, profile.name, profile.personality, refreshMemorySnapshot]);
 
   const sendText = useCallback(
     (text: string) => {
@@ -152,12 +226,15 @@ export function useConversationSession(
       const sent = manager.send({
         text: content,
         model: avatarService.getCurrentModelName(),
-        isAudio: audioEnabled
+        isAudio: audioEnabled,
+        companionName: profile.name,
+          personality: profile.personality,
+          companionId: getSelectedAvatarModel()
       });
       if (sent) setIsThinking(true);
       return sent;
     },
-    [audioEnabled, connectionState, manager]
+    [audioEnabled, connectionState, manager, profile.name, profile.personality]
   );
 
   const sendImage = useCallback(
@@ -176,24 +253,50 @@ export function useConversationSession(
           format: 'jpeg',
           timestamp: new Date().toISOString(),
           client_id: manager.getClientId(),
+            user_id: identityRef.current.userId,
+            session_id: identityRef.current.sessionId,
+            companion_id: getSelectedAvatarModel(),
           is_audio: audioEnabled,
-          prompt: prompt ?? undefined
+          prompt: prompt ?? undefined,
+          companion_name: profile.name,
+          personality: profile.personality
         }
       };
       const sent = manager.send(message);
       if (sent) setIsThinking(true);
       return sent;
     },
-    [appendMessage, audioEnabled, connectionState, manager]
+    [
+      appendMessage,
+      audioEnabled,
+      connectionState,
+      manager,
+      profile.name,
+      profile.personality
+    ]
   );
 
   const clearMessages = useCallback(() => {
     manager.clearMessages();
+      identityRef.current = {
+        ...identityRef.current,
+        sessionId: rotateSessionId()
+      };
+      manager.setIdentity({
+        ...identityRef.current,
+        companionId: getSelectedAvatarModel()
+      });
     setMessages([]);
     setLatestAssistantText('');
     setIsStreamingReply(false);
+      setMemorySnapshot({
+        relationship: null,
+        followups: [],
+        refreshing: false
+      });
     avatarService.stopAudio();
-  }, [manager]);
+      void refreshMemorySnapshot();
+    }, [manager, refreshMemorySnapshot]);
 
   const changeAudioEnabled = useCallback((enabled: boolean) => {
     audioEnabledRef.current = enabled;
@@ -209,10 +312,12 @@ export function useConversationSession(
     isThinking,
     isStreamingReply,
     latestAssistantText,
+      memorySnapshot,
     audioEnabled,
     setAudioEnabled: changeAudioEnabled,
     sendText,
     sendImage,
-    clearMessages
+      clearMessages,
+      refreshMemorySnapshot
   };
 }

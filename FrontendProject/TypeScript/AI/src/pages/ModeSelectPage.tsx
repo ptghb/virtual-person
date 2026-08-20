@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { Button } from 'antd';
 import { ArrowRightOutlined, SettingOutlined } from '@ant-design/icons';
 import { MODE_REGISTRY } from '../modes/mode.registry';
+import { useCompanionProfile } from '../services/companion-profile.service';
 
-export const ModeSelectPage: React.FC = () => (
-  <div className="mode-select-page">
+export const ModeSelectPage: React.FC = () => {
+  const { profile } = useCompanionProfile();
+  return <div className="mode-select-page">
     <div className="mode-select-hero">
-      <div className="brand-orb">小凡</div>
+      <div className="brand-orb">{profile.name}</div>
       <p className="eyebrow">AI GIRLFRIEND</p>
       <h1>今天想用哪种方式和我相处？</h1>
       <p>从轻松聊天，到看见、听见你，再到陪你一起直播。</p>
@@ -32,5 +34,5 @@ export const ModeSelectPage: React.FC = () => (
       <SettingOutlined />
       设置与隐私
     </Link>
-  </div>
-);
+  </div>;
+};

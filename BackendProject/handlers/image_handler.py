@@ -20,6 +20,8 @@ class ImageProcessor:
         """处理图片消息"""
         try:
             prompt = image_data.get("prompt", None)
+            companion_name = image_data.get("companion_name", "小凡")
+            personality = image_data.get("personality", "")
             image_base64 = image_data.get("image", "")
             if not image_base64:
                 return {"status": "error", "message": "图片数据为空"}
@@ -37,7 +39,13 @@ class ImageProcessor:
 
             # 调用GLM-4V-Flash分析图片
             from services.llm_service import llm_service
-            analysis_result = await self._analyze_image_with_glm4v(image_bytes, llm_service, prompt)
+            analysis_result = await self._analyze_image_with_glm4v(
+                image_bytes,
+                llm_service,
+                prompt,
+                companion_name,
+                personality,
+            )
 
             if analysis_result["status"] == "success":
                 # 打印分析结果到日志
@@ -74,11 +82,23 @@ class ImageProcessor:
             print(f"[ImageProcessor] 图片格式验证失败: {str(e)}")
             return False
 
-    async def _analyze_image_with_glm4v(self, image_bytes: bytes, llm_service, prompt: str = None) -> Dict:
+    async def _analyze_image_with_glm4v(
+        self,
+        image_bytes: bytes,
+        llm_service,
+        prompt: str = None,
+        companion_name: str = "小凡",
+        personality: str = "",
+    ) -> Dict:
         """使用GLM-4V-Flash分析图片"""
         try:
             # 调用服务层的图片分析方法
-            description = await llm_service.analyze_image(image_bytes, prompt)
+            description = await llm_service.analyze_image(
+                image_bytes,
+                prompt,
+                companion_name,
+                personality,
+            )
 
             print(f"[ImageProcessor] GLM-4V-Flash分析完成")
             return {

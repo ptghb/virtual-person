@@ -26,6 +26,7 @@ export type ProtocolMessageType =
 export type ControlAction =
   | 'start_audio_stream'
   | 'stop_audio_stream'
+  | 'update_companion_profile'
   | 'livestream_set_auto_reply'
   | 'livestream_update_policy'
   | 'livestream_clear_queue'
@@ -57,6 +58,9 @@ export interface ProtocolMessageData {
   // 通用字段
   timestamp?: string;
   client_id?: string;
+  user_id?: string;
+  session_id?: string;
+  companion_id?: string;
 
   // Live2D相关
   model?: string;
@@ -64,6 +68,8 @@ export interface ProtocolMessageData {
   prompt?: string;
   enabled?: boolean;
   policies?: Record<string, boolean>;
+  companion_name?: string;
+  personality?: string;
 }
 
 // 完整的协议消息结构
@@ -106,6 +112,9 @@ export class WebSocketManager {
   private _ws: WebSocket | null = null;
   private _url: string;
   private _clientId: string;
+  private _userId: string = '';
+  private _sessionId: string = '';
+  private _companionId: string = 'companion_default';
   private _state: ConnectionState = 'disconnected';
   private _displayMessages: DisplayMessage[] = []; // 用于UI显示的消息
   private _maxMessages: number = 100;
@@ -482,6 +491,9 @@ export class WebSocketManager {
           audio?: string; // 音频内容（base64）
           model?: string; // Live2D模型名称（如：Hiyori、Haru、Rice等）
           isAudio?: boolean; // 是否需要语音回复
+          companionName?: string; // AI 伴侣称呼
+          personality?: string; // AI 伴侣性格设定
+            companionId?: string; // 虚拟人物稳定标识
         }
       | ProtocolMessage
   ): boolean {
@@ -517,6 +529,11 @@ export class WebSocketManager {
         console.log('[WebSocketManager.send] 检测到协议格式消息');
         console.log('[WebSocketManager.send] 消息类型:', data.type);
         console.log('[WebSocketManager.send] 消息数据:', data.data);
+          data.data.client_id ??= this._clientId;
+          data.data.user_id ??= this._userId;
+          data.data.session_id ??= this._sessionId;
+          data.data.companion_id ??= this._companionId;
+          data.data.timestamp ??= new Date().toISOString();
         jsonString = JSON.stringify(data);
         console.log(
           '[WebSocketManager.send] 序列化后的JSON字符串长度:',
@@ -533,8 +550,17 @@ export class WebSocketManager {
         if (data.audio) protocolData.chunk = data.audio;
         if (data.model) protocolData.model = data.model;
         if (data.isAudio !== undefined) protocolData.is_audio = data.isAudio;
+        if (data.companionName) {
+          protocolData.companion_name = data.companionName;
+        }
+        if (data.personality) protocolData.personality = data.personality;
+          if (data.companionId) protocolData.companion_id = data.companionId;
         protocolData.timestamp = new Date().toISOString();
         protocolData.client_id = this._clientId;
+          protocolData.user_id = this._userId;
+          protocolData.session_id = this._sessionId;
+          protocolData.companion_id =
+            data.companionId ?? this._companionId;
 
         const protocolMessage: ProtocolMessage = {
           type: data.audio ? 'audio' : 'text',
@@ -583,6 +609,32 @@ export class WebSocketManager {
   public getClientId(): string {
     return this._clientId;
   }
+
+    public setIdentity(identity: {
+      userId: string;
+      sessionId: string;
+      companionId?: string;
+    }): void {
+      this._userId = identity.userId;
+      this._sessionId = identity.sessionId;
+      if (identity.companionId) {
+        this._companionId = identity.companionId;
+      }
+    }
+
+    public getIdentity(): {
+      clientId: string;
+      userId: string;
+      sessionId: string;
+      companionId: string;
+    } {
+      return {
+        clientId: this._clientId,
+        userId: this._userId,
+        sessionId: this._sessionId,
+        companionId: this._companionId
+      };
+    }
 
   /**
    * 设置客户端ID

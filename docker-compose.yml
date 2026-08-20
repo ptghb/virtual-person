@@ -44,6 +44,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # 本地部署直接挂载后端源码，避免容器继续运行旧镜像中的接口代码。
+      - ./BackendProject:/app
       - ./BackendProject/audio_files:/app/audio_files
     env_file:
       - ./BackendProject/.env

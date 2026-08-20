@@ -14,6 +14,7 @@ import { LAppModel } from './lappmodel';
 import { LAppPal } from './lapppal';
 import { LAppSubdelegate } from './lappsubdelegate';
 import { LAppAudioManager } from './lappaudiomanager';
+import { getSelectedAvatarModel } from './services/avatar-preference.service';
 
 /**
  * 在示例应用程序中管理 CubismModel 的类
@@ -139,6 +140,17 @@ export class LAppLive2DManager {
     this._models.pushBack(instance);
   }
 
+  /**
+   * 按名称切换虚拟人物。
+   */
+  public changeModel(modelName: string): boolean {
+    const index = LAppDefine.ModelDir.indexOf(modelName);
+    if (index < 0) return false;
+    if (index === this._sceneIndex && this._models.getSize() > 0) return true;
+    this.changeScene(index);
+    return true;
+  }
+
   public setViewMatrix(m: CubismMatrix44) {
     for (let i = 0; i < 16; i++) {
       this._viewMatrix.getArray()[i] = m.getArray()[i];
@@ -160,7 +172,9 @@ export class LAppLive2DManager {
     this._subdelegate = null;
     this._viewMatrix = new CubismMatrix44();
     this._models = new csmVector<LAppModel>();
-    this._sceneIndex = 0;
+    const selectedModel = getSelectedAvatarModel();
+    const selectedIndex = LAppDefine.ModelDir.indexOf(selectedModel);
+    this._sceneIndex = selectedIndex >= 0 ? selectedIndex : 0;
     this._audioManager = new LAppAudioManager();
   }
 
