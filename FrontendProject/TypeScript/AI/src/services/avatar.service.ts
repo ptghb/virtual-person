@@ -53,6 +53,22 @@ class AvatarService {
     }
   }
 
+  public hitTestClientPoint(clientX: number, clientY: number): boolean {
+    try {
+      return this.getManager().hitTestClientPoint(clientX, clientY);
+    } catch {
+      return false;
+    }
+  }
+
+  public playRandomTouchMotion(): void {
+    try {
+      this.getManager().playRandomTouchMotion();
+    } catch (error) {
+      console.error('[AvatarService] 播放触摸动作失败:', error);
+    }
+  }
+
   public async playReplyAudio(url: string): Promise<void> {
     if (!url) return;
     this.stopAudio();

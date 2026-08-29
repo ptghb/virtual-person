@@ -295,6 +295,119 @@ textarea {
   pointer-events: none;
 }
 
+.pet-me-layer {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.pet-me-button {
+  border-color: rgba(233, 109, 152, 0.35);
+  color: var(--rose-600);
+  background: rgba(255, 247, 250, 0.9);
+}
+
+.pet-camera-preview {
+  position: absolute;
+  z-index: 5;
+  right: 16px;
+  bottom: 18px;
+  width: min(30%, 190px);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  border-radius: 18px;
+  background: rgba(43, 34, 49, 0.8);
+  box-shadow: 0 14px 34px rgba(58, 39, 50, 0.24);
+  opacity: 0;
+  transform: translateY(12px) scale(0.94);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  pointer-events: none;
+}
+
+.pet-camera-preview.is-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.pet-camera-preview video,
+.pet-camera-preview canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.pet-camera-preview video {
+  opacity: 0;
+}
+
+.pet-camera-preview span {
+  position: absolute;
+  z-index: 1;
+  right: 7px;
+  bottom: 7px;
+  padding: 4px 7px;
+  border-radius: 99px;
+  color: white;
+  background: rgba(31, 24, 35, 0.58);
+  font-size: 10px;
+  backdrop-filter: blur(8px);
+}
+
+.pet-hand {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  color: #6e5362;
+  filter: drop-shadow(0 8px 12px rgba(66, 43, 55, 0.28));
+  transform: translate(-50%, -50%);
+  transition: filter 120ms ease;
+  will-change: left, top, transform;
+}
+
+.pet-hand__emoji {
+  display: block;
+  font-size: clamp(42px, 6vw, 72px);
+  line-height: 1;
+}
+
+.pet-hand--right .pet-hand__emoji {
+  transform: scaleX(-1);
+}
+
+.pet-hand small {
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 10px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+}
+
+.pet-hand.is-touching {
+  filter:
+    drop-shadow(0 0 10px rgba(255, 107, 157, 0.9))
+    drop-shadow(0 8px 12px rgba(66, 43, 55, 0.28));
+  animation: pet-touch-bounce 420ms ease;
+}
+
+@keyframes pet-touch-bounce {
+  45% {
+    transform: translate(-50%, -50%) scale(0.82) rotate(-8deg);
+  }
+}
+
 .digital-human-stage__label {
   position: absolute;
   top: 14px;
@@ -1340,6 +1453,13 @@ textarea {
     height: 48vh;
     min-height: 48vh;
     border-radius: 22px;
+  }
+
+  .pet-camera-preview {
+    width: 118px;
+    right: 10px;
+    bottom: 12px;
+    border-radius: 14px;
   }
 
   .assistant-subtitle {
