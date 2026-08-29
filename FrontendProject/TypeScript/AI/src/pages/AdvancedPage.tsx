@@ -6,6 +6,7 @@ import { ConversationPanel } from '../components/ConversationPanel';
 import { DigitalHumanStage } from '../components/DigitalHumanStage';
 import { MemoryStatusStrip } from '../components/MemoryStatusStrip';
 import { VisionControl } from '../components/VisionControl';
+import HandGestureControls from '../components/HandGestureControls';
 import { useConversationSession } from '../hooks/useConversationSession';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useCompanionProfile } from '../services/companion-profile.service';
@@ -94,6 +95,7 @@ export const AdvancedPage: React.FC = () => {
                   onSend={session.sendImage}
                   compact
                 />
+                <HandGestureControls />
               </div>
             }
           />

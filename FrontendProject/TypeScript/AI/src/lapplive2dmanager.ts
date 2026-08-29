@@ -289,6 +289,110 @@ export class LAppLive2DManager {
   }
 
   /**
+   * 判断浏览器客户区坐标是否落在当前 Live2D 模型的任意碰撞区域内。
+   */
+  public hitTestClientPoint(clientX: number, clientY: number): boolean {
+    const model = this._models.at(0);
+    const canvas = this._subdelegate?.getCanvas();
+    if (!model || !canvas || !model.isInitialized()) return false;
+
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = clientX - rect.left;
+    const canvasY = clientY - rect.top;
+    if (
+      canvasX < 0 ||
+      canvasX > rect.width ||
+      canvasY < 0 ||
+      canvasY > rect.height
+    ) {
+      return false;
+    }
+
+    const view = this._subdelegate.getView();
+    const hitAreaCount = model._modelSetting.getHitAreasCount();
+    // 小手图标本身有一定面积，检测中心点及周围多个采样点，避免视觉上
+    // 已经碰到人物边缘但中心点尚未进入模型碰撞区。
+    const samples = [
+      [0, 0],
+      [-28, 0],
+      [28, 0],
+      [0, -28],
+      [0, 28],
+      [-20, -20],
+      [20, -20],
+      [-20, 20],
+      [20, 20]
+    ];
+
+    for (const [offsetX, offsetY] of samples) {
+      const sampleX = canvasX + offsetX;
+      const sampleY = canvasY + offsetY;
+      if (
+        sampleX < 0 ||
+        sampleX > rect.width ||
+        sampleY < 0 ||
+        sampleY > rect.height
+      ) {
+        continue;
+      }
+
+      const viewX = view.transformViewX(
+        sampleX * window.devicePixelRatio
+      );
+      const viewY = view.transformViewY(
+        sampleY * window.devicePixelRatio
+      );
+      for (let index = 0; index < hitAreaCount; index++) {
+        if (
+          model.hitTest(
+            model._modelSetting.getHitAreaName(index),
+            viewX,
+            viewY
+          )
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 被小手碰触时，从 TapBody 和 Idle 的全部动作中随机播放一个。
+   */
+  public playRandomTouchMotion(): void {
+    const model = this._models.at(0);
+    if (!model || !model.isInitialized()) return;
+
+    const candidates: Array<{ group: string; index: number }> = [];
+    [LAppDefine.MotionGroupTapBody, LAppDefine.MotionGroupIdle].forEach(group => {
+      const motionCount = model._modelSetting.getMotionCount(group);
+      for (let index = 0; index < motionCount; index++) {
+        candidates.push({ group, index });
+      }
+    });
+    if (candidates.length === 0) return;
+
+    const selected =
+      candidates[Math.floor(Math.random() * candidates.length)];
+    model.stopMotion();
+    model.stopAllMotions();
+    // LAppModel 仅在动画开关打开时才会推进 MotionManager。之前虽然把动作
+    // 加入了队列，但每帧没有更新，所以人物保持不动。
+    model.enableMotion();
+    model.startMotion(
+      selected.group,
+      selected.index,
+      LAppDefine.PriorityForce,
+      () => {
+        // 触摸动作只播放一次，结束后回到自然眨眼/呼吸状态。
+        model.stopMotion();
+        model.stopAllMotions();
+      }
+    );
+  }
+
+  /**
    * 获取当前模型的名称
    * @returns 当前模型名称，如果没有模型则返回空字符串
    */
