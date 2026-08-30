@@ -56,9 +56,7 @@ export const AdvancedPage: React.FC = () => {
         mode="advanced"
         connectionState={session.connectionState}
         statusItems={
-          <>
-            {voice.isRecording && <Tag color="red">正在录音</Tag>}
-          </>
+          <>{voice.isRecording && <Tag color="red">正在录音</Tag>}</>
         }
         stage={
           <DigitalHumanStage
@@ -78,13 +76,13 @@ export const AdvancedPage: React.FC = () => {
             onSend={session.sendText}
             onClear={session.clearMessages}
             title="多模态聊天"
-              statusStrip={
-                <MemoryStatusStrip
-                  relationship={session.memorySnapshot.relationship}
-                  followups={session.memorySnapshot.followups}
-                  refreshing={session.memorySnapshot.refreshing}
-                />
-              }
+            statusStrip={
+              <MemoryStatusStrip
+                relationship={session.memorySnapshot.relationship}
+                followups={session.memorySnapshot.followups}
+                refreshing={session.memorySnapshot.refreshing}
+              />
+            }
             footerExtras={
               <div className="quick-capability-row">
                 {voiceButton}

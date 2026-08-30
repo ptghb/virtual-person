@@ -177,7 +177,10 @@ class HTTPService:
                         mimetypes.guess_type(audio_filepath)[0]
                         or "application/octet-stream",
                     ),
-                    "model": (None, "FunAudioLLM/SenseVoiceSmall")
+                    "model": (
+                        None,
+                        os.getenv("SILICONFLOW_ASR_MODEL", "XingChenAGI/XingChenASR-V3.2"),
+                    )
                 }
 
                 response = await self.post_with_files(
