@@ -3,12 +3,18 @@ from __future__ import annotations
 
 from domain.memory_service import memory_service
 from repositories.memory_repository import MemoryRepository
+from repositories.timeline_repository import TimelineRepository
 from schemas.memory import MemoryItem, MemoryQuery, MemoryStatus, MemoryType
 
 
 class MemoryRetriever:
-    def __init__(self, repository: MemoryRepository | None = None):
+    def __init__(
+        self,
+        repository: MemoryRepository | None = None,
+        timeline_repository: TimelineRepository | None = None,
+    ):
         self.repository = repository or MemoryRepository()
+        self.timeline_repository = timeline_repository or TimelineRepository()
 
     def retrieve(
         self,
@@ -98,6 +104,12 @@ class MemoryRetriever:
                 limit=1,
             )
         )
+        timeline_days = self.timeline_repository.list_daily_summaries(
+            user_id=user_id,
+            companion_id=companion_id,
+            limit=6,
+        )
+
         recalled_ids = [
             memory.id
             for memory in [
@@ -118,6 +130,7 @@ class MemoryRetriever:
             "followups": followups,
             "relationship": relationships[0] if relationships else None,
             "session_summary": summaries[0] if summaries else None,
+            "timeline_days": timeline_days,
         }
 
 

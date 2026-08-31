@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes
-} from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AdvancedPage } from './pages/AdvancedPage';
 import { BasicChatPage } from './pages/BasicChatPage';
 import { LiveConsolePage } from './pages/LiveConsolePage';
@@ -20,7 +15,8 @@ const App: React.FC = () => (
       <Route path="/advanced" element={<AdvancedPage />} />
       <Route path="/live/console" element={<LiveConsolePage />} />
       <Route path="/live/stage" element={<LiveStagePage />} />
-      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings" element={<SettingsPage pageType="settings" />} />
+      <Route path="/memories" element={<SettingsPage pageType="memory" />} />
 
       {/* 兼容旧地址 */}
       <Route path="/mobile" element={<Navigate to="/advanced" replace />} />
