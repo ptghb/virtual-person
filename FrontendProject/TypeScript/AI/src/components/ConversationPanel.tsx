@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Empty, Input, Switch, Tooltip } from 'antd';
 import {
   ClearOutlined,
@@ -60,9 +55,12 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
   return (
     <div className="conversation-panel glass-panel">
       <div className="conversation-panel__header">
-        <div>
-          <strong>{panelTitle}</strong>
-          <span>{connected ? '随时可以说话' : '正在等待连接'}</span>
+        <div className="conversation-panel__heading">
+          <div className="conversation-panel__title-block">
+            <strong>{panelTitle}</strong>
+            <span>{connected ? '随时可以说话' : '正在等待连接'}</span>
+          </div>
+          {statusStrip}
         </div>
         <div className="conversation-panel__tools">
           <Tooltip title="停止当前语音">
@@ -87,9 +85,6 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
       </div>
 
       <div className="conversation-panel__messages">
-          {statusStrip && (
-            <div className="conversation-panel__status-strip">{statusStrip}</div>
-          )}
         {messages.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -102,32 +97,35 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
               message => !(message.type === 'received' && message.streaming)
             )
             .map(message => (
-            <div
-              key={message.id}
-              className={`chat-message chat-message--${message.type}`}
-            >
-              {message.contentType === 'image' ? (
-                <img src={message.content} alt={`发送给${profile.name}的照片`} />
-              ) : message.streaming ? (
-                <span className="typewriter-text">
-                  {message.content}
-                  <i className="typewriter-cursor" aria-hidden="true" />
-                </span>
-              ) : message.type === 'received' ? (
-                <TypewriterText
-                  text={message.content}
-                  onProgress={scrollToEnd}
-                />
-              ) : (
-                <span>{message.content}</span>
-              )}
-              <time>
-                {message.timestamp.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </time>
-            </div>
+              <div
+                key={message.id}
+                className={`chat-message chat-message--${message.type}`}
+              >
+                {message.contentType === 'image' ? (
+                  <img
+                    src={message.content}
+                    alt={`发送给${profile.name}的照片`}
+                  />
+                ) : message.streaming ? (
+                  <span className="typewriter-text">
+                    {message.content}
+                    <i className="typewriter-cursor" aria-hidden="true" />
+                  </span>
+                ) : message.type === 'received' ? (
+                  <TypewriterText
+                    text={message.content}
+                    onProgress={scrollToEnd}
+                  />
+                ) : (
+                  <span>{message.content}</span>
+                )}
+                <time>
+                  {message.timestamp.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </time>
+              </div>
             ))
         )}
         {thinking && (

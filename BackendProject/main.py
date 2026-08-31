@@ -719,7 +719,7 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "type": "response",
                 "data": {
                     "status": "error",
-                    "message": "语音识别失败，请检查 SILICONFLOW_API_KEY 是否有效",
+                    "message": "语音识别失败，请检查麦克风录音、网络或语音识别服务状态",
                     "request_type": "control",
                     "transcription": ""
                 }
