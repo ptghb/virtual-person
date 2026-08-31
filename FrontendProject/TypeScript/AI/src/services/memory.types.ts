@@ -55,3 +55,38 @@ export interface UpdateMemoryPayload {
   importance?: number;
   status?: MemoryStatus;
 }
+
+export interface TimelineEvent {
+  id: string;
+  user_id: string;
+  companion_id: string;
+  session_id?: string | null;
+  event_type: string;
+  title?: string | null;
+  content: string;
+  emotional_valence: string;
+  importance: number;
+  source_memory_id?: string | null;
+  source_type: string;
+  occurred_at: string;
+  detected_at: string;
+  created_at: string;
+}
+
+export interface TimelineListResponse {
+  items: TimelineEvent[];
+  total: number;
+}
+
+export interface TimelineDaySummary {
+  date: string;
+  summary: string;
+  event_count: number;
+  highlights: string[];
+  last_occurred_at?: string | null;
+}
+
+export interface TimelineDayListResponse {
+  items: TimelineDaySummary[];
+  total: number;
+}

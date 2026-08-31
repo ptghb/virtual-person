@@ -1,7 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from 'antd';
-import { HomeOutlined, SettingOutlined } from '@ant-design/icons';
+import {
+  DatabaseOutlined,
+  HomeOutlined,
+  SettingOutlined
+} from '@ant-design/icons';
 import type { AppMode } from '../modes/mode.types';
 import { MODE_REGISTRY } from '../modes/mode.registry';
 import { ConnectionBadge } from './ConnectionBadge';
@@ -40,6 +44,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         <div className="mode-header__status">
           {statusItems}
           <ConnectionBadge state={connectionState} />
+          <Link to="/memories">
+            <Button
+              type="text"
+              icon={<DatabaseOutlined />}
+              aria-label="记忆管理"
+            />
+          </Link>
           <Link to="/settings">
             <Button type="text" icon={<SettingOutlined />} aria-label="设置" />
           </Link>

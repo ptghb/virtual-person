@@ -189,9 +189,36 @@ textarea {
   background: linear-gradient(135deg, var(--rose-500), #a984df);
 }
 
+.mode-select-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
 .settings-shortcut {
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--rose-500), #7c5cff);
+  box-shadow: 0 14px 34px rgba(124, 92, 255, 0.24);
+  font-weight: 800;
   text-decoration: none;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.settings-shortcut:hover {
+  color: #ffffff;
+  filter: brightness(1.04);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(220, 99, 145, 0.3);
 }
 
 .app-shell {

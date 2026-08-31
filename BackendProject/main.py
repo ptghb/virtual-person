@@ -20,6 +20,7 @@ from domain.memory_extractor import memory_extractor
 from domain.memory_retriever import memory_retriever
 from domain.memory_service import memory_service
 from domain.prompt_builder import prompt_builder
+from domain.timeline_service import timeline_service
 from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
 from handlers.comment_handler import comment_processor
@@ -30,6 +31,7 @@ from schemas.memory import MemoryCreateInput, MemoryStatus, MemoryType
 from schemas.session import ResolvedIdentity
 from services.llm_service import llm_service
 from services.http_service import http_service
+from services.realtime_context import build_realtime_context
 
 # 加载环境变量
 load_dotenv()
@@ -431,12 +433,12 @@ async def update_memories_after_reply(
                 memory_service.create_memory(fact)
         for event in extracted.events:
             if event.content.strip():
-                memory_service.create_memory(event)
+                timeline_service.record_memory(memory_service.create_memory(event))
         for followup in extracted.followups:
             if followup.content.strip():
-                memory_service.create_memory(followup)
+                timeline_service.record_memory(memory_service.create_memory(followup))
         if extracted.relationship and extracted.relationship.content.strip():
-            memory_service.create_memory(extracted.relationship)
+            timeline_service.record_memory(memory_service.create_memory(extracted.relationship))
     except Exception as error:
         print(f"[memory] 更新记忆失败: {error}")
 
@@ -513,6 +515,42 @@ async def list_memories(
     }
 
 
+@app.get("/api/timeline-events")
+async def list_timeline_events(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+    event_type: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+):
+    items = timeline_service.list_timeline(
+        user_id=user_id,
+        companion_id=companion_id,
+        event_type=event_type,
+        limit=limit,
+    )
+    return {
+        "items": [asdict(item) for item in items],
+        "total": len(items),
+    }
+
+
+@app.get("/api/timeline-days")
+async def list_timeline_days(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+    limit: int = Query(30, ge=1, le=120),
+):
+    items = timeline_service.list_daily_summaries(
+        user_id=user_id,
+        companion_id=companion_id,
+        limit=limit,
+    )
+    return {
+        "items": [asdict(item) for item in items],
+        "total": len(items),
+    }
+
+
 @app.post("/api/memories")
 async def create_memory(payload: CreateMemoryRequest):
     try:
@@ -571,6 +609,7 @@ async def delete_memory(memory_id: str):
     item = memory_service.delete_memory(memory_id)
     if not item:
         raise HTTPException(status_code=404, detail="记忆不存在")
+    timeline_service.delete_for_memory(memory_id)
     return {"id": item.id, "status": item.status.value}
 
 
@@ -1215,10 +1254,12 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             current_text=text,
             session_id=identity.session_id,
         )
+        realtime_context = await build_realtime_context(text)
         system_prompt = prompt_builder.build_system_prompt(
             companion_name=profile["name"],
             personality=profile["personality"],
             memory_pack=memory_pack,
+            realtime_context=realtime_context,
         )
         message_history = manager.get_message_history(identity.session_id)
         messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)

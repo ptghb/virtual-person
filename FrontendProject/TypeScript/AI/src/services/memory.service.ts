@@ -3,6 +3,8 @@ import type {
   CreateMemoryPayload,
   MemoryListResponse,
   MemoryStatus,
+  TimelineDayListResponse,
+  TimelineListResponse,
   UpdateMemoryPayload
 } from './memory.types';
 
@@ -70,6 +72,35 @@ export const memoryService = {
       {
         method: 'DELETE'
       }
+    );
+  },
+
+  listTimelineEvents(
+    userId: string,
+    companionId: string,
+    eventType?: string
+  ) {
+    const search = new URLSearchParams({
+      user_id: userId,
+      companion_id: companionId,
+      limit: '100'
+    });
+    if (eventType) {
+      search.set('event_type', eventType);
+    }
+    return request<TimelineListResponse>(
+      getBackendApiUrl(`/api/timeline-events?${search.toString()}`)
+    );
+  },
+
+  listTimelineDays(userId: string, companionId: string) {
+    const search = new URLSearchParams({
+      user_id: userId,
+      companion_id: companionId,
+      limit: '60'
+    });
+    return request<TimelineDayListResponse>(
+      getBackendApiUrl(`/api/timeline-days?${search.toString()}`)
     );
   }
 };
