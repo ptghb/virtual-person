@@ -246,6 +246,7 @@ CubismWebSamples/
 - **消息过滤**：自动过滤 WebcastChatMessage 类型的消息作为实际评论内容
 - **客户端标识**：使用 `livestream_user_` 前缀的 client_id 进行 WebSocket 连接
 - **Docker部署**：支持通过 Docker Compose 一键部署抖音弹幕姬服务
+- **统一访问与代理**：本地通过 `http://localhost/dycast/` 访问；`/dylive/` 和 `/socket/` 由 Nginx 转发到 dycast 的 Vite 代理
 
 ## 快速开始
 
@@ -284,6 +285,7 @@ docker compose logs -f
 - 后端服务：http://localhost:8000
 - TTS服务：http://localhost:3000
 - 抖音弹幕姬：http://localhost/dycast/
+- dycast 转发地址：`ws://localhost/socket/webcast/im/push/v2/`
 
 > 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
 >
@@ -294,6 +296,10 @@ docker compose logs -f
 > ```
 >
 > Nginx 会保留 `/api` 路径前缀转发到 FastAPI，例如浏览器请求 `/api/memories` 时，后端收到的仍是 `/api/memories`。
+>
+> 直播控制台刷新时，Live2D Core 固定从 `/Core/live2dcubismcore.js` 加载；Nginx 也兼容 `/live/Core/*` 历史路径。
+>
+> dycast 依赖 Vite 的 `/dylive` 和 `/socket` 代理，因此 Docker 镜像运行阶段会保留源码并运行 Vite dev server，而不是只提供静态 `dist`。
 
 ### 后端部署
 
@@ -406,7 +412,7 @@ npm run build
 
 # 使用 Docker 部署
 docker build -t dycast .
-docker run -d -p 3001:80 --name dycast dycast
+docker run -d -p 5173:5173 --name dycast dycast
 ```
 
 ## 使用说明
@@ -562,8 +568,10 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 抖音弹幕姬服务使用Docker容器运行，配置说明：
 
 - **镜像**：dycast（本地构建）
-- **端口映射**：3001:80（通过 Nginx 暴露为 /dycast/）
+- **端口映射**：5173:5173（通过 Nginx 暴露为 `/dycast/`）
 - **访问地址**：http://localhost/dycast/
+- **dycast 转发地址**：`ws://localhost/socket/webcast/im/push/v2/`
+- **代理路径**：`/dylive/` 用于抖音 HTTP 请求，`/socket/` 用于抖音 WebSocket 请求
 - **功能**：抖音直播间弹幕实时获取和转发
 - **技术栈**：Vue 3 + TypeScript + Vite
 
@@ -574,15 +582,16 @@ docker-compose up -d dycast
 # 单独构建和运行
 cd dycast
 docker build -t dycast .
-docker run -d -p 3001:80 --name dycast dycast
+docker run -d -p 5173:5173 --name dycast dycast
 ```
 
 使用说明：
 1. 访问 http://localhost/dycast/
 2. 输入抖音直播间房间号
 3. 点击"连接"按钮连接直播间
-4. 在"转发地址"输入框中输入后端 WebSocket 服务地址（如 `ws://backend:8000/ws/livestream_user_123`）
-5. 点击"转发"按钮建立连接，弹幕将实时转发到后端
+4. dycast 自身使用的转发地址为 `ws://localhost/socket/webcast/im/push/v2/`，页面会基于当前站点自动拼接
+5. 如需把弹幕转发给本项目后端直播处理，可在转发目标中使用后端 WebSocket 地址（如 `ws://localhost/ws/livestream_user_123`，容器内部可用 `ws://backend:8000/ws/livestream_user_123`）
+6. 点击"转发"按钮建立连接，弹幕将实时转发到后端
 
 ## 开发指南
 
@@ -743,6 +752,26 @@ docker compose up -d --no-build --force-recreate backend nginx
 ```
 
 - 验证接口：`curl "http://localhost/api/memories?user_id=test&companion_id=Hiyori&status=active&limit=50"`
+
+### 13. `/live/console` 刷新后请求 `/live/Core/live2dcubismcore.js` 404
+
+- 前端入口应使用绝对路径：`/Core/live2dcubismcore.js`，不要使用 `./Core/live2dcubismcore.js`。
+- Nginx 已提供 `/live/Core/` 到 `/Core/` 的兼容代理；如仍 404，请重启 Nginx 并清理浏览器缓存。
+- 验证：`curl -I http://localhost/Core/live2dcubismcore.js` 应返回 `200` 且 Content-Type 为 JavaScript。
+
+### 14. `http://localhost/dycast/` 打不开或加载到主前端
+
+- 确认 Nginx 中存在 `/dycast/` 代理，并且该规则位于 `location /` 之前。
+- 确认 dycast 的 `vite.config.ts` 设置了 `base: '/dycast/'`。
+- 确认 dycast 容器运行正常：`docker compose ps dycast`。
+- 验证：`curl -I http://localhost/dycast/` 应返回 `200`。
+
+### 15. `/dylive/...` 返回 502 Bad Gateway
+
+- 查看 Nginx 日志：`docker compose logs nginx`。
+- 如果出现 `upstream sent too big header while reading response header from upstream`，说明抖音上游返回的响应头过大。
+- Nginx 的 `/dylive/` 代理需配置较大的响应头缓冲区：`proxy_buffer_size 64k; proxy_buffers 8 64k; proxy_busy_buffers_size 128k;`。
+- 验证：`curl -I http://localhost/dylive/<直播间号>` 不应返回 502。
 
 ## 许可证
 

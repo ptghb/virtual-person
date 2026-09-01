@@ -114,15 +114,23 @@ class MemoryRepository:
             sql.append("AND content LIKE ?")
             params.append(f"%{query.keyword}%")
 
-        sql.append(
-            """
-            ORDER BY
-              CASE WHEN memory_type = 'pinned' THEN 0 ELSE 1 END,
-              importance DESC,
-              updated_at DESC
-            LIMIT ?
-            """
-        )
+        if query.memory_types == [MemoryType.EVENT]:
+            sql.append(
+                """
+                ORDER BY updated_at DESC, importance DESC
+                LIMIT ?
+                """
+            )
+        else:
+            sql.append(
+                """
+                ORDER BY
+                  CASE WHEN memory_type = 'pinned' THEN 0 ELSE 1 END,
+                  importance DESC,
+                  updated_at DESC
+                LIMIT ?
+                """
+            )
         params.append(query.limit)
 
         with db_cursor() as cursor:

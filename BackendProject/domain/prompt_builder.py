@@ -19,7 +19,7 @@ def _timeline_lines(days: list[object]) -> str:
     for day in days:
         date = getattr(day, "date", "") or "未知日期"
         summary = getattr(day, "summary", "")
-        lines.append(f"- {date}：{summary}")
+        lines.append(f"- {date} 这一天：{summary}")
     return "\n".join(lines)
 
 
@@ -79,6 +79,7 @@ class PromptBuilder:
 {_memory_lines(followups if isinstance(followups, list) else [])}
 
 [按天整理的对话时间线]
+以下内容只代表对应日期发生过的事，不代表当前今天仍然成立；看到旧记录里的“今天/昨天/明天”时，也要按该记录日期理解。
 {_timeline_lines(timeline_days if isinstance(timeline_days, list) else [])}
 
 [跟进力度]
@@ -91,6 +92,7 @@ class PromptBuilder:
 {session_summary_text}
 
 使用这些记忆时要自然，不要逐条背诵；如果当前输入和旧记忆冲突，以用户当前表达为准。
+涉及上班、加班、休息、请假等日程时，要结合[当前实时信息]和记忆里的具体日期判断，不能把过去某一天的“不上班/加班”当成今天的状态。
 如果存在待跟进事项，可以在合适的时候自然追问一句，但不要连续盘问，也不要显得像任务清单。
 当跟进力度是“重点跟进”时，可以更明确地关心结果；当跟进力度是“轻轻提一句”时，只要顺手带一句即可。"""
 

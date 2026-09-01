@@ -17,21 +17,14 @@ COPY . .
 # 构建项目
 RUN npm run build
 
-# 生产阶段 - 使用 Nginx
+# 运行阶段
+# 这里保留源码并运行 Vite dev server，是因为 dycast 依赖 Vite 的 /dylive 和 /socket 代理。
 FROM node:23-alpine
 
-# 设置工作目录
 WORKDIR /app
 
-# 从构建阶段复制 package.json 和 node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app ./
 
-# 复制构建产物
-COPY --from=builder /app/dist ./dist
-
-# 暴露端口
 EXPOSE 5173
 
-# 启动 Nginx
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

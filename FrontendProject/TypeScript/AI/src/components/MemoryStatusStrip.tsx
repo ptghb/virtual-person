@@ -55,6 +55,10 @@ export const MemoryStatusStrip: React.FC<MemoryStatusStripProps> = ({
   return (
     <div className="memory-status-strip memory-status-strip--relationship-only">
       <Tooltip
+        placement="bottom"
+        autoAdjustOverflow
+        getPopupContainer={() => document.body}
+        styles={{ root: { zIndex: 100000 } }}
         title={
           relationship
             ? getRelationshipStageDescription(stage)

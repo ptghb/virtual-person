@@ -63,14 +63,26 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
           {statusStrip}
         </div>
         <div className="conversation-panel__tools">
-          <Tooltip title="停止当前语音">
+          <Tooltip
+            title="停止当前语音"
+            placement="bottom"
+            autoAdjustOverflow
+            getPopupContainer={() => document.body}
+            styles={{ root: { zIndex: 100000 } }}
+          >
             <Button
               type="text"
               icon={<StopOutlined />}
               onClick={() => avatarService.stopAudio()}
             />
           </Tooltip>
-          <Tooltip title="清空本地消息">
+          <Tooltip
+            title="清空本地消息"
+            placement="bottom"
+            autoAdjustOverflow
+            getPopupContainer={() => document.body}
+            styles={{ root: { zIndex: 100000 } }}
+          >
             <Button type="text" icon={<ClearOutlined />} onClick={onClear} />
           </Tooltip>
           <label className="audio-switch">

@@ -2,21 +2,120 @@
 from __future__ import annotations
 
 import json
+import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from services.llm_service import llm_service
 from schemas.memory import ExtractedMemoryBatch, MemoryCreateInput, MemoryType
 
 
 class MemoryExtractor:
+    def _local_now(self) -> datetime:
+        tz_name = os.getenv("APP_TIMEZONE") or os.getenv("TZ") or "Asia/Shanghai"
+        try:
+            return datetime.now(ZoneInfo(tz_name))
+        except Exception:
+            return datetime.now(ZoneInfo("Asia/Shanghai"))
+
     def _build_ttl_at(self, days: int | None) -> str | None:
         if not days or days <= 0:
             return None
         return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
 
+    def _end_of_local_day_utc(self, local_day, extra_days: int = 0) -> str:
+        local_dt = datetime.combine(
+            local_day + timedelta(days=extra_days),
+            time(hour=23, minute=59, second=59),
+            tzinfo=self._local_now().tzinfo,
+        )
+        return local_dt.astimezone(timezone.utc).isoformat()
+
     def _build_trigger_excerpt(self, user_message: str) -> str:
         return user_message.strip().replace("\n", " ")[:36]
+
+    def _relative_dates(self) -> dict[str, str]:
+        today = self._local_now().date()
+        return {
+            "昨天": (today - timedelta(days=1)).isoformat(),
+            "今天": today.isoformat(),
+            "明天": (today + timedelta(days=1)).isoformat(),
+        }
+
+    def _normalize_relative_date_text(self, text: str) -> str:
+        normalized = text
+        for word, date_text in self._relative_dates().items():
+            normalized = normalized.replace(word, f"{date_text}这天")
+        return normalized
+
+    def _infer_occurred_date(self, text: str) -> str | None:
+        date_match = re.search(r"20\d{2}[-/年]\d{1,2}[-/月]\d{1,2}", text)
+        if date_match:
+            date_text = date_match.group(0).replace("年", "-").replace("月", "-").replace("/", "-").replace("日", "")
+            parts = [part for part in date_text.split("-") if part]
+            if len(parts) == 3:
+                return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        for word, date_text in self._relative_dates().items():
+            if word in text:
+                return date_text
+        return None
+
+    def _is_transient_schedule_text(self, text: str) -> bool:
+        has_schedule_word = re.search(r"(上班|加班|休息|请假|放假|调休|下班|上学|上课)", text)
+        has_time_scope = re.search(r"(今天|昨天|明天|周末|这周|本周|今晚|早上|中午|下午|晚上|20\d{2}[-/年]\d{1,2}[-/月]\d{1,2})", text)
+        return bool(has_schedule_word and has_time_scope)
+
+    def _is_ai_speculation(self, content: str) -> bool:
+        return bool(re.search(r"(可能|大概|也许|应该是|是不是|该不会|猜)", content))
+
+    def _prepare_memory_item(self, item: MemoryCreateInput, *, source_user_message: str) -> MemoryCreateInput | None:
+        combined_text = f"{item.title or ''} {item.content}"
+
+        # 临时日程/当天状态不应作为稳定 fact 长期保存，避免“昨天不上班”
+        # 变成模型理解里的“今天不上班”。
+        if item.memory_type == MemoryType.FACT and self._is_transient_schedule_text(combined_text):
+            return None
+
+        # facts/events 必须来自用户明确表达；如果内容本身带有猜测语气，丢弃。
+        if item.memory_type in {MemoryType.FACT, MemoryType.EVENT} and self._is_ai_speculation(item.content):
+            return None
+
+        # 摘要也不要把 AI 未经确认的“今天不上班/不加班”等推断继续带进下一轮。
+        if (
+            item.memory_type == MemoryType.SUMMARY
+            and re.search(r"(不用上班|不上班|不加班)", item.content)
+            and not re.search(r"(不用上班|不上班|不加班)", source_user_message)
+        ):
+            return None
+
+        occurred_date = self._infer_occurred_date(combined_text)
+        if item.memory_type in {MemoryType.EVENT, MemoryType.FOLLOWUP, MemoryType.SUMMARY}:
+            item.content = self._normalize_relative_date_text(item.content)
+            if item.title:
+                item.title = self._normalize_relative_date_text(item.title)
+
+        if item.memory_type == MemoryType.EVENT:
+            normalized_json = dict(item.normalized_json or {})
+            if occurred_date:
+                normalized_json["occurred_date"] = occurred_date
+                normalized_json["time_scope"] = "day"
+                normalized_json["is_relative_time_normalized"] = True
+                item.normalized_json = normalized_json
+            if self._is_transient_schedule_text(combined_text):
+                try:
+                    day = datetime.fromisoformat(occurred_date).date() if occurred_date else self._local_now().date()
+                except ValueError:
+                    day = self._local_now().date()
+                # 日程状态只在该日后一两天内有主动检索价值，之后留在 timeline 即可。
+                item.ttl_at = item.ttl_at or self._end_of_local_day_utc(day, extra_days=1)
+
+        if item.memory_type == MemoryType.FOLLOWUP:
+            normalized_json = dict(item.normalized_json or {})
+            normalized_json.setdefault("trigger_excerpt", self._build_trigger_excerpt(source_user_message))
+            item.normalized_json = normalized_json
+
+        return item
 
     def _infer_relationship_stage(self, text: str) -> str:
         if re.search(r"(难过|委屈|压力大|焦虑|紧张|累|崩溃|烦)", text):
@@ -60,13 +159,24 @@ class MemoryExtractor:
         user_message: str,
         ai_message: str,
     ) -> ExtractedMemoryBatch | None:
+        now = self._local_now()
+        weekday = "一二三四五六日"[now.weekday()]
         prompt = f"""请从下面这一轮对话中提取适合长期保存的记忆，只输出 JSON。
+
+当前日期：{now.year}年{now.month}月{now.day}日，星期{weekday}；时区：{now.tzinfo}。
 
 要求：
 1. 提取稳定事实、偏好、称呼边界、重要事件、待跟进事项、关系状态和本轮摘要。
 2. 不要提取纯临时情绪或明显无价值的碎片信息。
-3. 若没有合适内容，相应数组返回空数组。
-4. 输出格式固定为:
+3. facts 和 events 只能来自“用户消息”中明确表达的信息；AI 回复里的猜测、调侃、安慰、建议，未经用户确认，不能保存为用户事实或事件。
+4. “今天/昨天/明天/周末/这周”等相对时间必须按当前日期换算成明确日期，不要在 facts/events/followups/summary 的 content 中保留这些相对时间词。例如：
+   - 今天不上班 -> 用户在 {now.date().isoformat()} 不上班
+   - 昨天不上班 -> 用户在 {(now.date() - timedelta(days=1)).isoformat()} 不上班
+   - 明天加班 -> 用户在 {(now.date() + timedelta(days=1)).isoformat()} 加班
+5. “某一天上班/不上班/加班/休息/请假”属于短期 event，不属于长期 fact；只有“用户通常周末不上班”这类长期规律才能保存为 fact。
+6. summary 可以概括 AI 如何回应，但不能把 AI 未经用户确认的推断写成用户状态；例如用户只说“今天加班”，不要总结成“用户原本今天不上班却临时加班”。
+7. 若没有合适内容，相应数组返回空数组。
+8. 输出格式固定为:
 {{
   "facts": [
     {{
@@ -169,11 +279,29 @@ AI 回复：{ai_message}
                 else None
             )
             return ExtractedMemoryBatch(
-                facts=facts,
-                events=events,
-                followups=followups,
+                facts=[
+                    item for item in (
+                        self._prepare_memory_item(fact, source_user_message=user_message)
+                        for fact in facts
+                    ) if item
+                ],
+                events=[
+                    item for item in (
+                        self._prepare_memory_item(event, source_user_message=user_message)
+                        for event in events
+                    ) if item
+                ],
+                followups=[
+                    item for item in (
+                        self._prepare_memory_item(followup, source_user_message=user_message)
+                        for followup in followups
+                    ) if item
+                ],
                 relationship=relationship,
-                summary=summary,
+                summary=(
+                    self._prepare_memory_item(summary, source_user_message=user_message)
+                    if summary else None
+                ),
             )
         except Exception as error:
             print(f"[MemoryExtractor] LLM 抽取失败，回退规则抽取: {error}")
@@ -350,12 +478,7 @@ AI 回复：{ai_message}
             )
 
         summary_text = f"本轮对话中，用户说“{content[:60]}”，AI 回复了相应内容。"
-        return ExtractedMemoryBatch(
-            facts=facts,
-            events=events,
-            followups=followups,
-            relationship=relationship,
-            summary=MemoryCreateInput(
+        summary = MemoryCreateInput(
                 user_id=user_id,
                 companion_id=companion_id,
                 session_id=session_id,
@@ -364,7 +487,28 @@ AI 回复：{ai_message}
                 importance=2,
                 confidence=0.7,
                 source_type="system",
-            ),
+        )
+        return ExtractedMemoryBatch(
+            facts=[
+                item for item in (
+                    self._prepare_memory_item(fact, source_user_message=user_message)
+                    for fact in facts
+                ) if item
+            ],
+            events=[
+                item for item in (
+                    self._prepare_memory_item(event, source_user_message=user_message)
+                    for event in events
+                ) if item
+            ],
+            followups=[
+                item for item in (
+                    self._prepare_memory_item(followup, source_user_message=user_message)
+                    for followup in followups
+                ) if item
+            ],
+            relationship=relationship,
+            summary=self._prepare_memory_item(summary, source_user_message=user_message),
         )
 
 

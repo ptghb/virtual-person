@@ -7,6 +7,28 @@
 
 ## [未发布]
 
+### 2026-09-01 Docker 部署与本地反向代理修复
+
+#### 优化
+- **Tooltip 层级**：关系状态、停止当前语音、清空本地消息的 Tooltip 统一挂载到 `document.body`，向下展示并提升层级，避免被对话面板裁切。
+- **dycast 子路径部署**：为抖音弹幕姬增加 `/dycast/` 子路径访问支持，Vite `base` 调整为 `/dycast/`，资源路径不再落到主前端。
+- **dycast 容器运行方式**：dycast 镜像运行阶段保留源码并使用 Vite dev server，以继续支持 `/dylive` 和 `/socket` 开发代理能力。
+- **Nginx 代理**：新增 `/dycast/`、`/dylive/`、`/socket/` 反向代理规则，统一从 `http://localhost/dycast/` 访问弹幕姬。
+- **Docker 构建**：在 Docker Hub 拉取 `python:3.13-slim` 超时时，可使用镜像源拉取后打 tag 继续完成后端镜像重建。
+
+#### 修复
+- **直播控制台刷新**：修复刷新 `/live/console` 时 `./Core/live2dcubismcore.js` 被解析为 `/live/Core/live2dcubismcore.js` 导致 404 的问题；入口 HTML 改用 `/Core/live2dcubismcore.js` 绝对路径。
+- **历史 Core 路径兼容**：Nginx 新增 `/live/Core/` 到前端 `/Core/` 的兼容代理，避免旧缓存或历史构建继续请求 404。
+- **dycast 打不开**：修复 `http://localhost/dycast/` 被主前端接管或 dycast 容器缺少源码导致页面不可用的问题。
+- **抖音直播信息代理 502**：修复 `/dylive/...` 经 Nginx 代理时因上游响应头过大导致 `upstream sent too big header` 的 502，增加代理响应头缓冲区。
+
+#### 验证
+- **前端访问**：`http://localhost/` 返回 HTTP 200。
+- **后端访问**：`http://localhost:8000/` 与 `http://localhost/api/memories?...` 返回 HTTP 200。
+- **直播控制台资源**：`/live/console`、`/Core/live2dcubismcore.js`、`/live/Core/live2dcubismcore.js` 均返回 HTTP 200。
+- **dycast 访问**：`http://localhost/dycast/` 与 `http://localhost/dycast/src/main.ts` 返回 HTTP 200。
+- **dylive 代理**：`http://localhost/dylive/893753183282` 不再返回 502。
+
 ### 2026-08-31 实时信息 MCP 与记忆时间线
 
 #### 新增

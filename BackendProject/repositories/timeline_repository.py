@@ -42,7 +42,18 @@ class TimelineRepository:
                 "followup" if memory.memory_type == MemoryType.FOLLOWUP else "neutral"
             )
         )
-        occurred = occurred_at or str(normalized.get("occurred_at") or memory.created_at or now)
+        normalized_occurred_date = normalized.get("occurred_date")
+        normalized_occurred_at = (
+            f"{normalized_occurred_date}T12:00:00+00:00"
+            if normalized_occurred_date
+            else None
+        )
+        occurred = occurred_at or str(
+            normalized.get("occurred_at")
+            or normalized_occurred_at
+            or memory.created_at
+            or now
+        )
 
         with db_cursor(commit=True) as cursor:
             cursor.execute(
