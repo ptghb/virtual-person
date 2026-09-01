@@ -794,6 +794,7 @@ docker compose up -d --no-build --force-recreate backend nginx
 - 🎬 抖音直播互动：集成 dycast 实现抖音直播间评论自动回复
 - 💬 实时弹幕捕获：支持捕获抖音直播间评论并推送到数字人
 - 🤖 AI智能回复：数字人自动分析评论并生成语音回复
+- 🎙️ ASR 独立配置：语音识别使用 `ASR_BASE_URL` / `ASR_MODEL`，不再和对话生成共用 `OPENAI_BASE_URL`
 
 ## 贡献指南
 

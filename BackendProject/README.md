@@ -58,8 +58,15 @@ OPENAI_API_KEY=your_openai_api_key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-3.5-turbo
 
-# SiliconFlow 语音识别API配置
+# ASR 语音识别配置（独立于 OPENAI_BASE_URL）
+ASR_API_KEY=your_asr_api_key
+ASR_BASE_URL=https://api.siliconflow.cn/v1
+ASR_MODEL=XingChenAGI/XingChenASR-V3.2
+
+# 兼容旧配置：未配置 ASR_* 时会回退到 SILICONFLOW_*
 SILICONFLOW_API_KEY=your_siliconflow_api_key
+SILICONFLOW_ASR_BASE_URL=https://api.siliconflow.cn/v1
+SILICONFLOW_ASR_MODEL=XingChenAGI/XingChenASR-V3.2
 
 # 智谱AI GLM-4V API配置
 ZHIPUAI_API_KEY=your_actual_zhipuai_api_key_here
@@ -281,7 +288,7 @@ python main.py
 2. **音频处理异常**: 确认音频格式正确（PCM/WAV，16000Hz，单声道）
 3. **AI回复失败**: 检查OpenAI API密钥和网络连接
 4. **TTS失败**: 确认TTS服务地址正确
-5. **语音识别失败**: 检查SILICONFLOW_API_KEY是否正确配置
+5. **语音识别失败**: 检查 `ASR_API_KEY` / `ASR_BASE_URL` / `ASR_MODEL` 是否正确配置；旧版 `SILICONFLOW_*` 变量仍兼容
 6. **音频文件未保存**: 检查目录权限和磁盘空间
 7. **图片处理失败**: 检查ZHIPUAI_API_KEY是否正确配置
 8. **图片格式不支持**: 确认图片格式为JPEG/PNG/GIF/WEBP
