@@ -7,6 +7,53 @@
 
 ## [未发布]
 
+### 2026-09-02 抖音直播控制台与实时事件修复
+
+#### 优化
+- **直播模式布局**：抖音直播模式左侧虚拟人区域与右侧直播互动区域调整为 `1:3` 宽度比例，提升实时事件和策略面板可读性。
+- **Toast 层级**：提高 Ant Design Message/Toast 层级，避免点击“连接直播间”后的成功、警告或错误提示被 Live2D 舞台和面板遮挡。
+- **采集状态提示**：直播控制台新增采集传输方式提示，后端降级为 HTTP 轮询时显示 `HTTP轮询` 标识，并在空事件列表展示采集提示。
+- **Python 后端采集**：确认抖音直播采集已从 dycast 独立服务重构为 Python 后端内置采集，Docker Compose 不再包含 `dycast` 服务，Nginx 不再配置 `/dycast/`、`/dylive/`、`/socket/`。
+- **README 文档**：按实际代码口径补充内置直播控制台、OBS 舞台、Python 采集接口、WebSocket 降级和实时事件排障说明；移除 dycast 作为运行服务的说明。
+
+#### 修复
+- **抖音 WebSocket HTTP 200**：修复抖音上游返回 `server rejected WebSocket connection: HTTP 200` 后采集直接失败的问题；后端会自动切换到 `HTTP 轮询` 继续拉取事件。
+- **实时事件不显示**：修复直播事件先进入 AI/TTS 自动回复流程导致接口被阻塞、控制台“实时事件”迟迟不刷新的问题；现在事件会先广播到控制台，再后台处理自动回复。
+- **后端采集 Cookie**：抖音 WebSocket 握手时补充从直播间 HTTP 请求获得的 Cookie 和 Referer，提高上游连接成功率。
+- **HTTP 轮询解码**：`im/fetch` 解码结果新增消息解析，HTTP 轮询模式下也能产出 WebcastChatMessage、WebcastMemberMessage、WebcastSocialMessage、WebcastLikeMessage 等事件。
+- **错误文档更正**：撤销“补回 dycast Compose/Nginx 接入”的错误方向，恢复为 Python 后端采集架构。
+
+#### 验证
+- **构建部署**：已重新构建并启动 `backend`、`frontend`，重启 `nginx`。
+- **页面访问**：`http://localhost/live/console` 返回 HTTP 200。
+- **事件入口**：`POST /api/livestream/events` 返回 HTTP 200。
+- **WebSocket 广播**：测试客户端连接 `ws://localhost/ws/livestream_console_verify` 后，可收到 `livestream.event_batch` 事件。
+- **运行配置**：检查 `docker-compose.yml` 和 `nginx/nginx.conf`，当前运行配置无 dycast 服务和 `/dycast/`、`/dylive/`、`/socket/` 路由。
+
+### 2026-09-01 Docker 部署与本地反向代理修复
+
+> 注：本节中的 dycast 相关内容为重构前的历史排障记录；当前运行架构已在 2026-09-02 改为 Python 后端直接采集，不再启动 dycast 服务。
+
+#### 优化
+- **Tooltip 层级**：关系状态、停止当前语音、清空本地消息的 Tooltip 统一挂载到 `document.body`，向下展示并提升层级，避免被对话面板裁切。
+- **dycast 子路径部署**：为抖音弹幕姬增加 `/dycast/` 子路径访问支持，Vite `base` 调整为 `/dycast/`，资源路径不再落到主前端。
+- **dycast 容器运行方式**：dycast 镜像运行阶段保留源码并使用 Vite dev server，以继续支持 `/dylive` 和 `/socket` 开发代理能力。
+- **Nginx 代理**：新增 `/dycast/`、`/dylive/`、`/socket/` 反向代理规则，统一从 `http://localhost/dycast/` 访问弹幕姬。
+- **Docker 构建**：在 Docker Hub 拉取 `python:3.13-slim` 超时时，可使用镜像源拉取后打 tag 继续完成后端镜像重建。
+
+#### 修复
+- **直播控制台刷新**：修复刷新 `/live/console` 时 `./Core/live2dcubismcore.js` 被解析为 `/live/Core/live2dcubismcore.js` 导致 404 的问题；入口 HTML 改用 `/Core/live2dcubismcore.js` 绝对路径。
+- **历史 Core 路径兼容**：Nginx 新增 `/live/Core/` 到前端 `/Core/` 的兼容代理，避免旧缓存或历史构建继续请求 404。
+- **dycast 打不开**：修复 `http://localhost/dycast/` 被主前端接管或 dycast 容器缺少源码导致页面不可用的问题。
+- **抖音直播信息代理 502**：修复 `/dylive/...` 经 Nginx 代理时因上游响应头过大导致 `upstream sent too big header` 的 502，增加代理响应头缓冲区。
+
+#### 验证
+- **前端访问**：`http://localhost/` 返回 HTTP 200。
+- **后端访问**：`http://localhost:8000/` 与 `http://localhost/api/memories?...` 返回 HTTP 200。
+- **直播控制台资源**：`/live/console`、`/Core/live2dcubismcore.js`、`/live/Core/live2dcubismcore.js` 均返回 HTTP 200。
+- **dycast 访问**：`http://localhost/dycast/` 与 `http://localhost/dycast/src/main.ts` 返回 HTTP 200。
+- **dylive 代理**：`http://localhost/dylive/893753183282` 不再返回 502。
+
 ### 2026-08-31 实时信息 MCP 与记忆时间线
 
 #### 新增
@@ -18,6 +65,7 @@
 - **时间线 API**：新增 `GET /api/timeline-events` 和 `GET /api/timeline-days`。
 
 #### 优化
+- **ASR 独立配置**：语音识别新增 `ASR_API_KEY`、`ASR_BASE_URL`、`ASR_MODEL`，不再和对话生成模型共用 `OPENAI_BASE_URL`；旧版 `SILICONFLOW_*` 配置保持兼容。
 - **Prompt 记忆上下文**：系统提示词新增“按天整理的对话时间线”，让 AI 伴侣能基于每天的相处脉络回复。
 - **记忆管理布局**：将“当前关系状态”和“置顶记忆”合并为“当前关系状态与置顶记忆”。
 - **记忆管理布局**：将“待跟进事项”和“已完成跟进记录”合并为“待跟进事项与完成记录”。

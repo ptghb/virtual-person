@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import uvicorn
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import os
 import json
 import re
@@ -32,11 +33,22 @@ from schemas.session import ResolvedIdentity
 from services.llm_service import llm_service
 from services.http_service import http_service
 from services.realtime_context import build_realtime_context
+from services.douyin_live import douyin_live_manager
+from services.douyin_live.signature_browser import browser_signature_provider
 
 # 加载环境变量
 load_dotenv()
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        yield
+    finally:
+        await douyin_live_manager.stop()
+        await browser_signature_provider.close()
+
+
+app = FastAPI(lifespan=lifespan)
 init_db()
 
 DEFAULT_COMPANION_ID = "companion_default"
@@ -59,6 +71,16 @@ class UpdateMemoryRequest(BaseModel):
     content: Optional[str] = None
     importance: Optional[int] = None
     status: Optional[str] = None
+
+
+class LivestreamEventsRequest(BaseModel):
+    comments: List[Dict[str, Any]]
+    source: Optional[str] = "douyin"
+
+
+class DouyinLivestreamStartRequest(BaseModel):
+    room_num: str
+
 
 # 配置 CORS
 app.add_middleware(
@@ -637,6 +659,82 @@ async def stream_tts_segment(segment_id: str):
     )
 
 
+@app.post("/api/livestream/events")
+async def receive_livestream_events(request: LivestreamEventsRequest):
+    """接收直播事件批次。
+
+    这是直播控制台内置弹幕采集的 HTTP 入口，用来替代原 dycast
+    独立页面通过额外 WebSocket 转发弹幕的链路。
+    """
+    comments = request.comments or []
+    if not comments:
+        raise HTTPException(status_code=400, detail="comments 不能为空")
+
+    # 先把事件推给控制台，确保“实时事件”立即显示；AI 自动回复放到后台执行，避免 HTTP 入口被 TTS/LLM 阻塞。
+    await broadcast_livestream_event_batch(comments)
+    asyncio.create_task(handle_comment_message(
+        None,
+        f"livestream_ingest_{request.source or 'douyin'}",
+        {"comments": comments, "skip_event_broadcast": True},
+    ))
+    return {
+        "status": "success",
+        "data": {
+            "source": request.source or "douyin",
+            "received_count": len(comments),
+        },
+    }
+
+
+async def _broadcast_douyin_live_status(status: dict):
+    payload = json.dumps({
+        "type": "livestream.douyin_status",
+        "data": status,
+    })
+    for console_client_id, console_websocket in [
+        (cid, ws)
+        for cid, ws in manager.client_connections.items()
+        if cid.startswith("livestream_console_")
+    ]:
+        try:
+            await console_websocket.send_text(payload)
+        except Exception as e:
+            print(f"[douyin_live_status] 发送给 {console_client_id} 失败: {e}")
+
+
+async def _process_douyin_live_messages(comments: list):
+    await handle_comment_message(
+        None,
+        "livestream_ingest_douyin_backend",
+        {"comments": comments},
+    )
+
+
+@app.post("/api/livestream/douyin/start")
+async def start_douyin_livestream(request: DouyinLivestreamStartRequest):
+    room_num = re.sub(r"\s+", "", request.room_num or "")
+    if not re.match(r"^[0-9]{4,30}$", room_num):
+        raise HTTPException(status_code=400, detail="房间号格式不正确")
+    douyin_live_manager.configure(_process_douyin_live_messages, _broadcast_douyin_live_status)
+    try:
+        status = await douyin_live_manager.start(room_num)
+    except RuntimeError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return {"status": "success", "data": status}
+
+
+@app.post("/api/livestream/douyin/stop")
+async def stop_douyin_livestream():
+    status = await douyin_live_manager.stop()
+    await _broadcast_douyin_live_status(status)
+    return {"status": "success", "data": status}
+
+
+@app.get("/api/livestream/douyin/status")
+async def get_douyin_livestream_status():
+    return {"status": "success", "data": douyin_live_manager.get_status()}
+
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
@@ -948,7 +1046,8 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
         # await websocket.send_text(json.dumps(response))
         return
 
-    await broadcast_livestream_event_batch(comments)
+    if not msg_data.get("skip_event_broadcast"):
+        await broadcast_livestream_event_batch(comments)
 
     if not livestream_settings["auto_reply_enabled"]:
         print("[handle_comment_message] 自动回复已暂停，仅同步事件到控制台")

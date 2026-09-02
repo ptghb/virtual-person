@@ -22,3 +22,4 @@ BackendProject/.env
 
 BackendProject/audio_files
 /BackendProject/data/app.db
+/BackendProject/data/app.db.bak_before_time_memory_fix_20260901

@@ -19,6 +19,19 @@ class HTTPService:
         """初始化HTTP服务"""
         self.tts_api_url = os.getenv("TTS_API_URL", "http://localhost:3000")
         self.audio_url = os.getenv("AUDIO_URL", "http://localhost:3000")
+        # ASR 独立配置，避免和对话生成模型共用 OPENAI_BASE_URL。
+        # 兼容旧配置：未配置 ASR_* 时仍使用 SiliconFlow 默认地址和 SILICONFLOW_* 变量。
+        self.asr_base_url = (
+            os.getenv("ASR_BASE_URL")
+            or os.getenv("SILICONFLOW_ASR_BASE_URL")
+            or "https://api.siliconflow.cn/v1"
+        ).rstrip("/")
+        self.asr_api_key = os.getenv("ASR_API_KEY") or os.getenv("SILICONFLOW_API_KEY")
+        self.asr_model = (
+            os.getenv("ASR_MODEL")
+            or os.getenv("SILICONFLOW_ASR_MODEL")
+            or "XingChenAGI/XingChenASR-V3.2"
+        )
 
     async def post(
         self,
@@ -158,14 +171,13 @@ class HTTPService:
         Returns:
             识别结果文本，失败返回None
         """
-        api_key = os.getenv("SILICONFLOW_API_KEY")
-        if not api_key:
-            print("[HTTPService] 未找到SILICONFLOW_API_KEY环境变量")
+        if not self.asr_api_key:
+            print("[HTTPService] 未找到 ASR_API_KEY 或 SILICONFLOW_API_KEY 环境变量")
             return None
 
-        url = "https://api.siliconflow.cn/v1/audio/transcriptions"
+        url = f"{self.asr_base_url}/audio/transcriptions"
         headers = {
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {self.asr_api_key}"
         }
 
         try:
@@ -179,7 +191,7 @@ class HTTPService:
                     ),
                     "model": (
                         None,
-                        os.getenv("SILICONFLOW_ASR_MODEL", "XingChenAGI/XingChenASR-V3.2"),
+                        self.asr_model,
                     )
                 }
 

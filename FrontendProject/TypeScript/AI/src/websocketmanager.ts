@@ -251,6 +251,15 @@ export class WebSocketManager {
             return;
           }
 
+          if (parsedData.type === 'livestream.douyin_status') {
+            window.dispatchEvent(
+              new CustomEvent('livestream-douyin-status', {
+                detail: parsedData.data
+              })
+            );
+            return;
+          }
+
           if (
             parsedData.type === 'speech.transcription' &&
             typeof parsedData.data?.content === 'string'

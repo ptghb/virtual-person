@@ -26,14 +26,6 @@ export const BACKEND_CONFIG = {
   TTS_ENDPOINT: '/api/v1/tts/generate'
 } as const;
 
-export const APP_CONFIG = {
-  // 开发环境下主前端可能因 8080 被占用而运行在 8081 等备用端口，
-  // 不能通过页面端口判断 dycast 地址，否则会误打开主前端的 /dycast/ 路由。
-  DYCAST_URL: isLocalFrontend
-    ? `${httpProtocol}//${pageHostname}:5173/`
-    : '/dycast/'
-} as const;
-
 // 图片配置
 export const IMAGE_CONFIG = {
   // 支持的图片格式
@@ -68,4 +60,3 @@ export const getBackendApiUrl = (path: string): string => {
   return `${BACKEND_CONFIG.API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
-export const getDycastUrl = (): string => APP_CONFIG.DYCAST_URL;
