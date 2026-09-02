@@ -74,6 +74,16 @@ textarea {
   z-index: 10002 !important;
 }
 
+/* Toast/Message 挂载后也要高于 Live2D 舞台、面板和弹窗层，避免连接直播间提示被盖住。 */
+.ant-message {
+  z-index: 10050 !important;
+}
+
+.ant-message-notice-wrapper {
+  position: relative;
+  z-index: 10051 !important;
+}
+
 .glass-panel {
   border: 1px solid var(--border);
   background: var(--panel);
@@ -304,6 +314,10 @@ textarea {
   grid-template-columns: minmax(420px, 1.08fr) minmax(440px, 0.92fr);
   gap: 18px;
   padding-top: 18px;
+}
+
+.app-shell--douyin-live .mode-layout {
+  grid-template-columns: minmax(240px, 1fr) minmax(0, 3fr);
 }
 
 .avatar-column,
