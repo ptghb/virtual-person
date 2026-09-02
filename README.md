@@ -68,12 +68,14 @@
 - **容器化部署**：Docker + Docker Compose
 - **其他库**：httpx 0.25.0+, aiofiles 23.0.0+, Pillow 10.0.0+, emoji 2.15.0+, zhipuai 2.0.0+, numpy 1.24.0+
 
-### 抖音弹幕姬技术栈
+### 抖音直播采集技术栈
 
-- **框架**：Vue 3 + TypeScript + Vite
-- **功能**：抖音直播间弹幕实时获取和转发
-- **通信协议**：WebSocket
-- **容器化部署**：Docker + Docker Compose
+- **采集实现**：Python 后端内置抖音直播采集，不再依赖 dycast 独立前端/容器
+- **房间解析**：`services/douyin_live/room.py` 通过抖音直播页解析 room_id、unique_id 和直播状态
+- **签名生成**：`services/douyin_live/signature_browser.py` 使用 Playwright/Chromium 调用本地签名脚本生成 X-Bogus
+- **消息解码**：`services/douyin_live/js_runtime/decode.js` 复用本地 JS 解码运行时解析 protobuf/gzip 消息
+- **采集通道**：优先 WebSocket 连接抖音上游，失败时自动降级为 HTTP 轮询
+- **事件分发**：后端通过本项目 `/ws/livestream_console_*` 和 `/ws/livestream_user_*` 推送事件与数字人回复
 
 ## 项目结构
 
@@ -149,7 +151,7 @@ CubismWebSamples/
 │           └── copy_resources.js          # 资源复制脚本
 ├── Core/                        # Live2D Cubism Core（Git子模块）
 ├── Framework/                   # Live2D Framework（Git子模块）
-├── dycast/                      # 抖音弹幕姬（Git子模块）
+├── dycast/                      # 历史参考目录；当前运行时已改为 Python 后端采集，不参与 Compose 部署
 ├── .gitignore                   # Git忽略文件配置
 ├── .gitmodules                  # Git子模块配置
 ├── CHANGELOG.md                 # 项目更新日志
@@ -237,16 +239,21 @@ CubismWebSamples/
 
 ### 7. 抖音直播互动
 
-- **弹幕捕获**：集成 [dycast](https://github.com/skmcj/dycast) 项目，实时捕获抖音直播间弹幕
-- **评论推送**：通过 WebSocket 接收抖音直播间评论消息（WebcastChatMessage 类型）
-- **AI自动回复**：数字人自动分析评论内容并生成智能回复
-- **TTS语音合成**：将AI回复转换为语音，通过 Live2D 模型口型同步播放
-- **实时互动**：支持批量处理多条评论，逐条生成回复和语音
-- **直播页面**：提供纯净的直播页面，仅显示 Live2D 模型和消息泡泡
-- **消息过滤**：自动过滤 WebcastChatMessage 类型的消息作为实际评论内容
-- **客户端标识**：使用 `livestream_user_` 前缀的 client_id 进行 WebSocket 连接
-- **Docker部署**：支持通过 Docker Compose 一键部署抖音弹幕姬服务
-- **统一访问与代理**：本地通过 `http://localhost/dycast/` 访问；`/dylive/` 和 `/socket/` 由 Nginx 转发到 dycast 的 Vite 代理
+- **内置直播控制台**：访问 `http://localhost/live/console`，在页面内输入抖音直播间房间号并点击“连接直播间”，后端会直接采集直播事件。
+- **布局比例**：抖音直播模式下，左侧虚拟人区域与右侧直播互动区域按 `1:3` 宽度展示，便于查看实时事件和自动回复策略。
+- **弹幕捕获**：后端 Python 服务直接采集抖音直播间弹幕，当前运行链路不再启动 dycast 独立页面或容器。
+- **事件同步**：实时事件会先推送到控制台列表，再后台处理 AI/TTS，避免自动回复耗时导致“实时事件”不显示。
+- **评论推送**：通过 WebSocket 向控制台和直播舞台推送直播事件批次（`livestream.event_batch`）。
+- **采集降级**：如果抖音上游拒绝 WebSocket 握手并返回 `HTTP 200`，后端会自动切换到 `HTTP 轮询` 方式继续拉取事件。
+- **AI自动回复**：数字人自动分析评论内容并生成智能回复。
+- **TTS语音合成**：将 AI 回复转换为语音，通过 Live2D 模型口型同步播放。
+- **实时互动**：支持批量处理多条评论，逐条生成回复和语音。
+- **直播页面**：提供纯净的 OBS 舞台页面，仅显示 Live2D 模型和消息泡泡。
+- **消息过滤**：自动过滤 WebcastChatMessage 类型的消息作为实际评论内容。
+- **客户端标识**：控制台使用 `livestream_console_` 前缀，OBS 舞台/直播输出使用 `livestream_user_` 前缀。
+- **提示层级**：直播控制台 Toast/Message 层级已提升，连接直播间、启动失败等提示不会被 Live2D 舞台或面板遮挡。
+- **Docker部署**：支持通过 Docker Compose 一键部署前端、后端、Nginx 和 TTS；抖音采集能力包含在后端容器中。
+- **统一访问与代理**：前端统一从 `http://localhost/live/console` 操作直播采集；Nginx 只需要代理本项目 `/api/` 和 `/ws/`。
 
 ## 快速开始
 
@@ -254,7 +261,7 @@ CubismWebSamples/
 
 - **Node.js**: 20.19.5+ / 22.20.0+ / 24.10.0+
 - **Python**: 3.8+
-- **Docker**: 用于运行EasyVoice TTS服务和抖音弹幕姬服务（可选，如需语音功能则必须）
+- **Docker**: 用于运行前端、后端、Nginx 和 EasyVoice TTS 服务（如需语音功能则必须）
 - **浏览器**: 支持WebGL的现代浏览器（推荐Chrome、Edge、Firefox最新版）
 - **摄像头**: 如需使用手势控制功能
 
@@ -282,10 +289,11 @@ docker compose logs -f
 服务启动后访问：
 - 前端服务：http://localhost（或 http://localhost:80）
 - 多模态聊天：http://localhost/advanced
+- 抖音直播控制台：http://localhost/live/console
+- OBS 直播舞台：http://localhost/live/stage
 - 后端服务：http://localhost:8000
 - TTS服务：http://localhost:3000
-- 抖音弹幕姬：http://localhost/dycast/
-- dycast 转发地址：`ws://localhost/socket/webcast/im/push/v2/`
+- 抖音直播控制台通过后端 Python 直接采集，无需 dycast 地址或转发地址
 
 > 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
 >
@@ -299,7 +307,7 @@ docker compose logs -f
 >
 > 直播控制台刷新时，Live2D Core 固定从 `/Core/live2dcubismcore.js` 加载；Nginx 也兼容 `/live/Core/*` 历史路径。
 >
-> dycast 依赖 Vite 的 `/dylive` 和 `/socket` 代理，因此 Docker 镜像运行阶段会保留源码并运行 Vite dev server，而不是只提供静态 `dist`。
+> 抖音直播采集已重构到 Python 后端，Docker Compose 不再启动 dycast，也不再需要 `/dycast/`、`/dylive/`、`/socket/` 代理。
 
 ### 后端部署
 
@@ -394,26 +402,19 @@ docker ps
 
 > ⚠️ 注意：TTS服务端口3000不能被占用，audio目录需要有写入权限。
 
-### 启动抖音弹幕姬服务（可选，如需抖音直播互动功能）
+### 启动抖音直播采集（Python 后端）
 
-如果使用 Docker Compose 部署，抖音弹幕姬服务会自动启动。访问 http://localhost/dycast/ 即可使用。
-
-如果需要单独部署：
+抖音直播采集已内置在后端服务中，使用 Docker Compose 启动 `backend` 后即可使用，无需单独启动 dycast：
 
 ```bash
-# 进入 dycast 目录
-cd dycast
+# 启动/重建后端、前端和 Nginx
+docker compose up -d --build backend frontend nginx
 
-# 安装依赖
-npm install
-
-# 构建项目
-npm run build
-
-# 使用 Docker 部署
-docker build -t dycast .
-docker run -d -p 5173:5173 --name dycast dycast
+# 查看采集状态
+curl http://localhost/api/livestream/douyin/status
 ```
+
+使用方式：访问 http://localhost/live/console，输入抖音直播间房间号，点击“连接直播间”。
 
 ## 使用说明
 
@@ -478,14 +479,14 @@ docker run -d -p 5173:5173 --name dycast dycast
 
 ### 抖音直播互动（新增）
 
-1. **访问弹幕姬服务**：访问 http://localhost/dycast/ 进入抖音弹幕姬界面
-2. **配置转发地址**：在右侧"转发地址"输入框中输入后端 WebSocket 服务地址（如 `ws://backend:8000/ws/livestream_user_123`）
-3. **连接直播间**：输入抖音直播间房间号，点击"连接"按钮
-4. **启动直播页面**：访问 `/livestream` 路由进入直播页面
-5. **自动接收评论**：系统自动接收抖音直播间的评论消息
-6. **AI智能回复**：数字人自动分析评论并生成回复
-7. **语音播放**：回复内容通过 TTS 转换为语音，Live2D 模型口型同步播放
-8. **消息展示**：回复内容以半透明泡泡形式显示在屏幕下方
+1. **打开直播控制台**：访问 http://localhost/live/console。
+2. **连接直播间**：输入抖音直播间房间号，点击“连接直播间”。
+3. **查看实时事件**：左侧虚拟人区域与右侧直播互动区域按 `1:3` 展示；右侧“实时事件”会立即显示进入、评论、关注、点赞等事件。
+4. **控制自动回复**：可在“自动回复策略”中开关评论、进入、关注、点赞自动互动。
+5. **打开 OBS 舞台**：点击“打开 OBS 舞台”或访问 `/live/stage`，用于直播推流画面。
+6. **AI智能回复**：数字人自动分析评论并生成回复；回复内容可通过 TTS 转换为语音并驱动口型同步。
+7. **采集状态提示**：如果抖音 WebSocket 被上游拒绝，页面会显示采集提示，后端会降级为 HTTP 轮询。
+8. **无需 dycast**：采集链路已重构为 Python 后端直接采集，不需要打开 `/dycast/` 或配置转发地址。
 
 ### WebSocket状态
 
@@ -563,35 +564,38 @@ docker run -d -p 3000:3000 -v "$(pwd)/audio:/app/audio" cosincox/easyvoice:lates
 
 如需修改TTS服务配置，请编辑后端代码中的TTS API调用部分（`services/http_service.py`）。
 
-### 抖音弹幕姬配置
+### 抖音直播采集配置
 
-抖音弹幕姬服务使用Docker容器运行，配置说明：
+当前抖音直播采集由 Python 后端负责，核心文件：
 
-- **镜像**：dycast（本地构建）
-- **端口映射**：5173:5173（通过 Nginx 暴露为 `/dycast/`）
-- **访问地址**：http://localhost/dycast/
-- **dycast 转发地址**：`ws://localhost/socket/webcast/im/push/v2/`
-- **代理路径**：`/dylive/` 用于抖音 HTTP 请求，`/socket/` 用于抖音 WebSocket 请求
-- **功能**：抖音直播间弹幕实时获取和转发
-- **技术栈**：Vue 3 + TypeScript + Vite
+- `BackendProject/services/douyin_live/client.py`：抖音上游 WebSocket 连接、HTTP 轮询降级、心跳与事件回调
+- `BackendProject/services/douyin_live/manager.py`：采集任务生命周期与状态管理
+- `BackendProject/services/douyin_live/room.py`：直播间页面解析与直播状态识别
+- `BackendProject/services/douyin_live/signature_browser.py`：Playwright/Chromium 签名生成
+- `BackendProject/services/douyin_live/js_runtime/decode.js`：protobuf/gzip 消息解码
+- `BackendProject/main.py`：`/api/livestream/douyin/*` 控制接口、`/api/livestream/events` 事件入口、`/ws/*` 广播通道
+
+接口说明：
 
 ```bash
-# 使用 Docker Compose 启动（推荐）
-docker-compose up -d dycast
+# 启动抖音直播采集
+curl -X POST http://localhost/api/livestream/douyin/start \
+  -H 'Content-Type: application/json' \
+  -d '{"room_num":"直播间房间号"}'
 
-# 单独构建和运行
-cd dycast
-docker build -t dycast .
-docker run -d -p 5173:5173 --name dycast dycast
+# 查询采集状态
+curl http://localhost/api/livestream/douyin/status
+
+# 停止采集
+curl -X POST http://localhost/api/livestream/douyin/stop -H 'Content-Type: application/json' -d '{}'
 ```
 
-使用说明：
-1. 访问 http://localhost/dycast/
-2. 输入抖音直播间房间号
-3. 点击"连接"按钮连接直播间
-4. dycast 自身使用的转发地址为 `ws://localhost/socket/webcast/im/push/v2/`，页面会基于当前站点自动拼接
-5. 如需把弹幕转发给本项目后端直播处理，可在转发目标中使用后端 WebSocket 地址（如 `ws://localhost/ws/livestream_user_123`，容器内部可用 `ws://backend:8000/ws/livestream_user_123`）
-6. 点击"转发"按钮建立连接，弹幕将实时转发到后端
+说明：
+
+1. 不需要访问 `/dycast/`，也不需要配置 dycast 转发地址。
+2. 控制台 WebSocket 使用 `/ws/livestream_console_*` 接收 `livestream.event_batch` 和 `livestream.douyin_status`。
+3. OBS 舞台/直播输出使用 `/ws/livestream_user_*` 接收数字人回复。
+4. 如果抖音上游 WebSocket 返回 `HTTP 200` 拒绝握手，后端会自动切换为 `HTTP 轮询`。
 
 ## 开发指南
 
@@ -735,11 +739,14 @@ docker run -d -p 5173:5173 --name dycast dycast
 
 ### 11. 抖音直播互动配置
 
-- **弹幕捕获服务**：需要单独部署 [dycast](https://github.com/skmcj/dycast) 项目
-- **WebSocket连接**：配置 dycast 的转发地址为 `ws://your-backend:8000/ws/livestream_user_{client_id}`
-- **评论处理**：后端会自动处理 WebcastChatMessage 类型的评论消息
-- **TTS依赖**：抖音直播互动功能需要启用 TTS 服务（ISAUDIO=True）
-- **客户端标识**：使用 `livestream_user_` 前缀的 client_id 连接 WebSocket
+- **推荐入口**：使用内置控制台 `http://localhost/live/console`，无需 dycast 或手动配置转发地址。
+- **后端采集**：`POST /api/livestream/douyin/start` 启动抖音直播采集，`GET /api/livestream/douyin/status` 查看状态，`POST /api/livestream/douyin/stop` 停止采集。
+- **事件入口**：`POST /api/livestream/events` 接收直播事件批次；接口会先广播事件到控制台，再后台执行 AI 自动回复。
+- **采集降级**：抖音 WebSocket 握手失败并返回 `HTTP 200` 时，后端会自动切换到 `HTTP 轮询`，状态中会显示 `transport: http-polling`。
+- **评论处理**：后端会自动处理 WebcastChatMessage 类型的评论消息，也可按策略处理进入、关注、点赞事件。
+- **TTS依赖**：如需直播回复语音，需启用 TTS 服务（`ISAUDIO=True`）。
+- **客户端标识**：控制台使用 `livestream_console_` 前缀，直播舞台/输出端使用 `livestream_user_` 前缀。
+- **dycast 状态**：当前运行时已去掉 dycast 独立服务；如果仓库中仍有 `dycast/` 目录，仅作为历史参考，不参与 Docker Compose 部署。
 
 ### 12. 隐私与设置页面的记忆接口返回 404
 
@@ -759,19 +766,25 @@ docker compose up -d --no-build --force-recreate backend nginx
 - Nginx 已提供 `/live/Core/` 到 `/Core/` 的兼容代理；如仍 404，请重启 Nginx 并清理浏览器缓存。
 - 验证：`curl -I http://localhost/Core/live2dcubismcore.js` 应返回 `200` 且 Content-Type 为 JavaScript。
 
-### 14. `http://localhost/dycast/` 打不开或加载到主前端
+### 14. 访问 `/dycast/` 或 `/dylive/...` 不可用
 
-- 确认 Nginx 中存在 `/dycast/` 代理，并且该规则位于 `location /` 之前。
-- 确认 dycast 的 `vite.config.ts` 设置了 `base: '/dycast/'`。
-- 确认 dycast 容器运行正常：`docker compose ps dycast`。
-- 验证：`curl -I http://localhost/dycast/` 应返回 `200`。
+- 当前版本已去掉 dycast 独立服务，抖音直播采集重构为 Python 后端直接采集。
+- Docker Compose 不应包含 `dycast` 服务，Nginx 也不需要 `/dycast/`、`/dylive/`、`/socket/` 代理。
+- 正确入口是 `http://localhost/live/console`。
+- 如仍看到 `cubism_dycast` 容器，说明是历史遗留容器，可执行：`docker rm -f cubism_dycast`。
 
-### 15. `/dylive/...` 返回 502 Bad Gateway
+### 16. 抖音直播连接报 `server rejected WebSocket connection: HTTP 200`
 
-- 查看 Nginx 日志：`docker compose logs nginx`。
-- 如果出现 `upstream sent too big header while reading response header from upstream`，说明抖音上游返回的响应头过大。
-- Nginx 的 `/dylive/` 代理需配置较大的响应头缓冲区：`proxy_buffer_size 64k; proxy_buffers 8 64k; proxy_busy_buffers_size 128k;`。
-- 验证：`curl -I http://localhost/dylive/<直播间号>` 不应返回 502。
+- 这是抖音上游拒绝 WebSocket 握手的表现，不是本项目 `/ws/` 代理异常。
+- 当前后端会自动切换为 `HTTP 轮询` 继续拉取直播事件；可通过 `GET /api/livestream/douyin/status` 查看 `transport` 和 `last_error`。
+- 如果直播间未开播，状态会显示“主播尚未开播或已下播”，实时事件列表不会新增内容。
+
+### 17. 直播控制台“实时事件”没有显示
+
+- 确认控制台 WebSocket 已连接：浏览器网络面板中 `/ws/livestream_console_*` 应返回 `101 Switching Protocols`。
+- 验证事件广播链路：向 `/api/livestream/events` POST 一条测试事件后，控制台应收到 `livestream.event_batch` 并显示在“实时事件”。
+- 当前实现会先广播事件、再后台处理 AI/TTS，避免自动回复耗时导致列表不刷新。
+- 如果状态为未开播或采集错误，则不会产生真实直播间事件；请确认房间号正确且主播正在直播。
 
 ## 许可证
 
@@ -795,7 +808,7 @@ docker compose up -d --no-build --force-recreate backend nginx
 - [OpenAI API](https://platform.openai.com/docs) - OpenAI API文档
 - [智谱AI GLM-4V](https://open.bigmodel.cn/dev/api#glm-4v) - 智谱AI视觉模型文档
 - [SiliconFlow](https://siliconflow.cn/) - SiliconFlow语音识别服务
-- [dycast](https://github.com/skmcj/dycast) - 抖音弹幕姬，实时捕获抖音直播间弹幕
+- Python 后端抖音直播采集 - 本项目内置直播间解析、签名、消息解码和事件广播
 
 ## 更新日志
 
@@ -820,7 +833,7 @@ docker compose up -d --no-build --force-recreate backend nginx
 - 📱 改进移动端支持和响应式布局
 - 🔧 优化WebSocket自动重连机制
 - 🎨 升级到React 19和Ant Design 6
-- 🎬 抖音直播互动：集成 dycast 实现抖音直播间评论自动回复
+- 🎬 抖音直播互动：Python 后端直接采集抖音直播间事件并自动回复
 - 💬 实时弹幕捕获：支持捕获抖音直播间评论并推送到数字人
 - 🤖 AI智能回复：数字人自动分析评论并生成语音回复
 - 🎙️ ASR 独立配置：语音识别使用 `ASR_BASE_URL` / `ASR_MODEL`，不再和对话生成共用 `OPENAI_BASE_URL`
