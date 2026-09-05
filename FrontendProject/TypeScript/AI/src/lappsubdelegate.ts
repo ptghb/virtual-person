@@ -27,6 +27,7 @@ export class LAppSubdelegate {
     this._view = new LAppView();
     this._frameBuffer = null;
     this._captured = false;
+    this._pointerFollowSuspended = false;
   }
 
   /**
@@ -252,6 +253,11 @@ export class LAppSubdelegate {
       LAppPal.printMessage('view notfound');
       return;
     }
+
+    if (this._pointerFollowSuspended) {
+      return;
+    }
+
     this._captured = true;
 
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
@@ -263,13 +269,59 @@ export class LAppSubdelegate {
    * 鼠标指针移动时调用。
    */
   public onPointMoved(pageX: number, pageY: number): void {
-    if (!this._captured) {
+    if (!this._view) {
+      LAppPal.printMessage('view notfound');
       return;
     }
 
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
-    this._view.onTouchesMoved(localX, localY);
+    if (this._pointerFollowSuspended) {
+      return;
+    }
+
+    if (this._captured) {
+      this._view.onTouchesMoved(localX, localY);
+      return;
+    }
+
+    if (!LAppDefine.EnablePointerFollow || this._pointerFollowSuspended) {
+      return;
+    }
+
+    if (
+      LAppDefine.PointerFollowOnlyInCanvas &&
+      !this.isPointInsideCanvas(localX, localY)
+    ) {
+      this.onPointerLeft();
+      return;
+    }
+
+    this._view.onPointerMoved(localX, localY);
+  }
+
+  /**
+   * 指针离开画布/窗口时调用，让视线自然回正。
+   */
+  public onPointerLeft(): void {
+    this._captured = false;
+
+    if (!this._live2dManager) {
+      return;
+    }
+
+    this._live2dManager.onDrag(0.0, 0.0);
+  }
+
+  /**
+   * 暂停/恢复鼠标悬停视线跟随。
+   * 摄像头人脸跟随启用时会暂停鼠标跟随，避免两路输入抢控制权。
+   */
+  public setPointerFollowSuspended(suspended: boolean): void {
+    this._pointerFollowSuspended = suspended;
+    if (suspended) {
+      this._captured = false;
+    }
   }
 
   /**
@@ -280,6 +332,10 @@ export class LAppSubdelegate {
 
     if (!this._view) {
       LAppPal.printMessage('view notfound');
+      return;
+    }
+
+    if (this._pointerFollowSuspended) {
       return;
     }
 
@@ -299,6 +355,10 @@ export class LAppSubdelegate {
       return;
     }
 
+    if (this._pointerFollowSuspended) {
+      return;
+    }
+
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
     this._view.onTouchesEnded(localX, localY);
@@ -313,6 +373,15 @@ export class LAppSubdelegate {
       x: pageX - window.scrollX - bounds.left,
       y: pageY - window.scrollY - bounds.top
     };
+  }
+
+  private isPointInsideCanvas(localX: number, localY: number): boolean {
+    return (
+      localX >= 0 &&
+      localY >= 0 &&
+      localX <= this._canvas.clientWidth &&
+      localY <= this._canvas.clientHeight
+    );
   }
 
   public isContextLost(): boolean {
@@ -347,6 +416,11 @@ export class LAppSubdelegate {
    * 是否正在点击
    */
   private _captured: boolean;
+
+  /**
+   * 是否暂停鼠标悬停视线跟随
+   */
+  private _pointerFollowSuspended: boolean;
 
   private _needResize: boolean;
 }

@@ -1,4 +1,8 @@
 import { Camera } from '@mediapipe/camera_utils';
+import {
+  FaceDetection,
+  Results as FaceDetectionResults
+} from '@mediapipe/face_detection';
 import { Hands, Results } from '@mediapipe/hands';
 
 export type HandSide = 'left' | 'right';
@@ -12,6 +16,12 @@ export interface TrackedHand {
 export interface HandGesture {
   leftHand: TrackedHand | null;
   rightHand: TrackedHand | null;
+  face: TrackedFace | null;
+}
+
+export interface TrackedFace {
+  position: { x: number; y: number };
+  confidence: number;
 }
 
 export type GestureCallback = (gesture: HandGesture) => void;
@@ -23,11 +33,18 @@ export type GestureCallback = (gesture: HandGesture) => void;
  */
 export class HandGestureService {
   private hands: Hands | null = null;
+  private faceDetection: FaceDetection | null = null;
   private camera: Camera | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private canvasElement: HTMLCanvasElement | null = null;
   private initialized = false;
   private running = false;
+  private latestFace: TrackedFace | null = null;
+  private latestGesture: HandGesture = {
+    leftHand: null,
+    rightHand: null,
+    face: null
+  };
   private callbacks = new Set<GestureCallback>();
 
   public async initialize(
@@ -57,11 +74,25 @@ export class HandGestureService {
     });
     hands.onResults((results: Results) => this.handleResults(results));
 
+    const faceDetection = new FaceDetection({
+      locateFile: file => `/mediapipe/face_detection/${file}`
+    });
+    faceDetection.setOptions({
+      model: 'short',
+      minDetectionConfidence: 0.6,
+      selfieMode: false
+    });
+    faceDetection.onResults((results: FaceDetectionResults) =>
+      this.handleFaceResults(results)
+    );
+
     this.hands = hands;
+    this.faceDetection = faceDetection;
     this.camera = new Camera(videoElement, {
       onFrame: async () => {
-        if (this.hands && this.running && this.videoElement) {
-          await this.hands.send({ image: this.videoElement });
+        if (this.running && this.videoElement) {
+          await this.hands?.send({ image: this.videoElement });
+          await this.faceDetection?.send({ image: this.videoElement });
         }
       },
       width: 640,
@@ -87,7 +118,9 @@ export class HandGestureService {
   public stop(): void {
     this.running = false;
     this.camera?.stop();
-    this.emit({ leftHand: null, rightHand: null });
+    this.latestFace = null;
+    this.latestGesture = { leftHand: null, rightHand: null, face: null };
+    this.emit(this.latestGesture);
     const context = this.canvasElement?.getContext('2d');
     if (context && this.canvasElement) {
       context.clearRect(
@@ -107,7 +140,9 @@ export class HandGestureService {
   public dispose(): void {
     this.stop();
     this.hands?.close();
+    this.faceDetection?.close();
     this.hands = null;
+    this.faceDetection = null;
     this.camera = null;
     this.videoElement = null;
     this.canvasElement = null;
@@ -117,9 +152,10 @@ export class HandGestureService {
   private handleResults(results: Results): void {
     this.drawPreview(results);
 
-    const gesture: HandGesture = {
+    this.latestGesture = {
       leftHand: null,
-      rightHand: null
+      rightHand: null,
+      face: this.latestFace
     };
 
     if (results.multiHandLandmarks && results.multiHandedness) {
@@ -139,14 +175,36 @@ export class HandGestureService {
         };
 
         if (side === 'left') {
-          gesture.leftHand = trackedHand;
+          this.latestGesture.leftHand = trackedHand;
         } else {
-          gesture.rightHand = trackedHand;
+          this.latestGesture.rightHand = trackedHand;
         }
       });
     }
 
-    this.emit(gesture);
+    this.emit(this.latestGesture);
+  }
+
+  private handleFaceResults(results: FaceDetectionResults): void {
+    const detection = results.detections?.[0];
+    if (!detection) {
+      this.latestFace = null;
+      this.latestGesture.face = null;
+      this.drawFaceOverlay(null);
+      this.emit(this.latestGesture);
+      return;
+    }
+
+    this.latestFace = {
+      position: {
+        x: detection.boundingBox.xCenter,
+        y: detection.boundingBox.yCenter
+      },
+      confidence: 1
+    };
+    this.latestGesture.face = this.latestFace;
+    this.drawFaceOverlay(detection.boundingBox);
+    this.emit(this.latestGesture);
   }
 
   private drawPreview(results: Results): void {
@@ -196,6 +254,50 @@ export class HandGestureService {
         context.fill();
       });
     });
+    this.drawFaceOverlay(
+      this.latestFace
+        ? {
+            xCenter: this.latestFace.position.x,
+            yCenter: this.latestFace.position.y,
+            width: 0.22,
+            height: 0.3
+          }
+        : null
+    );
+    context.restore();
+  }
+
+  private drawFaceOverlay(
+    boundingBox: {
+      xCenter: number;
+      yCenter: number;
+      width: number;
+      height: number;
+    } | null
+  ): void {
+    const canvas = this.canvasElement;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context || !boundingBox) return;
+
+    const width = boundingBox.width * canvas.width;
+    const height = boundingBox.height * canvas.height;
+    const x = boundingBox.xCenter * canvas.width - width / 2;
+    const y = boundingBox.yCenter * canvas.height - height / 2;
+
+    context.save();
+    context.strokeStyle = 'rgba(72, 207, 173, 0.95)';
+    context.lineWidth = 4;
+    context.strokeRect(x, y, width, height);
+    context.fillStyle = 'rgba(72, 207, 173, 0.95)';
+    context.beginPath();
+    context.arc(
+      boundingBox.xCenter * canvas.width,
+      boundingBox.yCenter * canvas.height,
+      6,
+      0,
+      Math.PI * 2
+    );
+    context.fill();
     context.restore();
   }
 

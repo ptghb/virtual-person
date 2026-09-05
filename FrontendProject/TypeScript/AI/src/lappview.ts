@@ -183,14 +183,27 @@ export class LAppView {
     const posX = pointX * window.devicePixelRatio;
     const posY = pointY * window.devicePixelRatio;
 
-    const lapplive2dmanager = this._subdelegate.getLive2DManager();
+    this._touchManager.touchesMoved(posX, posY);
 
     const viewX: number = this.transformViewX(this._touchManager.getX());
     const viewY: number = this.transformViewY(this._touchManager.getY());
 
-    this._touchManager.touchesMoved(posX, posY);
+    this._subdelegate.getLive2DManager().onDrag(viewX, viewY);
+  }
 
-    lapplive2dmanager.onDrag(viewX, viewY);
+  /**
+   * 指针悬停/移动时调用，用于不按下鼠标也能视线跟随。
+   *
+   * @param pointX Canvas 内 X 坐标
+   * @param pointY Canvas 内 Y 坐标
+   */
+  public onPointerMoved(pointX: number, pointY: number): void {
+    const posX = pointX * window.devicePixelRatio;
+    const posY = pointY * window.devicePixelRatio;
+    const viewX: number = this.clampDragValue(this.transformViewX(posX));
+    const viewY: number = this.clampDragValue(this.transformViewY(posY));
+
+    this._subdelegate.getLive2DManager().onDrag(viewX, viewY);
   }
 
   /**
@@ -216,7 +229,6 @@ export class LAppView {
       LAppPal.printMessage(`[APP]touchesEnded x: ${x} y: ${y}`);
     }
     lapplive2dmanager.onTap(x, y);
-
   }
 
   /**
@@ -227,6 +239,10 @@ export class LAppView {
   public transformViewX(deviceX: number): number {
     const screenX: number = this._deviceToScreen.transformX(deviceX); // 获取逻辑坐标转换后的坐标。
     return this._viewMatrix.invertTransformX(screenX); // 放大、缩小、移动后的值。
+  }
+
+  private clampDragValue(value: number): number {
+    return Math.max(-1.0, Math.min(1.0, value));
   }
 
   /**

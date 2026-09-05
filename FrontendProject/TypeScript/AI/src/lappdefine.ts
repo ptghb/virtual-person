@@ -75,6 +75,17 @@ export const MOCConsistencyValidationEnable = true;
 // motion3.json一致性验证选项
 export const MotionConsistencyValidationEnable = true;
 
+// 指针/鼠标视线跟随设置
+export const EnablePointerFollow = true;
+// true: 只有指针在 Live2D 画布范围内时跟随，离开后回正。
+export const PointerFollowOnlyInCanvas = true;
+// 头部/身体跟随幅度，相对 Cubism 默认拖拽幅度。
+export const PointerFollowHeadScale = 0.55;
+export const PointerFollowBodyScale = 0.45;
+// 眼球跟随幅度。
+export const PointerFollowEyeScaleX = 1.0;
+export const PointerFollowEyeScaleY = 0.8;
+
 // 调试日志显示选项
 export const DebugLogEnable = true;
 export const DebugTouchLogEnable = false;

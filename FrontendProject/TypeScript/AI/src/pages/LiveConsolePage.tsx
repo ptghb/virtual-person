@@ -33,6 +33,7 @@ interface LiveEvent {
   content?: string;
   user?: LiveUser;
   gift?: { name?: string; count?: number | string };
+  room?: { likeCount?: number | string; audienceCount?: number | string };
 }
 
 const policyLabels: Record<string, string> = {
@@ -40,6 +41,7 @@ const policyLabels: Record<string, string> = {
   member: "进入",
   social: "关注",
   like: "点赞",
+  gift: "礼物",
 };
 
 const connectStatusLabels: Record<string, { label: string; color: string }> = {
@@ -63,6 +65,7 @@ export const LiveConsolePage: React.FC = () => {
     member: true,
     social: true,
     like: true,
+    gift: true,
   });
   const [roomNum, setRoomNum] = useState("");
   const [douyinStatus, setDouyinStatus] = useState<Record<string, unknown>>({
@@ -287,6 +290,7 @@ export const LiveConsolePage: React.FC = () => {
               <Tag>进入 {stats.WebcastMemberMessage ?? 0}</Tag>
               <Tag>关注 {stats.WebcastSocialMessage ?? 0}</Tag>
               <Tag>点赞 {stats.WebcastLikeMessage ?? 0}</Tag>
+              <Tag>礼物 {stats.WebcastGiftMessage ?? 0}</Tag>
               {roomInfo.audienceCount ? (
                 <Tag>在线 {roomInfo.audienceCount}</Tag>
               ) : null}
@@ -311,7 +315,9 @@ export const LiveConsolePage: React.FC = () => {
                       {event.content ||
                         (event.gift
                           ? `赠送 ${event.gift.name ?? "礼物"} × ${event.gift.count ?? 1}`
-                          : "触发互动事件")}
+                          : event.method === "WebcastLikeMessage"
+                            ? `点赞${event.room?.likeCount ? ` · 总赞 ${event.room.likeCount}` : ""}`
+                            : "触发互动事件")}
                     </span>
                   </div>
                 ))

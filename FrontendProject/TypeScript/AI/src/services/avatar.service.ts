@@ -69,6 +69,46 @@ class AvatarService {
     }
   }
 
+  public setPointerFollowSuspended(suspended: boolean): void {
+    try {
+      const delegate = LAppDelegate.getInstance();
+      if (!delegate._subdelegates || delegate._subdelegates.getSize() === 0) {
+        return;
+      }
+      delegate._subdelegates.at(0).setPointerFollowSuspended(suspended);
+      if (!suspended) {
+        this.lookAtNormalizedPoint(null);
+      }
+    } catch (error) {
+      console.error('[AvatarService] 设置鼠标视线跟随状态失败:', error);
+    }
+  }
+
+  public lookAtNormalizedPoint(
+    point: { x: number; y: number } | null,
+    options?: { mirrored?: boolean; scaleX?: number; scaleY?: number }
+  ): void {
+    try {
+      if (!point) {
+        this.getManager().onDrag(0.0, 0.0);
+        return;
+      }
+
+      const mirrored = options?.mirrored ?? true;
+      const normalizedX = mirrored ? 1 - point.x : point.x;
+      const dragX = this.clamp(
+        (normalizedX - 0.5) * 2 * (options?.scaleX ?? 2.2)
+      );
+      const dragY = this.clamp(
+        (0.5 - point.y) * 2 * (options?.scaleY ?? 1.5)
+      );
+
+      this.getManager().onDrag(dragX, dragY);
+    } catch (error) {
+      console.error('[AvatarService] 更新视线跟随失败:', error);
+    }
+  }
+
   public async playReplyAudio(url: string): Promise<void> {
     if (!url) return;
     this.stopAudio();
@@ -147,6 +187,10 @@ class AvatarService {
     } catch (error) {
       console.error('[AvatarService] 停止语音失败:', error);
     }
+  }
+
+  private clamp(value: number): number {
+    return Math.max(-1.0, Math.min(1.0, value));
   }
 }
 

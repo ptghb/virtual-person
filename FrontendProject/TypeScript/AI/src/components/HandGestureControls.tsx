@@ -43,8 +43,10 @@ const HandGestureControls: React.FC = () => {
     left: false,
     right: false
   });
+  const faceFollowActiveRef = useRef(false);
   const lastTouchTimeRef = useRef(0);
   const [hands, setHands] = useState(handsRef.current);
+  const [faceVisible, setFaceVisible] = useState(false);
   const [active, setActive] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stageElement, setStageElement] = useState<HTMLElement | null>(null);
@@ -61,6 +63,13 @@ const HandGestureControls: React.FC = () => {
         const stage = stageRef.current;
         if (!stage) return;
         const stageRect = stage.getBoundingClientRect();
+
+        if (faceFollowActiveRef.current) {
+          if (gesture.face) {
+            avatarService.lookAtNormalizedPoint(gesture.face.position);
+          }
+          setFaceVisible(Boolean(gesture.face));
+        }
 
         const mapHand = (
           side: HandSide,
@@ -111,6 +120,8 @@ const HandGestureControls: React.FC = () => {
     );
 
     return () => {
+      faceFollowActiveRef.current = false;
+      avatarService.setPointerFollowSuspended(false);
       removeCallback();
       HandGestureServiceInstance.dispose();
     };
@@ -125,9 +136,13 @@ const HandGestureControls: React.FC = () => {
         canvasRef.current
       );
       await HandGestureServiceInstance.start();
+      faceFollowActiveRef.current = true;
+      avatarService.setPointerFollowSuspended(true);
       setActive(true);
-      message.success('摄像头已开启，把手伸到镜头前摸摸她吧');
+      message.success('摄像头已开启，她会看向你的脸，把手伸到镜头前摸摸她吧');
     } catch (error) {
+      faceFollowActiveRef.current = false;
+      avatarService.setPointerFollowSuspended(false);
       console.error('[HandGestureControls] 摄像头启动失败:', error);
       message.error('无法打开摄像头，请检查浏览器摄像头权限');
     } finally {
@@ -136,6 +151,8 @@ const HandGestureControls: React.FC = () => {
   };
 
   const stop = (): void => {
+    faceFollowActiveRef.current = false;
+    avatarService.setPointerFollowSuspended(false);
     HandGestureServiceInstance.stop();
     handsRef.current = {
       left: { ...EMPTY_HAND },
@@ -143,6 +160,7 @@ const HandGestureControls: React.FC = () => {
     };
     contactRef.current = { left: false, right: false };
     setHands(handsRef.current);
+    setFaceVisible(false);
     setActive(false);
   };
 
@@ -168,7 +186,7 @@ const HandGestureControls: React.FC = () => {
           <div className={`pet-camera-preview ${active ? 'is-active' : ''}`}>
             <video ref={videoRef} playsInline muted />
             <canvas ref={canvasRef} width={640} height={480} />
-            <span>MediaPipe 双手识别中</span>
+            <span>{faceVisible ? '已锁定人脸' : '寻找人脸中'}</span>
           </div>
 
           {renderHand('left', hands.left)}
