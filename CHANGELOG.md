@@ -7,6 +7,26 @@
 
 ## [未发布]
 
+### 2026-09-05 Live2D 视线跟随与人脸注视
+
+#### 新增
+- **鼠标视线跟随**：Live2D 人物支持在未按下鼠标时根据指针位置自然调整视线、头部和身体朝向。
+- **人脸注视模式**：多模态聊天页点击“摸摸我”后，摄像头会同时进行 MediaPipe Hands 双手识别和 MediaPipe Face Detection 人脸识别；识别到人脸时，虚拟人物会看向真实人脸位置。
+- **本地人脸识别资源**：新增 `@mediapipe/face_detection` 依赖，构建时将 Face Detection JS、WASM、TFLite 和 binarypb 资源复制到 `/mediapipe/face_detection/`，运行时不依赖外部 CDN。
+
+#### 优化
+- **输入源切换**：“摸摸我”开启期间暂停鼠标 hover/拖拽视线跟随，避免鼠标与摄像头人脸识别同时抢占 Live2D 视线控制权；关闭“摸摸我”后恢复鼠标跟随并让人物自然回正。
+- **跟随手感**：降低头部和身体跟随幅度，保留更明显的眼球跟随；人脸偏移映射放大，使真人在摄像头画面中轻微移动时也能看出虚拟人物视线变化。
+- **识别反馈**：“摸摸我”摄像头预览状态从“双手识别中”调整为“寻找人脸中 / 已锁定人脸”，并在识别到人脸时绘制绿色人脸框，便于排查摄像头和识别状态。
+- **坐标更新**：修复拖拽/指针移动时先读取旧坐标再更新新坐标的问题，减少视线跟随延迟。
+- **Nginx 静态部署**：本地 Compose 部署中，Nginx 改为直接服务已挂载的 `FrontendProject/TypeScript/AI/dist` 静态产物，避免继续代理旧前端容器导致浏览器拿到旧 JS。
+
+#### 验证
+- **类型检查**：通过 `npm run test`（`tsc --noEmit`）。
+- **前端构建**：通过 `npm run build` 与 `npm run build:prod`。
+- **本地部署**：已重新构建前端 `dist`，重启 `nginx` 与 `backend`。
+- **访问验证**：`http://localhost/` 返回 HTTP 200，前端入口加载最新 `assets/index-BXAIhFUO.js`；`GET /api/livestream/douyin/status` 返回 `success`。
+
 ### 2026-09-02 抖音直播控制台与实时事件修复
 
 #### 优化

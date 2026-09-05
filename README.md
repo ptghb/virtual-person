@@ -11,7 +11,7 @@
 - 👤 **实时选妃预览**：设置弹窗每次渲染一个真实 Live2D 人物，可点击“下一个”轮换并通过“点他”确认
 - 🧠 **长期记忆管理**：支持当前关系状态、置顶记忆、自动记忆、待跟进事项、每日对话时间线和关系历史的读取与维护
 - 🗣️ **智能对话与语音**：接入OpenAI/智谱AI API，具备上下文记忆、角色人格和 MCP 实时信息工具；集成EasyVoice TTS，实现文本转语音
-- 👋 **“摸摸我”手势互动**：多模态聊天中通过 MediaPipe 同时识别左右手，小手跟随移动，碰触人物后随机播放 Live2D 动作
+- 👋 **“摸摸我”手势互动**：多模态聊天中通过 MediaPipe 同时识别左右手和人脸，小手碰触人物后随机播放 Live2D 动作，人物会看向真实人脸位置
 - 🎭 **多模态交互体验**：支持文字、图片、音频、摄像头视觉和手势互动，动画与音频深度同步
 - 🔧 **全栈技术集成**：前端React 19 + TypeScript 5.8 + Vite 6.3，后端FastAPI + LangChain，Docker化TTS服务
 - 🎨 **现代化UI设计**：基于Ant Design 6的精美界面，响应式布局
@@ -37,7 +37,7 @@
 - **动画控制**：支持多种动画播放模式和音频联动，智能选择动画
 - **打字机效果**：AI回复采用打字机效果逐字显示，支持完成回调
 - **多模态消息**：支持文字、图片、音频等多种消息类型，消息历史记录最多保存100条
-- **摄像头互动**：多模态聊天页提供“让我看看”和“摸摸我”，支持拍照分析及本地双手识别互动
+- **摄像头互动**：多模态聊天页提供“让我看看”和“摸摸我”，支持拍照分析、本地双手识别互动，以及开启“摸摸我”时的人脸视线跟随
 
 ## 技术架构
 
@@ -46,7 +46,7 @@
 - **框架**：TypeScript 5.8.3 + Vite 6.3.5
 - **Live2D引擎**：Live2D Cubism SDK for Web（Core + Framework）
 - **UI框架**：React 19.2.3 + Ant Design 6.2.2
-- **手势识别**：MediaPipe Hands 0.4.1675469240
+- **手势与人脸识别**：MediaPipe Hands 0.4.1675469240 + MediaPipe Face Detection
 - **通信协议**：WebSocket（自动重连机制）
 - **音频处理**：Web Audio API（RMS值放大5.0倍实现口型同步）
 - **状态管理**：React Hooks + localStorage持久化
@@ -134,6 +134,7 @@ CubismWebSamples/
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库文件
 │           │   ├── mediapipe/hands/        # 构建时复制的 MediaPipe Hands 本地运行资源
+│           │   ├── mediapipe/face_detection/ # 构建时复制的 MediaPipe Face Detection 本地运行资源
 │           │   └── Resources/              # 模型资源文件目录
 │           │       ├── Haru/               # Haru模型
 │           │       ├── Hiyori/             # Hiyori模型
@@ -169,13 +170,13 @@ CubismWebSamples/
 - **实时单人物预览**：“选妃”弹窗直接渲染真实 Live2D 人物，每次只展示一位
 - **轮换确认**：点击“下一个”循环预览人物，点击“点他”保存选择
 - **选择持久化**：确认后首页和聊天页持续显示同一虚拟人物
-- **交互功能**：支持鼠标拖拽、缩放控制（0.5x - 2.0x）、触摸交互
+- **交互功能**：支持鼠标拖拽、鼠标视线跟随、缩放控制（0.5x - 2.0x）、触摸交互
 - **动画系统**：多种动画效果（待机动画、随机动画、说话动画），支持循环播放
 - **音频联动**：音频播放时自动停止动画，停止后恢复待机动画
-- **“摸摸我”手势控制**：入口位于多模态聊天页“让我看看”按钮旁，开启后通过 MediaPipe Hands 同时识别左右手
+- **“摸摸我”手势与人脸控制**：入口位于多模态聊天页“让我看看”按钮旁，开启后通过 MediaPipe 同时识别左右手和人脸；人脸识别会接管视线跟随，关闭后恢复鼠标跟随
 - **左右手映射**：检测到左手时在人物左侧显示左手，检测到右手时在人物右侧显示右手，并随真实手部位置平滑移动
 - **触碰随机动作**：小手与人物碰撞区域接触后，从 `TapBody` 和 `Idle` 动作中随机播放一次，播放完成后回到自然状态
-- **本地模型资源**：MediaPipe Hands 的 WASM、TFLite 和运行文件随前端构建复制到 `/mediapipe/hands/`，不依赖运行时外部 CDN
+- **本地模型资源**：MediaPipe Hands 与 Face Detection 的 WASM、TFLite 和运行文件随前端构建复制到 `/mediapipe/hands/`、`/mediapipe/face_detection/`，不依赖运行时外部 CDN
 - **口型同步**：RMS值放大5.0倍，通过ParamMouthOpenY参数实现精确口型同步
 
 ### 2. AI对话功能
@@ -295,7 +296,7 @@ docker compose logs -f
 - TTS服务：http://localhost:3000
 - 抖音直播控制台通过后端 Python 直接采集，无需 dycast 地址或转发地址
 
-> 💡 提示：Nginx 监听 80 端口作为统一入口，前端服务通过 Nginx 反向代理访问。
+> 💡 提示：Nginx 监听 80 端口作为统一入口，直接服务 `FrontendProject/TypeScript/AI/dist` 静态产物；前端开发容器仍可保留用于构建/预览，但本地访问入口以 Nginx 挂载的 `dist` 为准。
 >
 > 本地部署会将 `BackendProject` 挂载到后端容器的 `/app`，修改后端源码后重新创建后端容器即可加载最新接口：
 >
@@ -441,22 +442,29 @@ curl http://localhost/api/livestream/douyin/status
 1. 访问多模态聊天页 `http://localhost/advanced`
 2. 在“让我看看”按钮旁点击“摸摸我”
 3. 浏览器请求摄像头权限时选择允许
-4. 将左手或右手伸到镜头前：
+4. 将脸保持在摄像头画面中：
+   - 预览状态会显示“寻找人脸中”或“已锁定人脸”
+   - 识别到人脸后，预览画面会绘制绿色人脸框
+   - 虚拟人物会根据人脸在摄像头画面中的位置调整眼球、头部和身体朝向
+   - 开启“摸摸我”期间，鼠标视线跟随会暂停，避免鼠标与人脸识别同时控制人物视线
+5. 将左手或右手伸到镜头前：
    - 检测到左手时，人物左侧出现“左手”小手
    - 检测到右手时，人物右侧出现“右手”小手
    - 同时伸出双手时，两只小手可以同时显示
    - 摄像头检测到手部移动后，屏幕小手会经过平滑处理同步移动
-5. 将小手移动到虚拟人物上，命中模型碰撞区域后会随机播放一次 `TapBody` 或 `Idle` 动作
-6. 点击“结束摸摸”可停止识别并关闭摄像头
+6. 将小手移动到虚拟人物上，命中模型碰撞区域后会随机播放一次 `TapBody` 或 `Idle` 动作
+7. 点击“结束摸摸”可停止识别并关闭摄像头；虚拟人物视线会回正并恢复鼠标跟随
 
 技术实现：
 
+- 鼠标未按下时会通过指针位置驱动 Live2D `ParamAngleX/Y/Z`、`ParamBodyAngleX` 和 `ParamEyeBallX/Y`，实现常规视线跟随
 - 使用 MediaPipe Hands 跟踪食指指尖坐标，但无需保持特定手势即可显示小手
+- 使用 MediaPipe Face Detection 跟踪人脸中心点；“摸摸我”开启后由人脸位置驱动 Live2D 视线，关闭后恢复鼠标指针驱动
 - 将左右手分别映射到人物舞台左右区域，并对坐标进行线性插值以减少抖动
 - 对小手中心和周边多个位置进行碰撞采样，降低人物边缘漏判
 - 触碰采用进入触发和冷却控制，避免持续接触时高频重复播放
 - 动作启动时显式开启 Live2D MotionManager 更新，播放完成后自动停止
-- MediaPipe 运行资源由 `copy_resources.js` 从依赖复制到前端静态目录并由本地服务加载
+- MediaPipe 运行资源由 `copy_resources.js` 从依赖复制到前端静态目录并由本地服务加载，包括 `/mediapipe/hands/` 和 `/mediapipe/face_detection/`
 
 > 注意：手势互动需要在 `localhost` 或 HTTPS 环境运行，并允许浏览器摄像头权限；模型需要在 `model3.json` 中配置碰撞区域。
 
@@ -610,8 +618,9 @@ curl -X POST http://localhost/api/livestream/douyin/stop -H 'Content-Type: appli
 - **音频管理**：`src/lappaudiomanager.ts` - 音频播放和口型同步
 - **触摸管理**：`src/touchmanager.ts` - 鼠标/触摸交互处理
 - **视图管理**：`src/lappview.ts` - 渲染视图和坐标转换
-- **手势识别服务**：`src/services/HandGestureService.ts` - MediaPipe 双手识别、真实左右手校正和食指指尖坐标输出
-- **手势控制组件**：`src/components/HandGestureControls.tsx` - “摸摸我”按钮、摄像头预览、左右手映射、平滑移动和碰撞触发
+- **手势/人脸识别服务**：`src/services/HandGestureService.ts` - MediaPipe 双手识别、人脸识别、真实左右手校正、食指指尖坐标和人脸中心点输出
+- **手势控制组件**：`src/components/HandGestureControls.tsx` - “摸摸我”按钮、摄像头预览、人脸注视、左右手映射、平滑移动和碰撞触发
+- **虚拟人物服务**：`src/services/avatar.service.ts` - 前端组件调用 Live2D 的统一入口，包含语音播放、触摸动作、鼠标跟随暂停和人脸视线坐标下发
 - **React组件**：`src/components/` - UI组件目录
 
 ### 后端开发
@@ -686,6 +695,9 @@ curl -X POST http://localhost/api/livestream/douyin/stop -H 'Content-Type: appli
 - 查看浏览器控制台是否有MediaPipe相关错误（摄像头权限、模型加载等）
 - 确认摄像头设备正常工作
 - 检查 `/mediapipe/hands/hands.js`、WASM 和 TFLite 文件是否能够正常返回 HTTP 200
+- 如果人物没有看向人脸，先确认摄像头预览是否显示“已锁定人脸”并出现绿色人脸框
+- 检查 `/mediapipe/face_detection/face_detection.js`、WASM、TFLite 和 binarypb 文件是否能够正常返回 HTTP 200
+- 开启“摸摸我”期间鼠标视线跟随会暂停，这是预期行为；点击“结束摸摸”后才会恢复鼠标跟随
 - 如果小手光标不显示，请将整只手放入摄像头画面并保持光线充足
 - 如果小手光标不跟随手指移动，检查坐标映射是否正确
 - 如果小手已经碰到人物但没有动作，检查模型是否包含 `Idle` 或 `TapBody` 动作以及 `HitAreas` 配置
@@ -881,4 +893,3 @@ docker compose up -d --no-build --force-recreate backend nginx
 也可以通过 [爱发电支持小凡 AI](https://afdian.com/a/xiaofanai)。
 
 <img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
-
