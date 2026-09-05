@@ -27,6 +27,7 @@ export class LAppSubdelegate {
     this._view = new LAppView();
     this._frameBuffer = null;
     this._captured = false;
+    this._pointerFollowSuspended = false;
   }
 
   /**
@@ -252,6 +253,11 @@ export class LAppSubdelegate {
       LAppPal.printMessage('view notfound');
       return;
     }
+
+    if (this._pointerFollowSuspended) {
+      return;
+    }
+
     this._captured = true;
 
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
@@ -270,12 +276,16 @@ export class LAppSubdelegate {
 
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
+    if (this._pointerFollowSuspended) {
+      return;
+    }
+
     if (this._captured) {
       this._view.onTouchesMoved(localX, localY);
       return;
     }
 
-    if (!LAppDefine.EnablePointerFollow) {
+    if (!LAppDefine.EnablePointerFollow || this._pointerFollowSuspended) {
       return;
     }
 
@@ -304,6 +314,17 @@ export class LAppSubdelegate {
   }
 
   /**
+   * 暂停/恢复鼠标悬停视线跟随。
+   * 摄像头人脸跟随启用时会暂停鼠标跟随，避免两路输入抢控制权。
+   */
+  public setPointerFollowSuspended(suspended: boolean): void {
+    this._pointerFollowSuspended = suspended;
+    if (suspended) {
+      this._captured = false;
+    }
+  }
+
+  /**
    * 点击结束时调用。
    */
   public onPointEnded(pageX: number, pageY: number): void {
@@ -311,6 +332,10 @@ export class LAppSubdelegate {
 
     if (!this._view) {
       LAppPal.printMessage('view notfound');
+      return;
+    }
+
+    if (this._pointerFollowSuspended) {
       return;
     }
 
@@ -327,6 +352,10 @@ export class LAppSubdelegate {
 
     if (!this._view) {
       LAppPal.printMessage('view notfound');
+      return;
+    }
+
+    if (this._pointerFollowSuspended) {
       return;
     }
 
@@ -387,6 +416,11 @@ export class LAppSubdelegate {
    * 是否正在点击
    */
   private _captured: boolean;
+
+  /**
+   * 是否暂停鼠标悬停视线跟随
+   */
+  private _pointerFollowSuspended: boolean;
 
   private _needResize: boolean;
 }

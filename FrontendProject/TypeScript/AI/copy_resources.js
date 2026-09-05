@@ -17,10 +17,12 @@ const publicResources = isDocker ? [
   {src: '/app/Core', dst: './public/Core'}, // Docker 环境中的 Core 目录
   {src: '/app/Resources', dst: './public/Resources'}, // Docker 环境中的 Resources 目录
   {src: './node_modules/@mediapipe/hands', dst: './public/mediapipe/hands'},
+  {src: './node_modules/@mediapipe/face_detection', dst: './public/mediapipe/face_detection'},
 ] : [
   {src: '../../../Core', dst: './public/Core'}, // 本地环境的 Core 目录
   {src: '../../Resources', dst: './public/Resources'}, // 本地环境的 Resources 目录
   {src: './node_modules/@mediapipe/hands', dst: './public/mediapipe/hands'},
+  {src: './node_modules/@mediapipe/face_detection', dst: './public/mediapipe/face_detection'},
 ];
 
 publicResources.forEach((e)=>{
