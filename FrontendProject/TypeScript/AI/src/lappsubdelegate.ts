@@ -263,13 +263,44 @@ export class LAppSubdelegate {
    * 鼠标指针移动时调用。
    */
   public onPointMoved(pageX: number, pageY: number): void {
-    if (!this._captured) {
+    if (!this._view) {
+      LAppPal.printMessage('view notfound');
       return;
     }
 
     const { x: localX, y: localY } = this.toCanvasPoint(pageX, pageY);
 
-    this._view.onTouchesMoved(localX, localY);
+    if (this._captured) {
+      this._view.onTouchesMoved(localX, localY);
+      return;
+    }
+
+    if (!LAppDefine.EnablePointerFollow) {
+      return;
+    }
+
+    if (
+      LAppDefine.PointerFollowOnlyInCanvas &&
+      !this.isPointInsideCanvas(localX, localY)
+    ) {
+      this.onPointerLeft();
+      return;
+    }
+
+    this._view.onPointerMoved(localX, localY);
+  }
+
+  /**
+   * 指针离开画布/窗口时调用，让视线自然回正。
+   */
+  public onPointerLeft(): void {
+    this._captured = false;
+
+    if (!this._live2dManager) {
+      return;
+    }
+
+    this._live2dManager.onDrag(0.0, 0.0);
   }
 
   /**
@@ -313,6 +344,15 @@ export class LAppSubdelegate {
       x: pageX - window.scrollX - bounds.left,
       y: pageY - window.scrollY - bounds.top
     };
+  }
+
+  private isPointInsideCanvas(localX: number, localY: number): boolean {
+    return (
+      localX >= 0 &&
+      localY >= 0 &&
+      localX <= this._canvas.clientWidth &&
+      localY <= this._canvas.clientHeight
+    );
   }
 
   public isContextLost(): boolean {

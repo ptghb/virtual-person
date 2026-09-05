@@ -17208,6 +17208,20 @@ function skipUnknownField(bb, type) {
         case 1:
             skip(bb, 8);
             break;
+        case 3:
+            // Deprecated protobuf group. Some live responses include unknown
+            // grouped extension fields; skip recursively until matching end group.
+            while (!isAtEnd(bb)) {
+                const tag = readVarint32(bb);
+                const wireType = tag & 7;
+                if (wireType === 4) {
+                    return;
+                }
+                skipUnknownField(bb, wireType);
+            }
+            break;
+        case 4:
+            return;
         default:
             throw new Error('Unimplemented type: ' + type);
     }

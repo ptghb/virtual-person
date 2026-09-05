@@ -97,6 +97,19 @@ export class LAppDelegate {
   }
 
   /**
+   * 当指针离开窗口或页面失去焦点时调用。
+   */
+  private onPointerLeft(): void {
+    for (
+      let ite = this._subdelegates.begin();
+      ite.notEqual(this._subdelegates.end());
+      ite.preIncrement()
+    ) {
+      ite.ptr().onPointerLeft();
+    }
+  }
+
+  /**
    * Resize canvas and re-initialize view.
    */
   public onResize(): void {
@@ -157,6 +170,9 @@ export class LAppDelegate {
       this.pointCancelEventListener
     );
     this.pointCancelEventListener = null;
+    document.removeEventListener('mouseleave', this.pointerLeftEventListener);
+    window.removeEventListener('blur', this.pointerLeftEventListener);
+    this.pointerLeftEventListener = null;
   }
 
   /**
@@ -196,6 +212,7 @@ export class LAppDelegate {
     this.pointMovedEventListener = this.onPointerMoved.bind(this);
     this.pointEndedEventListener = this.onPointerEnded.bind(this);
     this.pointCancelEventListener = this.onPointerCancel.bind(this);
+    this.pointerLeftEventListener = this.onPointerLeft.bind(this);
 
     // 注册指针相关回调函数
     document.addEventListener('pointerdown', this.pointBeganEventListener, {
@@ -208,6 +225,12 @@ export class LAppDelegate {
       passive: true
     });
     document.addEventListener('pointercancel', this.pointCancelEventListener, {
+      passive: true
+    });
+    document.addEventListener('mouseleave', this.pointerLeftEventListener, {
+      passive: true
+    });
+    window.addEventListener('blur', this.pointerLeftEventListener, {
       passive: true
     });
   }
@@ -319,4 +342,12 @@ export class LAppDelegate {
    * 登録済みイベントリスナー 関数オブジェクト
    */
   private pointCancelEventListener: (this: Document, ev: PointerEvent) => void;
+
+  /**
+   * 登録済み事件监听器函数对象
+   */
+  private pointerLeftEventListener: (
+    this: Document | Window,
+    ev: Event
+  ) => void;
 }

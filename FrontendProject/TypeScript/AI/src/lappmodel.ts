@@ -555,23 +555,35 @@ export class LAppModel extends CubismUserModel {
     }
 
     // 拖动引起的变化
-    // 拖动引起的面部朝向调整
-    this._model.addParameterValueById(this._idParamAngleX, this._dragX * 30); // 添加 -30 到 30 的值
-    this._model.addParameterValueById(this._idParamAngleY, this._dragY * 30);
+    // 拖动/指针跟随引起的面部朝向调整
+    this._model.addParameterValueById(
+      this._idParamAngleX,
+      this._dragX * 30 * LAppDefine.PointerFollowHeadScale
+    );
+    this._model.addParameterValueById(
+      this._idParamAngleY,
+      this._dragY * 30 * LAppDefine.PointerFollowHeadScale
+    );
     this._model.addParameterValueById(
       this._idParamAngleZ,
-      this._dragX * this._dragY * -30
+      this._dragX * this._dragY * -30 * LAppDefine.PointerFollowHeadScale
     );
 
-    // 拖动引起的身体朝向调整
+    // 拖动/指针跟随引起的身体朝向调整
     this._model.addParameterValueById(
       this._idParamBodyAngleX,
-      this._dragX * 10
-    ); // 添加 -10 到 10 的值
+      this._dragX * 10 * LAppDefine.PointerFollowBodyScale
+    );
 
-    // 拖动引起的眼睛朝向调整
-    this._model.addParameterValueById(this._idParamEyeBallX, this._dragX); // 添加 -1 到 1 的值
-    this._model.addParameterValueById(this._idParamEyeBallY, this._dragY);
+    // 拖动/指针跟随引起的眼睛朝向调整
+    this._model.addParameterValueById(
+      this._idParamEyeBallX,
+      this._dragX * LAppDefine.PointerFollowEyeScaleX
+    );
+    this._model.addParameterValueById(
+      this._idParamEyeBallY,
+      this._dragY * LAppDefine.PointerFollowEyeScaleY
+    );
 
     // 呼吸等
     if (this._breath != null) {
@@ -1153,7 +1165,7 @@ export class LAppModel extends CubismUserModel {
     // 使用更大的值范围以获得更明显的动作效果
     const armParams = ['ParamArmLA', 'ParamArmRA', 'ParamArmLB', 'ParamArmRB'];
 
-    armParams.forEach(paramName => {
+    armParams.forEach((paramName) => {
       try {
         const paramId = CubismFramework.getIdManager().getId(paramName);
         if (paramId) {
@@ -1175,7 +1187,7 @@ export class LAppModel extends CubismUserModel {
 
     // 同时设置手腕角度参数，增强动作效果
     const wristParams = ['ParamHandAngleL', 'ParamHandAngleR'];
-    wristParams.forEach(paramName => {
+    wristParams.forEach((paramName) => {
       try {
         const paramId = CubismFramework.getIdManager().getId(paramName);
         if (paramId) {
