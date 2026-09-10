@@ -456,6 +456,66 @@ textarea {
   }
 }
 
+.emotion-debug-panel {
+  position: absolute;
+  pointer-events: auto;
+  top: 14px;
+  right: 16px;
+  width: min(420px, calc(100% - 32px));
+  padding: 10px 12px;
+  border: 1px solid rgba(150, 112, 187, 0.38);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 28px rgba(80, 50, 100, 0.16);
+  backdrop-filter: blur(14px);
+  z-index: 3;
+  font-size: 12px;
+}
+
+.emotion-debug-panel__select {
+  width: 130px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(126, 88, 150, 0.24);
+  border-radius: 8px;
+  color: #4d3a5b;
+  background: rgba(255, 255, 255, 0.96);
+  outline: none;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.emotion-debug-panel__select:focus {
+  border-color: rgba(150, 112, 187, 0.6);
+}
+
+.emotion-debug-panel__title,
+.emotion-debug-panel__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emotion-debug-panel__title {
+  margin-bottom: 8px;
+  color: #4d3a5b;
+  font-weight: 600;
+}
+
+.emotion-debug-panel__title span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.emotion-debug-panel__meta {
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: #776a80;
+}
+
 .digital-human-stage__label {
   position: absolute;
   top: 14px;
@@ -478,6 +538,33 @@ textarea {
   height: 8px;
   border-radius: 50%;
   background: var(--rose-500);
+}
+
+.digital-human-stage--emotion-happy .digital-human-stage__label > span,
+.digital-human-stage--emotion-playful .digital-human-stage__label > span {
+  background: #ff7ab6;
+}
+
+.digital-human-stage--emotion-shy .digital-human-stage__label > span {
+  background: #ff9ac9;
+}
+
+.digital-human-stage--emotion-worried .digital-human-stage__label > span,
+.digital-human-stage--emotion-comforting .digital-human-stage__label > span {
+  background: #7aa7ff;
+}
+
+.digital-human-stage--emotion-sad .digital-human-stage__label > span,
+.digital-human-stage--emotion-wronged .digital-human-stage__label > span {
+  background: #8c9bb8;
+}
+
+.digital-human-stage--emotion-angry .digital-human-stage__label > span {
+  background: #ff6b6b;
+}
+
+.digital-human-stage--emotion-sleepy .digital-human-stage__label > span {
+  background: #9b8cff;
 }
 
 .thinking-pulse {
@@ -1028,7 +1115,67 @@ textarea {
   border-radius: 0;
 }
 
-.live-stage .digital-human-stage__label {
+.live-stage .emotion-debug-panel {
+  position: absolute;
+  pointer-events: auto;
+  top: 14px;
+  right: 16px;
+  width: min(420px, calc(100% - 32px));
+  padding: 10px 12px;
+  border: 1px solid rgba(150, 112, 187, 0.38);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 28px rgba(80, 50, 100, 0.16);
+  backdrop-filter: blur(14px);
+  z-index: 3;
+  font-size: 12px;
+}
+
+.emotion-debug-panel__select {
+  width: 130px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(126, 88, 150, 0.24);
+  border-radius: 8px;
+  color: #4d3a5b;
+  background: rgba(255, 255, 255, 0.96);
+  outline: none;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.emotion-debug-panel__select:focus {
+  border-color: rgba(150, 112, 187, 0.6);
+}
+
+.emotion-debug-panel__title,
+.emotion-debug-panel__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.emotion-debug-panel__title {
+  margin-bottom: 8px;
+  color: #4d3a5b;
+  font-weight: 600;
+}
+
+.emotion-debug-panel__title span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.emotion-debug-panel__meta {
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: #776a80;
+}
+
+.digital-human-stage__label {
   display: none;
 }
 

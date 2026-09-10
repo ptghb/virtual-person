@@ -128,8 +128,12 @@ CubismWebSamples/
 │           │   │   ├── MotionControls.tsx      # 动画控制组件
 │           │   │   ├── ZoomControls.tsx        # 缩放控制组件
 │           │   │   ├── WebSocketPanel.tsx      # WebSocket状态面板
+│           │   │   ├── EmotionDebugPanel.tsx   # 情绪调试面板（?debugEmotion=true）
+│           │   │   ├── DigitalHumanStage.tsx   # 数字人舞台（情绪状态展示）
 │           │   │   └── HandGestureControls.tsx # 手势控制组件
+│           │   ├── emotion.ts                 # 情绪类型定义与表情映射
 │           │   └── services/              # 服务层目录
+│           │       ├── avatar.service.ts       # 虚拟人物服务（表情切换/动作播放）
 │           │       └── HandGestureService.ts   # 手势识别服务（MediaPipe）
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库文件
@@ -191,6 +195,9 @@ CubismWebSamples/
 - **图片分析**：集成智谱AI GLM-4V-Flash模型，支持图片内容分析与描述
 - **自动拍照**：支持前端拍照指令，自动捕获画面并发送给AI分析
 - **实时信息工具**：通过内置 MCP Server 获取当前日期、时间、星期；当用户询问天气时，按城市查询实时天气，未指定城市时使用 `DEFAULT_WEATHER_LOCATION`（默认上海）
+- **情绪状态与表情联动**：根据对话识别开心、害羞、难过、担心、委屈等短期情绪，持续维护情绪强度并驱动 Live2D 表情、动作和舞台状态文案。
+- **全场景情绪统一**：文字聊天、图片聊天和抖音直播互动均接入同一套情绪系统——后端分析用户输入情绪，通过 `assistant.meta` 和旧格式消息携带情绪字段，前端统一派发 `companion-emotion` 事件切换 Live2D 表情和动作。
+- **情绪调试面板**：访问聊天页时追加 `?debugEmotion=true`，可手动切换情绪、调整强度并验证当前角色的表情和动作映射。调试面板使用原生 `<select>` 下拉框，避免被 Live2D 舞台层级遮挡。
 
 ### 3. 隐私、设置与记忆
 
@@ -289,6 +296,7 @@ docker compose logs -f
 
 服务启动后访问：
 - 前端服务：http://localhost（或 http://localhost:80）
+- 情绪调试：http://localhost/chat?debugEmotion=true
 - 多模态聊天：http://localhost/advanced
 - 抖音直播控制台：http://localhost/live/console
 - OBS 直播舞台：http://localhost/live/stage
@@ -828,6 +836,10 @@ docker compose up -d --no-build --force-recreate backend nginx
 
 ### 最新更新亮点
 
+- 🎭 **全场景情绪系统**：文字聊天、图片聊天和抖音直播互动统一接入情绪分析，AI 回复自动切换 Live2D 表情和动作
+- 😊 **10 种情绪状态**：开心、害羞、难过、担心、委屈、生气、想安慰、调皮撒娇、困倦、平静，带强度衰减和自然恢复
+- 🔧 **情绪调试面板**：`?debugEmotion=true` 手动切换情绪验证表情映射，原生下拉框避免层级遮挡
+- 🐛 **调试下拉框修复**：情绪调试面板下拉框从 AntD Select 改为原生 `<select>`，彻底解决被 Live2D 舞台遮挡的问题
 - 👋 “摸摸我”双手互动：入口位于“让我看看”旁，左右手分别显示并跟随移动
 - 🎬 触碰随机动作：碰到人物后随机播放一次 `TapBody` 或 `Idle` 动作
 - 🎯 碰撞检测增强：对小手中心及周边多点采样，减少人物边缘漏判

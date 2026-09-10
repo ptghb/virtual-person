@@ -7,6 +7,56 @@
 
 ## [未发布]
 
+### 2026-09-10 全场景情绪系统统一接入
+
+#### 新增
+- **全场景情绪统一**：文字聊天、图片聊天和抖音直播互动统一接入同一套情绪系统。后端在所有回复路径中分析用户输入情绪，通过 `assistant.meta` 和旧格式消息（type=1）携带情绪字段，前端统一派发 `companion-emotion` 事件切换 Live2D 表情和动作。
+- **图片聊天情绪**：`handle_image_message` 新增情绪分析，根据用户 prompt 识别情绪，存储会话情绪状态，发送 `assistant.meta` 元数据和携带情绪字段的回复消息。
+- **直播互动情绪**：`handle_comment_message` 的互动动作（进房/关注/点赞/礼物）和评论回复均接入情绪系统。互动动作按类型映射情绪（happy/shy），评论回复使用 `analyze_companion_emotion` 分析评论内容情绪。
+- **直播消息情绪传递**：`send_livestream_assistant_message` 新增 emotion/emotion_label/emotion_intensity/expression 参数，发送前先发 `assistant.meta` 让前端切换表情，再发文本消息。
+- **旧格式消息情绪派发**：前端 `websocketmanager.ts` 在 `onmessage` 中，对旧格式消息（type=1）携带的 `emotion`/`expression` 字段也派发 `companion-emotion` 事件，不再只限于 `assistant.meta` 类型。
+- **Hiyori 表情资源**：新增 `Normal`、`Smile`、`Blushing`、`Sad`、`Wronged`、`Angry` 六个 `.exp3.json` 表情文件，并在 `Hiyori.model3.json` 中注册 `Expressions` 条目。
+
+#### 优化
+- **`send_personal_message` 扩展**：新增 `emotion`、`emotion_label`、`emotion_intensity`、`expression` 参数，旧格式消息也能携带情绪元数据，前端据此切换表情。
+- **情绪调试面板下拉框**：将 Ant Design `<Select>` 替换为原生 `<select>`，彻底解决下拉框被 Live2D 舞台 `z-index` 和 `overflow` 遮挡的问题。移除无效的 `.emotion-debug-select-popup` CSS，新增 `.emotion-debug-panel__select` 原生 select 样式。
+- **前端类型声明**：`websocketmanager.ts` 的 `parsedData` 类型新增 `emotion`、`emotion_label`、`emotion_intensity`、`expression` 字段，保证 TypeScript 严格类型检查通过。
+
+#### 修复
+- **调试面板下拉框遮挡**：修复情绪调试面板点击下拉框后选项被 Live2D canvas 层级遮挡、视觉不可见的问题。根因是 AntD Select 的 portal 渲染受父容器 `z-index: 3` 和 `pointer-events: none` 限制；改用原生 `<select>` 后由浏览器直接渲染，不受容器层级影响。
+
+#### 验证
+- **后端编译**：通过 `python3 -m py_compile BackendProject/main.py`。
+- **前端类型检查**：通过 `npm run test`（`tsc --noEmit`）。
+- **后端单元测试**：通过 `docker compose exec -T backend python -m unittest discover -s tests -p 'test_*.py'`（5 项全通过）。
+- **Docker 部署**：重新构建并部署 `backend`、`frontend`、`nginx`，`curl http://localhost/health` 返回 `healthy`。
+- **Debug API**：`POST /api/debug/emotion` 返回正确的情绪状态、表情和动作映射。
+- **容器验证**：后端镜像包含 5 处 `analyze_companion_emotion` 调用，前端构建产物包含 `companion-emotion` 事件派发和 `emotion_intensity` 字段。
+
+### 2026-09-08 情绪系统 Phase 1：表情自动切换与调试面板
+
+#### 新增
+- **情绪状态机**：后端 `ConnectionManager` 新增会话级 `emotion_states` 内存存储，实现 `analyze_companion_emotion` 关键词 + 衰减情绪状态机。支持 10 种情绪（neutral/happy/shy/sad/worried/wronged/angry/comforting/playful/sleepy），每种情绪有强度 boost、衰减系数（0.85）和自然恢复机制。
+- **情绪标签与规则**：新增 `EMOTION_LABELS`（中文标签映射）和 `EMOTION_RULES`（关键词触发规则），覆盖疲惫、难过、亲密、冷淡、冲突、开心、撒娇、晚安等场景。
+- **情绪 Prompt 注入**：新增 `build_emotion_prompt_context`，将当前情绪状态注入系统提示词，让 AI 回复语气自然贴合情绪状态。
+- **表情与动作映射**：新增 `select_animation_by_emotion` 和 `select_expression_by_emotion`，按情绪和模型名称选择对应的 Live2D 动画索引和表情 ID。支持 Hiyori、Haru、Mao、Ren、Natori 五款模型。
+- **文字聊天情绪接入**：`handle_text_message` 在回复前分析用户输入情绪，存储会话情绪状态，注入情绪上下文到 prompt，并通过 `assistant.meta` 发送情绪元数据（emotion/emotion_label/emotion_intensity/emotion_reason/expression）。
+- **前端情绪类型**：新增 `emotion.ts`，定义 `CompanionEmotion` 类型、`EMOTION_LABEL_MAP` 标签映射和 `EXPRESSION_MAP` 表情映射。
+- **情绪调试面板**：新增 `EmotionDebugPanel.tsx` 组件，仅在 URL 包含 `?debugEmotion=true` 时显示。支持选择情绪、调整强度、应用/重置，展示当前表情和动作映射。
+- **数字人舞台情绪展示**：`DigitalHumanStage.tsx` 监听 `companion-emotion` 事件，切换 Live2D 表情并更新状态文案（如"小凡很开心"）。
+- **WebSocket 情绪派发**：`websocketmanager.ts` 解析 `assistant.meta` 中的情绪字段，派发 `companion-emotion` 自定义事件。
+- **Live2D 表情切换**：`lapplive2dmanager.ts` 新增 `setExpression(expressionId)` 方法；`avatar.service.ts` 新增 `setExpression` 服务方法。
+- **后端 Debug API**：新增 `POST /api/debug/emotion`（手动设置情绪）和 `GET /api/debug/emotion/{session_id}`（查询情绪状态）接口。
+- **后端单元测试**：新增 `tests/test_emotion.py`，覆盖 worried/shy/decay/recovery/neutral 行为。
+- **Hiyori 表情注册**：在 `Hiyori.model3.json` 中注册 Expressions 条目，新增 6 个表情文件。
+- **CSS 样式**：新增情绪调试面板样式和情绪标签圆点样式；处理 `.digital-human-stage` 的 `pointer-events: none` 对调试面板的影响。
+
+#### 验证
+- **后端编译**：通过 `python3 -m py_compile`。
+- **前端类型检查**：通过 `npm run test`（`tsc --noEmit`）。
+- **后端单元测试**：5 项全通过。
+- **Docker 部署**：重新构建并部署前后端和 nginx。
+
 ### 2026-09-05 Live2D 视线跟随与人脸注视
 
 #### 新增

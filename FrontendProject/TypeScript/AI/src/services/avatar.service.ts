@@ -53,6 +53,15 @@ class AvatarService {
     }
   }
 
+  public setExpression(expressionId: string | null | undefined): void {
+    if (!expressionId) return;
+    try {
+      this.getManager().setExpression(expressionId);
+    } catch (error) {
+      console.error('[AvatarService] 切换表情失败:', error);
+    }
+  }
+
   public hitTestClientPoint(clientX: number, clientY: number): boolean {
     try {
       return this.getManager().hitTestClientPoint(clientX, clientY);
