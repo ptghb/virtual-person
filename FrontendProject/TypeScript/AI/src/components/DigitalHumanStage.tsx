@@ -32,6 +32,8 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
     emotion: 'neutral',
     intensity: 0
   });
+  const emotionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEmotionRef = useRef<string>('neutral');
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -52,18 +54,37 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
         detail?.expression ??
         getExpressionForEmotion(avatarService.getCurrentModelName(), emotion);
 
-      avatarService.setExpression(expression);
-      setEmotionState({
-        emotion,
-        expression,
-        emotionLabel: detail?.emotionLabel,
-        intensity: detail?.intensity,
-        reason: detail?.reason
-      });
+      // 防抖：相同情绪在 500ms 内只处理一次，避免高频对话时表情频繁闪烁
+      if (emotionDebounceRef.current) {
+        clearTimeout(emotionDebounceRef.current);
+      }
+      emotionDebounceRef.current = setTimeout(() => {
+        // 如果情绪没变且强度差异 < 0.1，跳过表情切换
+        if (
+          emotion === lastEmotionRef.current &&
+          Math.abs((detail?.intensity ?? 0) - emotionState.intensity) < 0.1
+        ) {
+          return;
+        }
+        lastEmotionRef.current = emotion;
+        avatarService.setExpression(expression);
+        setEmotionState({
+          emotion,
+          expression,
+          emotionLabel: detail?.emotionLabel,
+          intensity: detail?.intensity,
+          reason: detail?.reason
+        });
+      }, 500);
     };
     window.addEventListener('companion-emotion', handler);
-    return () => window.removeEventListener('companion-emotion', handler);
-  }, []);
+    return () => {
+      window.removeEventListener('companion-emotion', handler);
+      if (emotionDebounceRef.current) {
+        clearTimeout(emotionDebounceRef.current);
+      }
+    };
+  }, [emotionState.intensity]);
 
   useEffect(() => {
     document.body.classList.toggle('transparent-stage', transparent);

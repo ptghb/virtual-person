@@ -89,6 +89,47 @@ class TimelineRepository:
         return row_to_timeline_event(row) if row else None
 
 
+    def create_emotion_event(
+        self,
+        *,
+        user_id: str,
+        companion_id: str,
+        session_id: str | None,
+        emotion: str,
+        emotion_label: str,
+        intensity: float,
+        reason: str,
+    ) -> None:
+        """将一轮对话的情绪状态写入时间线，用于每日对话总结的情绪维度。"""
+        now = utc_now()
+        content = f"情绪：{emotion_label}（强度 {intensity:.2f}）— {reason}"
+        with db_cursor(commit=True) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO timeline_events (
+                  id, user_id, companion_id, session_id, event_type, title, content,
+                  emotional_valence, importance, source_memory_id, source_type,
+                  occurred_at, detected_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uuid.uuid4().hex,
+                    user_id,
+                    companion_id,
+                    session_id,
+                    "emotion",
+                    emotion_label,
+                    content,
+                    emotion[:40] or "neutral",
+                    max(1, min(5, int(intensity * 5))),
+                    None,
+                    "emotion_state",
+                    now,
+                    now,
+                    now,
+                ),
+            )
+
     def list_daily_summaries(
         self,
         *,

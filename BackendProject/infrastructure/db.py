@@ -126,6 +126,16 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_timeline_user_companion
             ON timeline_events(user_id, companion_id, occurred_at DESC);
 
+            CREATE TABLE IF NOT EXISTS emotion_states (
+              session_id TEXT PRIMARY KEY,
+              emotion TEXT NOT NULL DEFAULT 'neutral',
+              emotion_label TEXT NOT NULL DEFAULT '平静',
+              intensity REAL NOT NULL DEFAULT 0.0,
+              reason TEXT NOT NULL DEFAULT '默认平静状态',
+              decay_turns INTEGER NOT NULL DEFAULT 0,
+              updated_at REAL NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_memory_active
             ON memory_items(user_id, companion_id, status, memory_type, updated_at DESC);
 

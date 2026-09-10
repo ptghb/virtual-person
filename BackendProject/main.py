@@ -39,11 +39,58 @@ from services.douyin_live.signature_browser import browser_signature_provider
 # 加载环境变量
 load_dotenv()
 
+EMOTION_DECAY_INTERVAL_SECONDS = 30
+EMOTION_DECAY_FACTOR = 0.90  # 每 30s 衰减 10%，约 5 分钟从满强度衰减到 0.2 以下
+
+
+async def emotion_decay_loop():
+    """后台定时衰减所有会话的情绪强度。
+
+    每 EMOTION_DECAY_INTERVAL_SECONDS 秒扫描一次 emotion_states 表，
+    将非 neutral 情绪的强度乘以 EMOTION_DECAY_FACTOR。
+    强度低于 0.15 时自动回归 neutral。
+    """
+    while True:
+        await asyncio.sleep(EMOTION_DECAY_INTERVAL_SECONDS)
+        try:
+            now = time.time()
+            with db_cursor(commit=True) as cursor:
+                cursor.execute(
+                    "SELECT session_id, emotion, intensity FROM emotion_states "
+                    "WHERE emotion != 'neutral' AND intensity > 0"
+                )
+                rows = cursor.fetchall()
+                for row in rows:
+                    session_id = row["session_id"]
+                    old_intensity = float(row["intensity"])
+                    new_intensity = round(old_intensity * EMOTION_DECAY_FACTOR, 2)
+                    if new_intensity < 0.15:
+                        cursor.execute(
+                            "UPDATE emotion_states SET emotion='neutral', "
+                            "emotion_label='平静', intensity=0.0, "
+                            "reason='情绪自然消退', decay_turns=0, updated_at=? "
+                            "WHERE session_id=?",
+                            (now, session_id),
+                        )
+                        print(f"[emotion_decay] {session_id}: {row['emotion']} -> neutral (intensity {old_intensity} -> 0)")
+                    else:
+                        cursor.execute(
+                            "UPDATE emotion_states SET intensity=?, updated_at=? "
+                            "WHERE session_id=?",
+                            (new_intensity, now, session_id),
+                        )
+                        print(f"[emotion_decay] {session_id}: {row['emotion']} intensity {old_intensity} -> {new_intensity}")
+        except Exception as e:
+            print(f"[emotion_decay] 衰减循环异常: {e}")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    decay_task = asyncio.create_task(emotion_decay_loop())
     try:
         yield
     finally:
+        decay_task.cancel()
         await douyin_live_manager.stop()
         await browser_signature_provider.close()
 
@@ -185,15 +232,63 @@ class ConnectionManager:
             del self.message_history[client_id]
 
     def get_emotion_state(self, session_id: str) -> Dict[str, Any]:
-        return self.emotion_states.get(session_id, {
+        """从 SQLite 读取情绪状态，后端重启后仍可恢复。"""
+        try:
+            with db_cursor() as cursor:
+                cursor.execute(
+                    "SELECT emotion, emotion_label, intensity, reason, "
+                    "decay_turns, updated_at FROM emotion_states WHERE session_id = ?",
+                    (session_id,),
+                )
+                row = cursor.fetchone()
+            if row:
+                return {
+                    "emotion": row["emotion"],
+                    "emotion_label": row["emotion_label"],
+                    "intensity": row["intensity"],
+                    "reason": row["reason"],
+                    "decay_turns": row["decay_turns"],
+                    "updated_at": row["updated_at"],
+                }
+        except Exception as e:
+            print(f"[get_emotion_state] 读取情绪状态失败，使用默认值: {e}")
+        return {
             "emotion": "neutral",
+            "emotion_label": "平静",
             "intensity": 0.0,
             "reason": "默认平静状态",
             "decay_turns": 0,
             "updated_at": time.time(),
-        })
+        }
 
     def set_emotion_state(self, session_id: str, state: Dict[str, Any]) -> None:
+        """将情绪状态持久化到 SQLite。"""
+        emotion = str(state.get("emotion") or "neutral")
+        emotion_label = str(state.get("emotion_label") or EMOTION_LABELS.get(emotion, "平静"))
+        intensity = float(state.get("intensity") or 0.0)
+        reason = str(state.get("reason") or "默认平静状态")
+        decay_turns = int(state.get("decay_turns") or 0)
+        updated_at = float(state.get("updated_at") or time.time())
+        try:
+            with db_cursor(commit=True) as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO emotion_states
+                      (session_id, emotion, emotion_label, intensity, reason, decay_turns, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                      emotion = excluded.emotion,
+                      emotion_label = excluded.emotion_label,
+                      intensity = excluded.intensity,
+                      reason = excluded.reason,
+                      decay_turns = excluded.decay_turns,
+                      updated_at = excluded.updated_at
+                    """,
+                    (session_id, emotion, emotion_label, intensity, reason, decay_turns, updated_at),
+                )
+        except Exception as e:
+            print(f"[set_emotion_state] 持久化情绪状态失败: {e}")
+        # 同时更新内存缓存，兼容旧代码直接读 emotion_states 的场景
         self.emotion_states[session_id] = state
 
     def get_client_by_id(self, client_id: str) -> Optional[WebSocket]:
@@ -453,6 +548,24 @@ MODEL_EMOTION_EXPRESSIONS = {
     "Natori": {
         "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
         "sad": "Sad", "worried": "Sad", "wronged": "Sad",
+        "angry": "Angry", "comforting": "Smile",
+        "playful": "Blushing", "sleepy": "Sad",
+    },
+    "Mark": {
+        "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
+        "sad": "Sad", "worried": "Sad", "wronged": "Wronged",
+        "angry": "Angry", "comforting": "Smile",
+        "playful": "Blushing", "sleepy": "Sad",
+    },
+    "Rice": {
+        "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
+        "sad": "Sad", "worried": "Sad", "wronged": "Wronged",
+        "angry": "Angry", "comforting": "Smile",
+        "playful": "Blushing", "sleepy": "Sad",
+    },
+    "Wanko": {
+        "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
+        "sad": "Sad", "worried": "Sad", "wronged": "Wronged",
         "angry": "Angry", "comforting": "Smile",
         "playful": "Blushing", "sleepy": "Sad",
     },
@@ -1550,6 +1663,14 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 f"[handle_comment_message] 单条评论处理: "
                 f"user_id={actor['id']}, user_name={actor['name']}, content={content}"
             )
+            # 分析评论情绪并构建情绪上下文
+            live_chat_emotion_state = analyze_companion_emotion(
+                content,
+                manager.get_emotion_state("livestream_chat"),
+            )
+            manager.set_emotion_state("livestream_chat", live_chat_emotion_state)
+            live_emotion_context = build_emotion_prompt_context(live_chat_emotion_state)
+
             result = await comment_processor.process_comment(
                 single_comment,
                 companion_name=companion_name,
@@ -1558,6 +1679,7 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                     f"当前正在直播。请优先回应这位观众：{actor['name']}。"
                     "如果是在回答问题，要称呼对方昵称；如果只是普通闲聊，也要让回应听起来像对这个人说的。"
                 ),
+                emotion_context=live_emotion_context,
             )
 
             if result["status"] != "success":
@@ -1565,12 +1687,6 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 continue
 
             ai_response = result["ai_response"]
-            # 分析评论情绪
-            live_chat_emotion_state = analyze_companion_emotion(
-                content,
-                manager.get_emotion_state("livestream_chat"),
-            )
-            manager.set_emotion_state("livestream_chat", live_chat_emotion_state)
             live_chat_emotion = live_chat_emotion_state["emotion"]
             await send_livestream_assistant_message(
                 ai_response,
@@ -1654,6 +1770,17 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             manager.get_emotion_state(identity.session_id),
         )
         manager.set_emotion_state(identity.session_id, emotion_state)
+        # 将情绪写入时间线（仅非 neutral 且强度 >= 0.3 时记录，避免噪音）
+        if emotion_state["emotion"] != "neutral" and emotion_state["intensity"] >= 0.3:
+            timeline_service.record_emotion(
+                user_id=identity.user_id,
+                companion_id=identity.companion_id,
+                session_id=identity.session_id,
+                emotion=emotion_state["emotion"],
+                emotion_label=emotion_state["emotion_label"],
+                intensity=emotion_state["intensity"],
+                reason=emotion_state["reason"],
+            )
         system_prompt = prompt_builder.build_system_prompt(
             companion_name=profile["name"],
             personality=profile["personality"],
