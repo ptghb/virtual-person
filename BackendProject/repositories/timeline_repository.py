@@ -250,3 +250,35 @@ class TimelineRepository:
             cursor.execute("\n".join(sql), params)
             rows = cursor.fetchall()
         return [row_to_timeline_event(row) for row in rows]
+
+    def get_recent_emotion_events(
+        self,
+        *,
+        session_id: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """查询指定会话最近的情绪事件，按时间正序返回（用于绘制曲线图）。"""
+        with db_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT emotion, emotion_label, intensity, content, occurred_at
+                FROM timeline_events
+                WHERE session_id = ?
+                  AND event_type = 'emotion'
+                ORDER BY occurred_at DESC
+                LIMIT ?
+                """,
+                (session_id, limit),
+            )
+            rows = cursor.fetchall()
+        # 反转为时间正序，方便前端绘制曲线
+        result = []
+        for row in reversed(rows):
+            result.append({
+                "emotion": row["emotion"],
+                "emotion_label": row["emotion_label"],
+                "intensity": row["intensity"],
+                "content": row["content"],
+                "occurred_at": row["occurred_at"],
+            })
+        return result

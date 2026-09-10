@@ -11,6 +11,19 @@ import {
   normalizeCompanionEmotion
 } from '../emotion';
 
+const EMOTION_EMOJI_MAP: Record<CompanionEmotion, string> = {
+  neutral: '🌿',
+  happy: '😊',
+  shy: '😳',
+  sad: '😢',
+  worried: '😟',
+  wronged: '🥺',
+  angry: '😤',
+  comforting: '🤗',
+  playful: '😜',
+  sleepy: '😴'
+};
+
 interface DigitalHumanStageProps {
   subtitle?: string;
   thinking?: boolean;
@@ -133,6 +146,9 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
     ? `${profile.name}正在想…`
     : `${profile.name}${EMOTION_LABEL_MAP[emotion] ?? '陪着你'}`;
 
+  const intensity = emotionState.intensity ?? 0;
+  const intensityPercent = Math.round(intensity * 100);
+
   return (
     <div
       ref={stageRef}
@@ -143,7 +159,18 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
       <EmotionDebugPanel />
       <div className="digital-human-stage__label">
         <span className={thinking ? 'thinking-pulse' : ''} />
+        <span className="digital-human-stage__emoji">
+          {EMOTION_EMOJI_MAP[emotion] ?? '🌿'}
+        </span>
         {labelText}
+        {!thinking && intensity > 0.05 && (
+          <span className="digital-human-stage__intensity-bar">
+            <span
+              className="digital-human-stage__intensity-fill"
+              style={{ width: `${intensityPercent}%` }}
+            />
+          </span>
+        )}
       </div>
       {children}
       {subtitle && (

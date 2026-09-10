@@ -64,5 +64,16 @@ class TimelineService:
             event_type=event_type,
         )
 
+    def get_emotion_history(
+        self,
+        session_id: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """获取指定会话的最近情绪变化历史，按时间正序返回。"""
+        return self.repository.get_recent_emotion_events(
+            session_id=session_id,
+            limit=limit,
+        )
+
 
 timeline_service = TimelineService()

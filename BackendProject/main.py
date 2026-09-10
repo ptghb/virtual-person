@@ -291,6 +291,19 @@ class ConnectionManager:
         # 同时更新内存缓存，兼容旧代码直接读 emotion_states 的场景
         self.emotion_states[session_id] = state
 
+    def reset_emotion_state(self, session_id: str) -> None:
+        """重置指定会话的情绪状态为 neutral，用于直播结束等场景。"""
+        neutral_state = {
+            "emotion": "neutral",
+            "emotion_label": "平静",
+            "intensity": 0.0,
+            "reason": "会话结束，重置为平静",
+            "decay_turns": 0,
+            "updated_at": time.time(),
+        }
+        self.set_emotion_state(session_id, neutral_state)
+        print(f"[reset_emotion_state] 已重置会话 {session_id} 的情绪状态")
+
     def get_client_by_id(self, client_id: str) -> Optional[WebSocket]:
         """根据 client_id 获取 WebSocket 连接"""
         return self.client_connections.get(client_id)
@@ -979,6 +992,13 @@ async def get_debug_emotion(session_id: str):
     return {"status": "success", "data": manager.get_emotion_state(session_id)}
 
 
+@app.get("/api/debug/emotion/{session_id}/history")
+async def get_emotion_history(session_id: str, limit: int = 20):
+    """获取指定会话的最近情绪变化历史，用于调试面板绘制曲线图。"""
+    history = timeline_service.get_emotion_history(session_id, limit=limit)
+    return {"status": "success", "data": history}
+
+
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
     session = session_repository.get_session(session_id)
@@ -1070,6 +1090,8 @@ async def start_douyin_livestream(request: DouyinLivestreamStartRequest):
 @app.post("/api/livestream/douyin/stop")
 async def stop_douyin_livestream():
     status = await douyin_live_manager.stop()
+    # 直播结束时清除直播专属情绪状态，避免残留情绪影响下次直播或泄漏到普通聊天
+    manager.reset_emotion_state("livestream_session")
     await _broadcast_douyin_live_status(status)
     return {"status": "success", "data": status}
 
@@ -1613,9 +1635,9 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             live_emotion = action_emotion_map.get(action, "happy")
             live_emotion_state = analyze_companion_emotion(
                 reply_text,
-                manager.get_emotion_state(f"livestream_{action}"),
+                manager.get_emotion_state("livestream_session"),
             )
-            manager.set_emotion_state(f"livestream_{action}", live_emotion_state)
+            manager.set_emotion_state("livestream_session", live_emotion_state)
             await send_livestream_assistant_message(
                 reply_text,
                 livestream_clients,
@@ -1666,9 +1688,9 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
             # 分析评论情绪并构建情绪上下文
             live_chat_emotion_state = analyze_companion_emotion(
                 content,
-                manager.get_emotion_state("livestream_chat"),
+                manager.get_emotion_state("livestream_session"),
             )
-            manager.set_emotion_state("livestream_chat", live_chat_emotion_state)
+            manager.set_emotion_state("livestream_session", live_chat_emotion_state)
             live_emotion_context = build_emotion_prompt_context(live_chat_emotion_state)
 
             result = await comment_processor.process_comment(

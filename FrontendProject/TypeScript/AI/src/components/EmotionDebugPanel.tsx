@@ -1,11 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, InputNumber, Space, Tag } from 'antd';
-import { BugOutlined, ReloadOutlined } from '@ant-design/icons';
+import { BugOutlined, ReloadOutlined, LineChartOutlined } from '@ant-design/icons';
 import { avatarService } from '../services/avatar.service';
+import { getBackendApiUrl } from '../config';
 import {
   EMOTION_LABEL_MAP,
-  type CompanionEmotion,
-  getExpressionForEmotion
+  normalizeCompanionEmotion,
+  getExpressionForEmotion,
+  type CompanionEmotion
 } from '../emotion';
 
 const EMOTION_MOTION_MAP: Record<string, Partial<Record<CompanionEmotion, number>>> = {
@@ -21,10 +23,80 @@ const EMOTION_MOTION_MAP: Record<string, Partial<Record<CompanionEmotion, number
 
 const EMOTIONS = Object.keys(EMOTION_LABEL_MAP) as CompanionEmotion[];
 
+/** 情绪颜色映射，与 CSS 中保持一致 */
+const EMOTION_COLORS: Record<string, string> = {
+  neutral: '#8c9bb8',
+  happy: '#ff7ab6',
+  shy: '#ff9ac9',
+  sad: '#8c9bb8',
+  worried: '#7aa7ff',
+  wronged: '#8c9bb8',
+  angry: '#ff6b6b',
+  comforting: '#7aa7ff',
+  playful: '#ff7ab6',
+  sleepy: '#9b8cff'
+};
+
+interface EmotionHistoryItem {
+  emotion: string;
+  emotion_label: string;
+  intensity: number;
+  content: string;
+  occurred_at: string;
+}
+
 function isDebugEnabled(): boolean {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('debugEmotion') === 'true';
 }
+
+/** 情绪历史曲线图 — 纯 SVG 实现，不依赖额外图表库 */
+const EmotionHistoryChart: React.FC<{ data: EmotionHistoryItem[] }> = ({ data }) => {
+  const width = 320;
+  const height = 80;
+  const padding = 4;
+
+  if (data.length === 0) {
+    return <div className="emotion-debug-panel__no-history">暂无情绪历史记录</div>;
+  }
+
+  const stepX = data.length > 1 ? (width - padding * 2) / (data.length - 1) : 0;
+  const points = data.map((item, i) => {
+    const x = padding + i * stepX;
+    const y = height - padding - item.intensity * (height - padding * 2);
+    return { x, y, ...item };
+  });
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <div className="emotion-debug-panel__chart">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {/* 背景网格线 */}
+        {[0.25, 0.5, 0.75].map(ratio => {
+          const y = padding + ratio * (height - padding * 2);
+          return <line key={ratio} x1={padding} y1={y} x2={width - padding} y2={y} stroke="rgba(0,0,0,0.06)" strokeWidth={1} />;
+        })}
+        {/* 曲线 */}
+        <path d={pathD} fill="none" stroke="#8c9bb8" strokeWidth={1.5} />
+        {/* 数据点 */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={3} fill={EMOTION_COLORS[p.emotion] || '#8c9bb8'} />
+            <title>{`${p.emotion_label} (${(p.intensity * 100).toFixed(0)}%)`}</title>
+          </g>
+        ))}
+      </svg>
+      <div className="emotion-debug-panel__chart-legend">
+        {data.slice(-6).map((item, i) => (
+          <span key={i} className="emotion-debug-panel__chart-tag" style={{ color: EMOTION_COLORS[item.emotion] || '#8c9bb8' }}>
+            {item.emotion_label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export const EmotionDebugPanel: React.FC = () => {
   const enabled = isDebugEnabled();
@@ -32,12 +104,35 @@ export const EmotionDebugPanel: React.FC = () => {
   const [emotion, setEmotion] = useState<CompanionEmotion>('neutral');
   const [intensity, setIntensity] = useState(0.75);
   const [lastApplied, setLastApplied] = useState<CompanionEmotion>('neutral');
+  const [history, setHistory] = useState<EmotionHistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const sessionIdRef = useRef('debug-panel');
 
   const expression = useMemo(
     () => getExpressionForEmotion(modelName, emotion),
     [modelName, emotion]
   );
   const animationIndex = EMOTION_MOTION_MAP[modelName]?.[emotion] ?? 0;
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetch(getBackendApiUrl(`/api/debug/emotion/${sessionIdRef.current}/history?limit=20`));
+      const json = await res.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        setHistory(json.data);
+      }
+    } catch {
+      // 静默失败，调试面板不应影响主流程
+    }
+  }, []);
+
+  useEffect(() => {
+    if (enabled && showHistory) {
+      fetchHistory();
+      const timer = setInterval(fetchHistory, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [enabled, showHistory, fetchHistory]);
 
   if (!enabled) return null;
 
@@ -56,6 +151,9 @@ export const EmotionDebugPanel: React.FC = () => {
       new CustomEvent('change-animation', { detail: { animationIndex } })
     );
     setLastApplied(emotion);
+    if (showHistory) {
+      setTimeout(fetchHistory, 500);
+    }
   };
 
   const resetEmotion = () => {
@@ -75,6 +173,9 @@ export const EmotionDebugPanel: React.FC = () => {
     avatarService.setExpression(getExpressionForEmotion(modelName, 'neutral'));
     avatarService.playMotion(EMOTION_MOTION_MAP[modelName]?.neutral ?? 0);
     setLastApplied('neutral');
+    if (showHistory) {
+      setTimeout(fetchHistory, 500);
+    }
   };
 
   return (
@@ -82,6 +183,15 @@ export const EmotionDebugPanel: React.FC = () => {
       <div className="emotion-debug-panel__title">
         <span><BugOutlined /> 情绪调试</span>
         <Tag color="purple">{modelName}</Tag>
+        <Button
+          size="small"
+          type={showHistory ? 'primary' : 'default'}
+          ghost={showHistory}
+          icon={<LineChartOutlined />}
+          onClick={() => setShowHistory(!showHistory)}
+        >
+          曲线
+        </Button>
       </div>
       <Space wrap size="small">
         <select
@@ -113,6 +223,14 @@ export const EmotionDebugPanel: React.FC = () => {
         <span>动作：{animationIndex}</span>
         <span>当前：{EMOTION_LABEL_MAP[lastApplied]}</span>
       </div>
+      {showHistory && (
+        <div className="emotion-debug-panel__history">
+          <div className="emotion-debug-panel__history-title">
+            情绪历史曲线（最近 {history.length} 条）
+          </div>
+          <EmotionHistoryChart data={history} />
+        </div>
+      )}
     </div>
   );
 };
