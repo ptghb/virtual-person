@@ -82,6 +82,14 @@ class DouyinLivestreamStartRequest(BaseModel):
     room_num: str
 
 
+class DebugEmotionRequest(BaseModel):
+    session_id: str
+    emotion: str
+    intensity: float = 0.75
+    model_name: str = "Hiyori"
+    reason: str = "开发调试面板手动设置"
+
+
 # 配置 CORS
 app.add_middleware(
     CORSMiddleware,
@@ -101,6 +109,8 @@ class ConnectionManager:
         self.message_history: Dict[str, List[BaseMessage]] = {}
         self.companion_profiles: Dict[str, Dict[str, str]] = {}
         self.identities: Dict[str, ResolvedIdentity] = {}
+        # 会话级短期情绪状态。先保存在单进程内存中，避免把临时情绪误写入长期记忆。
+        self.emotion_states: Dict[str, Dict[str, Any]] = {}
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -117,7 +127,7 @@ class ConnectionManager:
         self.identities.pop(client_id, None)
         print(f"[ConnectionManager] 客户端 {client_id} 已断开")
 
-    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None, prompt: str = None):
+    async def send_personal_message(self, message: str, audio: str, websocket: WebSocket, msg_type: int = 1, animation_index: int = None, should_take_photo: bool = None, prompt: str = None, emotion: str = None, emotion_label: str = None, emotion_intensity: float = None, expression: str = None):
         """发送个人消息，支持多种类型
 
         Args:
@@ -126,6 +136,10 @@ class ConnectionManager:
             msg_type: 消息类型（1:文字，2:图片，3:音频）
             animation_index: 动画序号（可选）
             should_take_photo: 是否需要拍照（可选）
+            emotion: 情绪标识（可选，如 happy/shy/sad 等）
+            emotion_label: 情绪中文标签（可选）
+            emotion_intensity: 情绪强度 0-1（可选）
+            expression: Live2D 表情 ID（可选）
         """
         message_obj = {
             "type": msg_type,
@@ -139,6 +153,14 @@ class ConnectionManager:
             message_obj["should_take_photo"] = should_take_photo
         if prompt is not None:
             message_obj["prompt"] = prompt
+        if emotion is not None:
+            message_obj["emotion"] = emotion
+        if emotion_label is not None:
+            message_obj["emotion_label"] = emotion_label
+        if emotion_intensity is not None:
+            message_obj["emotion_intensity"] = emotion_intensity
+        if expression is not None:
+            message_obj["expression"] = expression
         print(f"[send_personal_message] 发送的消息内容: {message_obj}")
 
         await websocket.send_text(json.dumps(message_obj))
@@ -161,6 +183,18 @@ class ConnectionManager:
         """清除指定客户端的消息历史记录"""
         if client_id in self.message_history:
             del self.message_history[client_id]
+
+    def get_emotion_state(self, session_id: str) -> Dict[str, Any]:
+        return self.emotion_states.get(session_id, {
+            "emotion": "neutral",
+            "intensity": 0.0,
+            "reason": "默认平静状态",
+            "decay_turns": 0,
+            "updated_at": time.time(),
+        })
+
+    def set_emotion_state(self, session_id: str, state: Dict[str, Any]) -> None:
+        self.emotion_states[session_id] = state
 
     def get_client_by_id(self, client_id: str) -> Optional[WebSocket]:
         """根据 client_id 获取 WebSocket 连接"""
@@ -322,6 +356,173 @@ def select_animation_index(text: str, model_name: str) -> int:
     elif any(word in text for word in serious_words):
         emotion = "serious"
     return model_motions.get(model_name, model_motions["Hiyori"])[emotion]
+
+
+EMOTION_LABELS = {
+    "neutral": "平静",
+    "happy": "开心",
+    "shy": "害羞",
+    "sad": "难过",
+    "worried": "担心",
+    "wronged": "委屈",
+    "angry": "生气",
+    "comforting": "想安慰用户",
+    "playful": "调皮撒娇",
+    "sleepy": "困倦",
+}
+
+EMOTION_RULES = [
+    ("worried", 0.52, "用户表达疲惫、不舒服、焦虑或压力", (
+        "累", "疲惫", "压力", "难受", "不舒服", "焦虑", "害怕", "紧张",
+        "睡不着", "生病", "头疼", "胃疼", "加班", "崩溃",
+    )),
+    ("sad", 0.55, "用户表达难过、伤心或失落", (
+        "难过", "伤心", "想哭", "哭了", "失落", "没人理解", "孤独",
+        "委屈死了", "不开心", "沮丧",
+    )),
+    ("shy", 0.45, "用户表达亲密、夸奖或暧昧互动", (
+        "喜欢你", "爱你", "亲亲", "抱抱", "老婆", "宝贝", "可爱",
+        "想你", "贴贴", "亲一下",
+    )),
+    ("wronged", 0.38, "用户显得冷淡或提到忽略陪伴", (
+        "忘了你", "不理你", "好久没来", "以后再说", "别烦", "一边去",
+    )),
+    ("angry", 0.35, "用户语气有明显冲突或攻击性", (
+        "讨厌你", "闭嘴", "烦死了", "你真没用", "滚", "别理我",
+    )),
+    ("happy", 0.36, "用户表达开心、感谢或积极反馈", (
+        "哈哈", "开心", "真好", "谢谢", "太棒了", "好耶", "舒服了",
+        "好多了", "不错", "厉害",
+    )),
+    ("playful", 0.32, "用户在轻松玩笑或撒娇", (
+        "嘿嘿", "哼", "逗你", "开玩笑", "撒娇", "摸摸", "捏捏",
+    )),
+    ("sleepy", 0.34, "用户提到睡觉或晚安场景", (
+        "晚安", "困了", "睡觉", "想睡", "熬夜",
+    )),
+]
+
+EMOTION_ANIMATION_FALLBACK = {
+    "neutral": "happy",
+    "happy": "happy",
+    "shy": "happy",
+    "sad": "sad",
+    "worried": "sad",
+    "wronged": "sad",
+    "angry": "serious",
+    "comforting": "sad",
+    "playful": "happy",
+    "sleepy": "sad",
+}
+
+MODEL_EMOTION_MOTIONS = {
+    "Hiyori": {"happy": 1, "serious": 3, "sad": 7},
+    "Haru": {"happy": 1, "serious": 2, "sad": 1},
+    "Mark": {"happy": 3, "serious": 4, "sad": 3},
+    "Natori": {"happy": 5, "serious": 6, "sad": 5},
+    "Rice": {"happy": 2, "serious": 3, "sad": 1},
+    "Mao": {"happy": 4, "serious": 3, "sad": 2},
+    "Wanko": {"happy": 1, "serious": 3, "sad": 2},
+    "Ren": {"happy": 1, "serious": 0, "sad": 0},
+}
+
+MODEL_EMOTION_EXPRESSIONS = {
+    "Hiyori": {
+        "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
+        "sad": "Sad", "worried": "Sad", "wronged": "Wronged",
+        "angry": "Angry", "comforting": "Smile",
+        "playful": "Blushing", "sleepy": "Sad",
+    },
+    "Haru": {
+        "neutral": "F01", "happy": "F02", "shy": "F03", "sad": "F04",
+        "worried": "F04", "wronged": "F05", "angry": "F06",
+        "comforting": "F02", "playful": "F07", "sleepy": "F04",
+    },
+    "Mao": {
+        "neutral": "exp_01", "happy": "exp_02", "shy": "exp_03",
+        "sad": "exp_04", "worried": "exp_04", "wronged": "exp_05",
+        "angry": "exp_06", "comforting": "exp_02",
+        "playful": "exp_07", "sleepy": "exp_04",
+    },
+    "Ren": {
+        "neutral": "exp_01", "happy": "exp_02", "shy": "exp_03",
+        "sad": "exp_04", "worried": "exp_04", "wronged": "exp_05",
+        "angry": "exp_04", "comforting": "exp_02",
+        "playful": "exp_03", "sleepy": "exp_04",
+    },
+    "Natori": {
+        "neutral": "Normal", "happy": "Smile", "shy": "Blushing",
+        "sad": "Sad", "worried": "Sad", "wronged": "Sad",
+        "angry": "Angry", "comforting": "Smile",
+        "playful": "Blushing", "sleepy": "Sad",
+    },
+}
+
+
+def select_animation_by_emotion(emotion: str, model_name: str) -> int:
+    motion_emotion = EMOTION_ANIMATION_FALLBACK.get(emotion, "happy")
+    return MODEL_EMOTION_MOTIONS.get(
+        model_name,
+        MODEL_EMOTION_MOTIONS["Hiyori"],
+    ).get(motion_emotion, 1)
+
+
+def select_expression_by_emotion(emotion: str, model_name: str) -> Optional[str]:
+    mapping = MODEL_EMOTION_EXPRESSIONS.get(model_name)
+    if not mapping:
+        return None
+    return mapping.get(emotion) or mapping.get("neutral")
+
+
+def analyze_companion_emotion(
+    user_text: str,
+    previous_state: Dict[str, Any],
+) -> Dict[str, Any]:
+    """基于关键词 + 衰减的会话级情绪状态机。"""
+    text = user_text or ""
+    previous_emotion = str(previous_state.get("emotion") or "neutral")
+    previous_intensity = float(previous_state.get("intensity") or 0.0)
+    decayed_intensity = previous_intensity * 0.85
+
+    selected_emotion = previous_emotion if decayed_intensity >= 0.2 else "neutral"
+    selected_intensity = decayed_intensity if selected_emotion != "neutral" else 0.0
+    selected_reason = str(previous_state.get("reason") or "情绪自然延续")
+
+    for emotion, boost, reason, keywords in EMOTION_RULES:
+        if any(keyword in text for keyword in keywords):
+            selected_emotion = emotion
+            selected_intensity = min(1.0, max(decayed_intensity, 0.2) + boost)
+            selected_reason = reason
+            break
+
+    if selected_emotion in {"sad", "worried"} and selected_intensity >= 0.7:
+        decay_turns = 3
+    elif selected_emotion == "neutral":
+        decay_turns = 0
+    else:
+        decay_turns = 2
+
+    return {
+        "emotion": selected_emotion,
+        "emotion_label": EMOTION_LABELS.get(selected_emotion, "平静"),
+        "intensity": round(selected_intensity, 2),
+        "reason": selected_reason,
+        "decay_turns": decay_turns,
+        "updated_at": time.time(),
+    }
+
+
+def build_emotion_prompt_context(emotion_state: Dict[str, Any]) -> str:
+    emotion = str(emotion_state.get("emotion") or "neutral")
+    intensity = float(emotion_state.get("intensity") or 0.0)
+    if emotion == "neutral" or intensity < 0.2:
+        return ""
+    return (
+        "\n\n【当前短期情绪状态】"
+        f"\n你现在的情绪是：{EMOTION_LABELS.get(emotion, '平静')}，强度 {intensity:.2f}。"
+        f"\n原因：{emotion_state.get('reason', '刚才的对话氛围')}。"
+        "\n请让回复语气自然贴合这个状态，但不要直接说出 emotion/intensity 等系统字段。"
+    )
 
 
 def should_request_photo(text: str) -> bool:
@@ -634,6 +835,35 @@ async def delete_memory(memory_id: str):
         raise HTTPException(status_code=404, detail="记忆不存在")
     timeline_service.delete_for_memory(memory_id)
     return {"id": item.id, "status": item.status.value}
+
+
+@app.post("/api/debug/emotion")
+async def set_debug_emotion(payload: DebugEmotionRequest):
+    """开发调试用：手动设置某个会话的短期情绪状态。"""
+    emotion = payload.emotion if payload.emotion in EMOTION_LABELS else "neutral"
+    intensity = min(1.0, max(0.0, payload.intensity))
+    state = {
+        "emotion": emotion,
+        "emotion_label": EMOTION_LABELS[emotion],
+        "intensity": round(intensity, 2),
+        "reason": payload.reason[:200],
+        "decay_turns": 2 if emotion != "neutral" else 0,
+        "updated_at": time.time(),
+    }
+    manager.set_emotion_state(payload.session_id, state)
+    return {
+        "status": "success",
+        "data": {
+            **state,
+            "expression": select_expression_by_emotion(emotion, payload.model_name),
+            "animation_index": select_animation_by_emotion(emotion, payload.model_name),
+        },
+    }
+
+
+@app.get("/api/debug/emotion/{session_id}")
+async def get_debug_emotion(session_id: str):
+    return {"status": "success", "data": manager.get_emotion_state(session_id)}
 
 
 @app.get("/api/sessions/{session_id}")
@@ -961,6 +1191,7 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
     is_audio = msg_data.get("is_audio", False)
     print(f"[handle_image_message] 是否音频消息: {is_audio}")
     identity = resolve_identity(client_id, msg_data)
+    model = msg_data.get("model", "Hiyori")
 
     profile = manager.set_companion_profile(
         client_id,
@@ -971,13 +1202,20 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
     msg_data["companion_name"] = profile["name"]
     msg_data["personality"] = profile["personality"]
 
+    # 情绪分析：用用户 prompt 或默认"拍照"作为情绪输入
+    emotion_input = msg_data.get("prompt") or "拍照"
+    emotion_state = analyze_companion_emotion(
+        emotion_input,
+        manager.get_emotion_state(identity.session_id),
+    )
+    manager.set_emotion_state(identity.session_id, emotion_state)
+
     # 处理图片消息
     result = await image_processor.process_image_message(msg_data)
 
     # 同时发送AI对图片的描述作为聊天消息
     if result["status"] == "success" and "description" in result:
         ai_response = result["description"]
-        # await manager.send_personal_message(f"图片分析结果: {description}", "", websocket, msg_type=1)
 
         humanMessage = msg_data.get("prompt", None) if msg_data.get("prompt", None) else "拍照"
         # 将用户消息和AI回复添加到历史记录
@@ -990,15 +1228,35 @@ async def handle_image_message(websocket: WebSocket, client_id: str, msg_data: d
           clean_text = normalize_tts_text(ai_response)
           audio_url = await http_service.generate_tts_audio(clean_text)
 
+        # 发送情绪元数据（assistant.meta 格式），让前端切换表情和动作
+        await websocket.send_text(json.dumps({
+            "type": "assistant.meta",
+            "data": {
+                "reply_id": f"img_{uuid.uuid4().hex}",
+                "animation_index": select_animation_by_emotion(emotion_state["emotion"], model),
+                "emotion": emotion_state["emotion"],
+                "emotion_label": emotion_state["emotion_label"],
+                "emotion_intensity": emotion_state["intensity"],
+                "emotion_reason": emotion_state["reason"],
+                "expression": select_expression_by_emotion(emotion_state["emotion"], model),
+                "should_take_photo": False,
+                "prompt": humanMessage,
+            },
+        }))
+
         # 发送 AI 回复
         await manager.send_personal_message(
           f"{profile['name']}: {ai_response}",
           audio_url,
           websocket,
           msg_type=1,
-          animation_index=0,
+          animation_index=select_animation_by_emotion(emotion_state["emotion"], model),
           should_take_photo=False,
-          prompt=None
+          prompt=None,
+          emotion=emotion_state["emotion"],
+          emotion_label=emotion_state["emotion_label"],
+          emotion_intensity=emotion_state["intensity"],
+          expression=select_expression_by_emotion(emotion_state["emotion"], model),
         )
 
 
@@ -1065,6 +1323,10 @@ async def send_livestream_assistant_message(
     animation_index: int,
     prompt: Optional[str] = None,
     audio_url: Optional[str] = None,
+    emotion: Optional[str] = None,
+    emotion_label: Optional[str] = None,
+    emotion_intensity: Optional[float] = None,
+    expression: Optional[str] = None,
 ):
     if audio_url is None:
         audio_url = ""
@@ -1075,6 +1337,22 @@ async def send_livestream_assistant_message(
 
     for stream_client_id, stream_websocket in livestream_clients:
         try:
+            # 先发送情绪元数据（assistant.meta 格式），让前端切换表情
+            if emotion is not None:
+                await stream_websocket.send_text(json.dumps({
+                    "type": "assistant.meta",
+                    "data": {
+                        "reply_id": f"live_{uuid.uuid4().hex}",
+                        "animation_index": animation_index,
+                        "emotion": emotion,
+                        "emotion_label": emotion_label,
+                        "emotion_intensity": emotion_intensity,
+                        "emotion_reason": "直播互动",
+                        "expression": expression,
+                        "should_take_photo": False,
+                        "prompt": prompt,
+                    },
+                }))
             await manager.send_personal_message(
                 f"{companion_name}: {text}",
                 audio_url,
@@ -1083,6 +1361,10 @@ async def send_livestream_assistant_message(
                 animation_index=animation_index,
                 should_take_photo=False,
                 prompt=prompt,
+                emotion=emotion,
+                emotion_label=emotion_label,
+                emotion_intensity=emotion_intensity,
+                expression=expression,
             )
             print(f"[send_livestream_assistant_message] 已发送给客户端 {stream_client_id}")
         except Exception as e:
@@ -1208,12 +1490,29 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 f"[handle_comment_message] 互动动作: action={action}, "
                 f"user_id={actor['id']}, user_name={actor['name']}, reply={reply_text}"
             )
+            # 根据互动类型选择情绪
+            action_emotion_map = {
+                "member": "happy",
+                "social": "happy",
+                "like": "happy",
+                "gift": "shy",
+            }
+            live_emotion = action_emotion_map.get(action, "happy")
+            live_emotion_state = analyze_companion_emotion(
+                reply_text,
+                manager.get_emotion_state(f"livestream_{action}"),
+            )
+            manager.set_emotion_state(f"livestream_{action}", live_emotion_state)
             await send_livestream_assistant_message(
                 reply_text,
                 livestream_clients,
                 companion_name,
                 LIVESTREAM_ACTION_ANIMATIONS[action],
                 prompt=f"{action}:{actor['name']}",
+                emotion=live_emotion,
+                emotion_label=EMOTION_LABELS.get(live_emotion, "开心"),
+                emotion_intensity=0.6,
+                expression=select_expression_by_emotion(live_emotion, livestream_model),
             )
 
     if not chat_messages:
@@ -1266,13 +1565,24 @@ async def handle_comment_message(websocket: WebSocket, client_id: str, msg_data:
                 continue
 
             ai_response = result["ai_response"]
+            # 分析评论情绪
+            live_chat_emotion_state = analyze_companion_emotion(
+                content,
+                manager.get_emotion_state("livestream_chat"),
+            )
+            manager.set_emotion_state("livestream_chat", live_chat_emotion_state)
+            live_chat_emotion = live_chat_emotion_state["emotion"]
             await send_livestream_assistant_message(
                 ai_response,
                 livestream_clients,
                 companion_name,
-                select_animation_index(f"{content}\n{ai_response}", livestream_model),
+                select_animation_by_emotion(live_chat_emotion, livestream_model),
                 prompt=single_comment,
                 audio_url=result.get("audio_url") or "",
+                emotion=live_chat_emotion,
+                emotion_label=live_chat_emotion_state["emotion_label"],
+                emotion_intensity=live_chat_emotion_state["intensity"],
+                expression=select_expression_by_emotion(live_chat_emotion, livestream_model),
             )
             processed_count += 1
 
@@ -1339,12 +1649,17 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             session_id=identity.session_id,
         )
         realtime_context = await build_realtime_context(text)
+        emotion_state = analyze_companion_emotion(
+            text,
+            manager.get_emotion_state(identity.session_id),
+        )
+        manager.set_emotion_state(identity.session_id, emotion_state)
         system_prompt = prompt_builder.build_system_prompt(
             companion_name=profile["name"],
             personality=profile["personality"],
             memory_pack=memory_pack,
             realtime_context=realtime_context,
-        )
+        ) + build_emotion_prompt_context(emotion_state)
         message_history = manager.get_message_history(identity.session_id)
         messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)
         reply_id = f"reply_{uuid.uuid4().hex}"
@@ -1363,7 +1678,18 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             "type": "assistant.meta",
             "data": {
                 "reply_id": reply_id,
-                "animation_index": select_animation_index(text, model),
+                "animation_index": select_animation_by_emotion(
+                    emotion_state["emotion"],
+                    model,
+                ),
+                "emotion": emotion_state["emotion"],
+                "emotion_label": emotion_state["emotion_label"],
+                "emotion_intensity": emotion_state["intensity"],
+                "emotion_reason": emotion_state["reason"],
+                "expression": select_expression_by_emotion(
+                    emotion_state["emotion"],
+                    model,
+                ),
                 "should_take_photo": (
                         identity.mode == "advanced"
                     and not has_image

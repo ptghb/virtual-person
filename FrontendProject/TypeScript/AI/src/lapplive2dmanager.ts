@@ -289,6 +289,16 @@ export class LAppLive2DManager {
   }
 
   /**
+   * 设置当前模型的表情。expressionId 需要与 model3.json 中的 Expressions.Name 一致。
+   */
+  public setExpression(expressionId: string): void {
+    const model: LAppModel = this._models.at(0);
+    if (model && expressionId) {
+      model.setExpression(expressionId);
+    }
+  }
+
+  /**
    * 判断浏览器客户区坐标是否落在当前 Live2D 模型的任意碰撞区域内。
    */
   public hitTestClientPoint(clientX: number, clientY: number): boolean {

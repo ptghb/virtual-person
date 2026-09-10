@@ -215,6 +215,10 @@ export class WebSocketManager {
             audio?: string;
             should_take_photo?: boolean;
             prompt?: string;
+            emotion?: string;
+            emotion_label?: string;
+            emotion_intensity?: number;
+            expression?: string;
             data?: {
               status?: string;
               message?: string;
@@ -227,6 +231,11 @@ export class WebSocketManager {
               audio_url?: string;
               sequence?: number;
               animation_index?: number;
+              expression?: string | null;
+              emotion?: string;
+              emotion_label?: string;
+              emotion_intensity?: number;
+              emotion_reason?: string;
               should_take_photo?: boolean;
               prompt?: string;
               [key: string]: unknown;
@@ -286,6 +295,22 @@ export class WebSocketManager {
                   new CustomEvent('change-animation', {
                     detail: {
                       animationIndex: streamData.animation_index
+                    }
+                  })
+                );
+              }
+              if (
+                typeof streamData.emotion === 'string' ||
+                typeof streamData.expression === 'string'
+              ) {
+                window.dispatchEvent(
+                  new CustomEvent('companion-emotion', {
+                    detail: {
+                      emotion: streamData.emotion,
+                      emotionLabel: streamData.emotion_label,
+                      intensity: streamData.emotion_intensity,
+                      reason: streamData.emotion_reason,
+                      expression: streamData.expression ?? null
                     }
                   })
                 );
@@ -380,6 +405,24 @@ export class WebSocketManager {
               }
             });
             window.dispatchEvent(animationEvent);
+          }
+
+          // 旧格式消息（type=1）中携带的情绪字段，统一派发 companion-emotion 事件
+          if (
+            typeof parsedData.emotion === 'string' ||
+            typeof parsedData.expression === 'string'
+          ) {
+            window.dispatchEvent(
+              new CustomEvent('companion-emotion', {
+                detail: {
+                  emotion: parsedData.emotion,
+                  emotionLabel: parsedData.emotion_label,
+                  intensity: parsedData.emotion_intensity,
+                  reason: '互动情绪',
+                  expression: parsedData.expression ?? null
+                }
+              })
+            );
           }
 
           // 检查是否需要拍照

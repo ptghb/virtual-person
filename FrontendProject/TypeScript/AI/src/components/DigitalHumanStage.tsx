@@ -1,7 +1,15 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { avatarService } from '../services/avatar.service';
 import { TypewriterText } from './TypewriterText';
 import { useCompanionProfile } from '../services/companion-profile.service';
+import { EmotionDebugPanel } from './EmotionDebugPanel';
+import {
+  EMOTION_LABEL_MAP,
+  type CompanionEmotion,
+  type CompanionEmotionDetail,
+  getExpressionForEmotion,
+  normalizeCompanionEmotion
+} from '../emotion';
 
 interface DigitalHumanStageProps {
   subtitle?: string;
@@ -20,6 +28,10 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
 }) => {
   const stageRef = useRef<HTMLDivElement>(null);
   const { profile } = useCompanionProfile();
+  const [emotionState, setEmotionState] = useState<CompanionEmotionDetail>({
+    emotion: 'neutral',
+    intensity: 0
+  });
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -30,6 +42,27 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
     };
     window.addEventListener('change-animation', handler);
     return () => window.removeEventListener('change-animation', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<CompanionEmotionDetail>).detail;
+      const emotion = normalizeCompanionEmotion(detail?.emotion);
+      const expression =
+        detail?.expression ??
+        getExpressionForEmotion(avatarService.getCurrentModelName(), emotion);
+
+      avatarService.setExpression(expression);
+      setEmotionState({
+        emotion,
+        expression,
+        emotionLabel: detail?.emotionLabel,
+        intensity: detail?.intensity,
+        reason: detail?.reason
+      });
+    };
+    window.addEventListener('companion-emotion', handler);
+    return () => window.removeEventListener('companion-emotion', handler);
   }, []);
 
   useEffect(() => {
@@ -74,14 +107,22 @@ export const DigitalHumanStage: React.FC<DigitalHumanStageProps> = ({
     };
   }, [transparent]);
 
+  const emotion = emotionState.emotion as CompanionEmotion;
+  const labelText = thinking
+    ? `${profile.name}正在想…`
+    : `${profile.name}${EMOTION_LABEL_MAP[emotion] ?? '陪着你'}`;
+
   return (
     <div
       ref={stageRef}
-      className={`digital-human-stage ${transparent ? 'is-transparent' : ''}`}
+      className={`digital-human-stage digital-human-stage--emotion-${emotion} ${
+        transparent ? 'is-transparent' : ''
+      }`}
     >
+      <EmotionDebugPanel />
       <div className="digital-human-stage__label">
         <span className={thinking ? 'thinking-pulse' : ''} />
-        {thinking ? `${profile.name}正在想…` : `${profile.name}陪着你`}
+        {labelText}
       </div>
       {children}
       {subtitle && (
