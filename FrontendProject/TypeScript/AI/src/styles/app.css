@@ -538,6 +538,60 @@ textarea {
   height: 8px;
   border-radius: 50%;
   background: var(--rose-500);
+  flex-shrink: 0;
+}
+
+.digital-human-stage__emoji {
+  font-size: 14px;
+  line-height: 1;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+}
+
+.digital-human-stage__intensity-bar {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.digital-human-stage__intensity-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  background: var(--rose-500);
+}
+
+.digital-human-stage--emotion-happy .digital-human-stage__intensity-fill,
+.digital-human-stage--emotion-playful .digital-human-stage__intensity-fill {
+  background: #ff7ab6;
+}
+
+.digital-human-stage--emotion-shy .digital-human-stage__intensity-fill {
+  background: #ff9ac9;
+}
+
+.digital-human-stage--emotion-worried .digital-human-stage__intensity-fill,
+.digital-human-stage--emotion-comforting .digital-human-stage__intensity-fill {
+  background: #7aa7ff;
+}
+
+.digital-human-stage--emotion-sad .digital-human-stage__intensity-fill,
+.digital-human-stage--emotion-wronged .digital-human-stage__intensity-fill {
+  background: #8c9bb8;
+}
+
+.digital-human-stage--emotion-angry .digital-human-stage__intensity-fill {
+  background: #ff6b6b;
+}
+
+.digital-human-stage--emotion-sleepy .digital-human-stage__intensity-fill {
+  background: #9b8cff;
 }
 
 .digital-human-stage--emotion-happy .digital-human-stage__label > span,
@@ -1755,4 +1809,49 @@ textarea {
   .avatar-live-preview {
     height: min(54vh, 460px);
   }
+}
+
+/* === 情绪历史曲线图 === */
+.emotion-debug-panel__history {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.emotion-debug-panel__history-title {
+  font-size: 12px;
+  color: #776a80;
+  margin-bottom: 6px;
+}
+
+.emotion-debug-panel__chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.emotion-debug-panel__chart svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.emotion-debug-panel__chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.emotion-debug-panel__chart-tag {
+  font-weight: 500;
+}
+
+.emotion-debug-panel__no-history {
+  font-size: 12px;
+  color: #aaa;
+  text-align: center;
+  padding: 12px 0;
 }

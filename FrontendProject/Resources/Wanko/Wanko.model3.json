@@ -27,7 +27,33 @@
 					"File": "motions/touch_04.motion3.json"
 				}
 			]
-		}
+		},
+		"Expressions": [
+			{
+				"Name": "Normal",
+				"File": "expressions/Normal.exp3.json"
+			},
+			{
+				"Name": "Smile",
+				"File": "expressions/Smile.exp3.json"
+			},
+			{
+				"Name": "Blushing",
+				"File": "expressions/Blushing.exp3.json"
+			},
+			{
+				"Name": "Sad",
+				"File": "expressions/Sad.exp3.json"
+			},
+			{
+				"Name": "Wronged",
+				"File": "expressions/Wronged.exp3.json"
+			},
+			{
+				"Name": "Angry",
+				"File": "expressions/Angry.exp3.json"
+			}
+		]
 	},
 	"Groups": [
 		{

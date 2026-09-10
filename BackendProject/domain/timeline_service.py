@@ -13,6 +13,28 @@ class TimelineService:
     def record_memory(self, memory: MemoryItem) -> TimelineEvent | None:
         return self.repository.create_from_memory(memory)
 
+    def record_emotion(
+        self,
+        *,
+        user_id: str,
+        companion_id: str,
+        session_id: str | None,
+        emotion: str,
+        emotion_label: str,
+        intensity: float,
+        reason: str,
+    ) -> None:
+        """记录一轮对话的情绪状态到时间线。"""
+        self.repository.create_emotion_event(
+            user_id=user_id,
+            companion_id=companion_id,
+            session_id=session_id,
+            emotion=emotion,
+            emotion_label=emotion_label,
+            intensity=intensity,
+            reason=reason,
+        )
+
     def delete_for_memory(self, memory_id: str) -> int:
         return self.repository.delete_by_source_memory_id(memory_id)
 
@@ -40,6 +62,17 @@ class TimelineService:
             companion_id=companion_id,
             limit=limit,
             event_type=event_type,
+        )
+
+    def get_emotion_history(
+        self,
+        session_id: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """获取指定会话的最近情绪变化历史，按时间正序返回。"""
+        return self.repository.get_recent_emotion_events(
+            session_id=session_id,
+            limit=limit,
         )
 
 

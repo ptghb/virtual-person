@@ -45,6 +45,7 @@ class CommentProcessor:
         chat_messages_str: str = "",
         companion_name: str = "小凡",
         personality: str = "",
+        emotion_context: str = "",
     ) -> Dict:
         """
         处理评论推送
@@ -91,8 +92,17 @@ class CommentProcessor:
            请记住，你的主要任务是与用户和观众进行轻松、自然的对话。
            不要使用任何专业术语或复杂的表达，尽量使用简单、通俗易懂的语言。
            请始终保持这个角色设定，用温暖、真诚的态度与用户交流。
-
+{emotion_context}
            """
+
+            # 注入情绪上下文到 system_prompt
+            if emotion_context:
+                system_prompt = system_prompt.replace(
+                    "{emotion_context}",
+                    f"\n           【当前情绪状态】\n{emotion_context}\n           请让回复语气自然贴合这个状态，但不要直接说出情绪系统字段。"
+                )
+            else:
+                system_prompt = system_prompt.replace("{emotion_context}", "")
 
             ai_response = await llm_service.chat(self.message_history, system_prompt)
 

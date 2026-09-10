@@ -7,6 +7,28 @@
 
 ## [未发布]
 
+### 2026-09-10 情绪系统收尾：直播隔离、可视化增强、前端测试、架构文档
+
+#### 新增
+- **直播情绪隔离完善**：直播停止时（`POST /api/livestream/douyin/stop`）自动调用 `manager.reset_emotion_state("livestream_session")` 清除直播专属情绪状态，避免残留情绪影响下次直播或泄漏到普通聊天会话。`ConnectionManager` 新增 `reset_emotion_state()` 方法。
+- **情绪历史查询 API**：新增 `GET /api/debug/emotion/{session_id}/history` 端点，返回指定会话最近 20 条情绪变化记录（按时间正序），用于调试面板绘制曲线图。
+- **情绪历史曲线图**：调试面板新增 SVG 折线图，展示最近情绪变化趋势，数据点按情绪类型着色，每 5 秒自动刷新。点击"曲线"按钮展开/收起。
+- **架构文档**：新增 `docs/EMOTION.md`，完整记录情绪状态机、关键词规则、衰减机制、表情映射表、WebSocket 协议、三通道接入、持久化、调试方式和测试覆盖。
+- **前端测试增强**：`emotion.test.ts` 从 13 项扩展到 32 项测试，新增情绪标签语义验证、`normalizeCompanionEmotion` 边界测试（数字字符串、空白、对象）、`getExpressionForEmotion` 回退逻辑测试（空模型名、大小写敏感）、`EXPRESSION_MAP` 结构完整性测试。
+
+#### 优化
+- **`timeline_repository.py`**：新增 `get_recent_emotion_events()` 方法，按 session_id 查询情绪事件，时间正序返回。
+- **`timeline_service.py`**：新增 `get_emotion_history()` 服务方法。
+- **`EmotionDebugPanel.tsx`**：新增"曲线"按钮和 `EmotionHistoryChart` 组件（纯 SVG 实现，不依赖额外图表库），新增 `EMOTION_COLORS` 颜色映射与 CSS 保持一致。
+- **README.md**：添加情绪系统文档链接，更新核心亮点和特性描述。
+
+#### 验证
+- **后端编译**：通过 `python3 -m py_compile`。
+- **前端类型检查**：通过 `npx tsc --noEmit`。
+- **后端单元测试**：5 项全通过。
+- **前端单元测试**：32 项全通过（`npx vitest run`）。
+- **Docker 部署**：重新构建并部署 `backend`、`frontend`、`nginx`，`curl http://localhost/health` 返回 `healthy`。
+
 ### 2026-09-10 全场景情绪系统统一接入
 
 #### 新增

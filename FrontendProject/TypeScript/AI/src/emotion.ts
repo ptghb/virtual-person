@@ -93,6 +93,42 @@ export const EXPRESSION_MAP: Partial<
     comforting: 'Smile',
     playful: 'Blushing',
     sleepy: 'Sad'
+  },
+  Mark: {
+    neutral: 'Normal',
+    happy: 'Smile',
+    shy: 'Blushing',
+    sad: 'Sad',
+    worried: 'Sad',
+    wronged: 'Wronged',
+    angry: 'Angry',
+    comforting: 'Smile',
+    playful: 'Blushing',
+    sleepy: 'Sad'
+  },
+  Rice: {
+    neutral: 'Normal',
+    happy: 'Smile',
+    shy: 'Blushing',
+    sad: 'Sad',
+    worried: 'Sad',
+    wronged: 'Wronged',
+    angry: 'Angry',
+    comforting: 'Smile',
+    playful: 'Blushing',
+    sleepy: 'Sad'
+  },
+  Wanko: {
+    neutral: 'Normal',
+    happy: 'Smile',
+    shy: 'Blushing',
+    sad: 'Sad',
+    worried: 'Sad',
+    wronged: 'Wronged',
+    angry: 'Angry',
+    comforting: 'Smile',
+    playful: 'Blushing',
+    sleepy: 'Sad'
   }
 };
 

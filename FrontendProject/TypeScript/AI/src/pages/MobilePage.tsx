@@ -13,6 +13,13 @@ import { WebSocketManager, ProtocolMessage, ProtocolMessageType, AudioFormat, Co
 import { getWebSocketUrl } from '../config';
 import type { DisplayMessage } from '../websocketmanager';
 import { LAppDelegate } from '../lappdelegate';
+import { avatarService } from '../services/avatar.service';
+import {
+  EMOTION_LABEL_MAP,
+  type CompanionEmotion,
+  normalizeCompanionEmotion,
+  getExpressionForEmotion
+} from '../emotion';
 
 const { Title, Paragraph } = Typography;
 
@@ -95,9 +102,34 @@ const MobilePage: React.FC = () => {
       wsManager.connect(getWebSocketUrl(clientId));
     }, 2000); // 延迟2秒连接
 
+    // 监听情绪事件，切换 Live2D 表情
+    const emotionHandler = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const emotion = normalizeCompanionEmotion(detail?.emotion);
+      const expression =
+        detail?.expression ??
+        getExpressionForEmotion(avatarService.getCurrentModelName(), emotion);
+      avatarService.setExpression(expression);
+      if (typeof detail?.animationIndex === 'number') {
+        avatarService.playMotion(detail.animationIndex);
+      }
+    };
+    window.addEventListener('companion-emotion', emotionHandler);
+
+    // 监听动画切换事件
+    const animationHandler = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (typeof detail?.animationIndex === 'number') {
+        avatarService.playMotion(detail.animationIndex);
+      }
+    };
+    window.addEventListener('change-animation', animationHandler);
+
     // 清理函数
     return () => {
       clearTimeout(connectTimer);
+      window.removeEventListener('companion-emotion', emotionHandler);
+      window.removeEventListener('change-animation', animationHandler);
       // 清理录音资源
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stream.getTracks().forEach(track => track.stop());

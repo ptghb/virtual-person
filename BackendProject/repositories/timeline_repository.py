@@ -89,6 +89,47 @@ class TimelineRepository:
         return row_to_timeline_event(row) if row else None
 
 
+    def create_emotion_event(
+        self,
+        *,
+        user_id: str,
+        companion_id: str,
+        session_id: str | None,
+        emotion: str,
+        emotion_label: str,
+        intensity: float,
+        reason: str,
+    ) -> None:
+        """将一轮对话的情绪状态写入时间线，用于每日对话总结的情绪维度。"""
+        now = utc_now()
+        content = f"情绪：{emotion_label}（强度 {intensity:.2f}）— {reason}"
+        with db_cursor(commit=True) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO timeline_events (
+                  id, user_id, companion_id, session_id, event_type, title, content,
+                  emotional_valence, importance, source_memory_id, source_type,
+                  occurred_at, detected_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uuid.uuid4().hex,
+                    user_id,
+                    companion_id,
+                    session_id,
+                    "emotion",
+                    emotion_label,
+                    content,
+                    emotion[:40] or "neutral",
+                    max(1, min(5, int(intensity * 5))),
+                    None,
+                    "emotion_state",
+                    now,
+                    now,
+                    now,
+                ),
+            )
+
     def list_daily_summaries(
         self,
         *,
@@ -209,3 +250,35 @@ class TimelineRepository:
             cursor.execute("\n".join(sql), params)
             rows = cursor.fetchall()
         return [row_to_timeline_event(row) for row in rows]
+
+    def get_recent_emotion_events(
+        self,
+        *,
+        session_id: str,
+        limit: int = 20,
+    ) -> list[dict]:
+        """查询指定会话最近的情绪事件，按时间正序返回（用于绘制曲线图）。"""
+        with db_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT emotion, emotion_label, intensity, content, occurred_at
+                FROM timeline_events
+                WHERE session_id = ?
+                  AND event_type = 'emotion'
+                ORDER BY occurred_at DESC
+                LIMIT ?
+                """,
+                (session_id, limit),
+            )
+            rows = cursor.fetchall()
+        # 反转为时间正序，方便前端绘制曲线
+        result = []
+        for row in reversed(rows):
+            result.append({
+                "emotion": row["emotion"],
+                "emotion_label": row["emotion_label"],
+                "intensity": row["intensity"],
+                "content": row["content"],
+                "occurred_at": row["occurred_at"],
+            })
+        return result

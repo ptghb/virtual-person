@@ -2,23 +2,23 @@
 	"Type": "Live2D Expression",
 	"Parameters": [
 		{
-			"Id": "ParamEyeLSmile",
-			"Value": 1,
+			"Id": "PARAM_MOUTH_FORM",
+			"Value": -0.5,
 			"Blend": "Add"
 		},
 		{
-			"Id": "ParamEyeRSmile",
-			"Value": 1,
+			"Id": "PARAM_EYE_L_OPEN",
+			"Value": -0.3,
 			"Blend": "Add"
 		},
 		{
-			"Id": "ParamMouthForm",
-			"Value": 0.8,
+			"Id": "PARAM_EYE_R_OPEN",
+			"Value": -0.3,
 			"Blend": "Add"
 		},
 		{
-			"Id": "ParamCheek",
-			"Value": 0.25,
+			"Id": "PARAM_TERE",
+			"Value": 0.3,
 			"Blend": "Add"
 		}
 	],

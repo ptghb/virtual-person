@@ -1,6 +1,6 @@
 # 小凡AI - 你的智能虚拟伴侣
 
-> 工程交接文档：[架构文档](docs/ARCHITECTURE.md) · [设计文档](docs/DESIGN.md) · [前端重构设计](docs/FRONTEND_REDESIGN.md) · [协议文档](docs/PROTOCOL.md) · [部署文档](docs/DEPLOYMENT.md)
+> 工程交接文档：[架构文档](docs/ARCHITECTURE.md) · [设计文档](docs/DESIGN.md) · [前端重构设计](docs/FRONTEND_REDESIGN.md) · [协议文档](docs/PROTOCOL.md) · [部署文档](docs/DEPLOYMENT.md) · [情绪系统文档](docs/EMOTION.md)
 
 一个深度融合 Live2D 虚拟形象与 AI 对话引擎的智能陪伴系统。通过集成 OpenAI/智谱 AI 的自然语言理解、实时 WebSocket 通信、长期记忆、手势识别（MediaPipe）与 TTS 语音合成，打造可配置称呼、性格和虚拟人物的情感陪伴体验。
 
@@ -197,7 +197,9 @@ CubismWebSamples/
 - **实时信息工具**：通过内置 MCP Server 获取当前日期、时间、星期；当用户询问天气时，按城市查询实时天气，未指定城市时使用 `DEFAULT_WEATHER_LOCATION`（默认上海）
 - **情绪状态与表情联动**：根据对话识别开心、害羞、难过、担心、委屈等短期情绪，持续维护情绪强度并驱动 Live2D 表情、动作和舞台状态文案。
 - **全场景情绪统一**：文字聊天、图片聊天和抖音直播互动均接入同一套情绪系统——后端分析用户输入情绪，通过 `assistant.meta` 和旧格式消息携带情绪字段，前端统一派发 `companion-emotion` 事件切换 Live2D 表情和动作。
-- **情绪调试面板**：访问聊天页时追加 `?debugEmotion=true`，可手动切换情绪、调整强度并验证当前角色的表情和动作映射。调试面板使用原生 `<select>` 下拉框，避免被 Live2D 舞台层级遮挡。
+- **情绪调试面板**：访问聊天页时追加 `?debugEmotion=true`，可手动切换情绪、调整强度并验证当前角色的表情和动作映射。调试面板使用原生 `<select>` 下拉框，避免被 Live2D 舞台层级遮挡。面板内置情绪历史曲线图（SVG 折线图），展示最近 20 条情绪变化，每 5 秒自动刷新。
+- **直播情绪隔离**：直播互动使用专属 `livestream_session` 情绪 key，与普通聊天会话完全隔离。直播停止时自动清除直播情绪状态，避免残留影响下次直播。
+- **情绪历史查询 API**：新增 `GET /api/debug/emotion/{session_id}/history` 端点，返回最近情绪变化记录，用于调试面板绘制曲线图。
 
 ### 3. 隐私、设置与记忆
 
@@ -838,7 +840,9 @@ docker compose up -d --no-build --force-recreate backend nginx
 
 - 🎭 **全场景情绪系统**：文字聊天、图片聊天和抖音直播互动统一接入情绪分析，AI 回复自动切换 Live2D 表情和动作
 - 😊 **10 种情绪状态**：开心、害羞、难过、担心、委屈、生气、想安慰、调皮撒娇、困倦、平静，带强度衰减和自然恢复
-- 🔧 **情绪调试面板**：`?debugEmotion=true` 手动切换情绪验证表情映射，原生下拉框避免层级遮挡
+- 🔧 **情绪调试面板**：`?debugEmotion=true` 手动切换情绪验证表情映射，原生下拉框避免层级遮挡，内置情绪历史曲线图
+- 📊 **情绪历史曲线**：调试面板实时展示情绪变化趋势图，后端 `GET /api/debug/emotion/{session_id}/history` 提供数据
+- 🎪 **直播情绪隔离**：直播情绪使用专属 key 隔离，停止直播时自动清除，不影响普通聊天
 - 🐛 **调试下拉框修复**：情绪调试面板下拉框从 AntD Select 改为原生 `<select>`，彻底解决被 Live2D 舞台遮挡的问题
 - 👋 “摸摸我”双手互动：入口位于“让我看看”旁，左右手分别显示并跟随移动
 - 🎬 触碰随机动作：碰到人物后随机播放一次 `TapBody` 或 `Idle` 动作

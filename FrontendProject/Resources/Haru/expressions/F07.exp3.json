@@ -61,5 +61,7 @@
 			"Value": 1,
 			"Blend": "Add"
 		}
-	]
+	],
+	"FadeInTime": 0.5,
+	"FadeOutTime": 0.5
 }
