@@ -120,6 +120,15 @@ class UpdateMemoryRequest(BaseModel):
     status: Optional[str] = None
 
 
+class UpsertCompanionProfileRequest(BaseModel):
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+    companion_id: str = DEFAULT_COMPANION_ID
+    name: Optional[str] = None
+    personality: Optional[str] = None
+    mode: str = "desktop"
+
+
 class LivestreamEventsRequest(BaseModel):
     comments: List[Dict[str, Any]]
     source: Optional[str] = "douyin"
@@ -835,6 +844,38 @@ async def root():
 @app.get("/hello/{name}")
 async def say_hello(name: str):
     return {"message": f"Hello {name}"}
+
+
+@app.post("/api/companions/current")
+async def upsert_current_companion(payload: UpsertCompanionProfileRequest):
+    companion_id = clean_identifier(payload.companion_id, DEFAULT_COMPANION_ID)
+    default_profile = manager.get_companion_profile("manual_seed")
+    profile = {
+        "name": re.sub(r"\s+", " ", str(payload.name or "")).strip()[:20]
+        or default_profile["name"],
+        "personality": str(payload.personality or "").strip()[:500]
+        or default_profile["personality"],
+    }
+    upsert_companion_record(companion_id, profile["name"], profile["personality"])
+
+    if payload.user_id and payload.session_id:
+        user_id = clean_identifier(payload.user_id, f"user_{companion_id}")
+        session_id = clean_identifier(payload.session_id, f"session_{companion_id}")
+        user_repository.upsert_user(user_id)
+        session_repository.upsert_session(
+            session_id=session_id,
+            user_id=user_id,
+            companion_id=companion_id,
+            mode=payload.mode or "desktop",
+            metadata={"source": "desktop_avatar_switcher"},
+        )
+
+    return {
+        "status": "success",
+        "companion_id": companion_id,
+        "name": profile["name"],
+        "personality": profile["personality"],
+    }
 
 
 @app.get("/api/memories")

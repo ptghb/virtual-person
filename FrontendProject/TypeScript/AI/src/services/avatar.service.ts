@@ -118,6 +118,17 @@ class AvatarService {
     }
   }
 
+  public zoom(factor: number): void {
+    try {
+      if (!Number.isFinite(factor) || factor <= 0) return;
+      this.getManager();
+      const delegate = LAppDelegate.getInstance();
+      delegate._subdelegates.at(0).getView().adjustScaleAtCenter(factor);
+    } catch (error) {
+      console.error('[AvatarService] 缩放虚拟人物失败:', error);
+    }
+  }
+
   public async playReplyAudio(url: string): Promise<void> {
     if (!url) return;
     this.stopAudio();

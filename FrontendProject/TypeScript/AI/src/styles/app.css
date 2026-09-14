@@ -50,6 +50,68 @@ body.transparent-stage #root {
   background: transparent !important;
 }
 
+.desktop-page {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-page .digital-human-stage {
+  position: absolute;
+  inset: 0;
+  min-height: 100vh;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.desktop-page .digital-human-stage__label,
+.desktop-page .assistant-subtitle {
+  -webkit-app-region: no-drag;
+}
+
+.desktop-avatar-switcher {
+  position: absolute;
+  z-index: 8;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  color: rgba(98, 57, 88, 0.9);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 10px 28px rgba(58, 39, 50, 0.12);
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+}
+
+.desktop-avatar-switcher button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(198, 91, 166, 0.78);
+  cursor: pointer;
+}
+
+.desktop-avatar-switcher span {
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+
 button,
 input,
 textarea {
@@ -162,18 +224,20 @@ textarea {
 .mode-select-brand h1 {
   margin: 0;
   font-size: clamp(22px, 3vw, 32px);
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-align: left;
-  line-height: 1.25;
-  /* 艺术字效果：渐变填充 + 描边 + 阴影 */
-  background: linear-gradient(135deg, #fff 0%, #ffe0ec 40%, #f0c4ff 100%);
+  line-height: 1.4;
+  /* 可爱艺术字：粉桃渐变 + 圆润描边 + 柔光 */
+  background: linear-gradient(135deg, #fff5f8 0%, #ffb3d1 30%, #ff8fb8 60%, #e8a0ff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  /* 描边模拟，让透明文字在亮色背景上也可读 */
-  -webkit-text-stroke: 0.5px rgba(255, 255, 255, 0.3);
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 18px rgba(233, 109, 152, 0.25));
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.5);
+  filter:
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35))
+    drop-shadow(0 0 12px rgba(255, 143, 184, 0.4))
+    drop-shadow(0 0 24px rgba(232, 160, 255, 0.2));
 }
 
 .mode-select-brand > p:last-child {

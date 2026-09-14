@@ -64,7 +64,7 @@ export class HandGestureService {
     this.canvasElement = canvasElement;
 
     const hands = new Hands({
-      locateFile: file => `/mediapipe/hands/${file}`
+      locateFile: file => `./mediapipe/hands/${file}`
     });
     hands.setOptions({
       maxNumHands: 2,
@@ -75,7 +75,7 @@ export class HandGestureService {
     hands.onResults((results: Results) => this.handleResults(results));
 
     const faceDetection = new FaceDetection({
-      locateFile: file => `/mediapipe/face_detection/${file}`
+      locateFile: file => `./mediapipe/face_detection/${file}`
     });
     faceDetection.setOptions({
       model: 'short',

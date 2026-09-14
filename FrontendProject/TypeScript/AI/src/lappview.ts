@@ -84,7 +84,9 @@ export class LAppView {
     this._touchManager = null;
     this._deviceToScreen = null;
 
-    this._back.release();
+    if (this._back) {
+      this._back.release();
+    }
     this._back = null;
 
     this._subdelegate.getGlManager().getGl().deleteProgram(this._programId);
@@ -121,7 +123,15 @@ export class LAppView {
 
     let imageName = '';
 
-    // 背景图像初始化
+    // 桌面透明模式不加载背景精灵，避免背景直接绘制进 WebGL 画布。
+    if (window.desktop) {
+      if (this._programId == null) {
+        this._programId = this._subdelegate.createShader();
+      }
+      return;
+    }
+
+    // 浏览器模式加载背景图像。
     imageName = LAppDefine.BackImageName;
 
     // 由于是异步的，创建回调函数
@@ -204,6 +214,17 @@ export class LAppView {
     const viewY: number = this.clampDragValue(this.transformViewY(posY));
 
     this._subdelegate.getLive2DManager().onDrag(viewX, viewY);
+  }
+
+  /**
+   * 在视图中心缩放模型。桌面端滚轮使用相对倍率，避免重复缩放时
+   * 把当前倍率误当成目标倍率。
+   */
+  public adjustScaleAtCenter(scale: number): void {
+    if (!this._viewMatrix || !Number.isFinite(scale) || scale <= 0) {
+      return;
+    }
+    this._viewMatrix.adjustScale(0, 0, scale);
   }
 
   /**
