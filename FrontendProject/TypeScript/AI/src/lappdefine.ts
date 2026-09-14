@@ -39,6 +39,21 @@ export const ResourcesPath = './Resources/';
 // 模型后面的背景图片文件
 export const BackImageName = 'back_live.png';
 
+// Cubism Framework 5+ Shader 文件路径（兼容 Web / Docker / Electron file://）。
+// 以入口脚本地址反推 dist/public 根目录，避免在 /chat 等路由下被解析成 /chat/Framework。
+const resolveShaderPath = (): string => {
+  if (typeof document !== 'undefined') {
+    const scripts = Array.from(document.scripts);
+    const entryScript = scripts.find(script => script.src.includes('/assets/')) ?? scripts[scripts.length - 1];
+    if (entryScript?.src) {
+      return new URL('../Framework/Shaders/WebGL/', entryScript.src).toString();
+    }
+  }
+
+  return './Framework/Shaders/WebGL/';
+};
+export const ShaderPath = resolveShaderPath();
+
 // 关闭按钮
 export const PowerImageName = 'CloseNormal.png';
 
