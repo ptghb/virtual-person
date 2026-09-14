@@ -7,6 +7,34 @@
 
 ## [未发布]
 
+### 2026-09-14 桌面端虚拟人物、Core 6 升级与 Shader 修复
+
+#### 新增
+- **Electron 桌面端虚拟人物窗口**：新增透明、无边框桌面虚拟人物窗口，面向 Windows 与 macOS 打包；桌面模式只显示 Live2D 人物，不显示页面背景和底部按钮。
+- **桌面端交互**：桌面人物支持鼠标拖动窗口、滚轮放大/缩小、视线跟随鼠标，以及左右切换虚拟人物。
+- **人物切换联动服务端**：桌面端切换人物后同步更新本地偏好，并通过 `POST /api/companions/current` 与服务端当前 companion 关联。
+- **Core 6 模型支持**：升级 Live2D Cubism Core 至支持 MOC3 v6 的版本，使 `Ren` 等 v6 模型可以被 Core 正确识别和加载。
+- **Framework 官方版本升级**：将 Cubism Framework 升级为 SDK 5-r.5 官方代码，并将兼容改动放在应用层，避免修改 `Framework/` 官方源码。
+
+#### 优化
+- **前端资源复制**：`copy_resources.js` 在本地与 Docker 构建时复制 `Core`、`Resources`、`Framework/Shaders` 和 MediaPipe 资源，保证浏览器、Docker 和桌面包资源一致。
+- **Shader 路径兼容**：新增应用层 `ShaderPath` 解析，兼容 Web、Docker、子路由刷新和 Electron `file://` 场景。
+- **Renderer 初始化适配**：应用层适配新版 Framework renderer 初始化参数，并在 renderer 启动后显式加载 Shader。
+- **Docker 前端重建**：前端 Dockerfile 补充 Core 与 Resources 构建上下文，完成前端镜像重建与服务重启。
+
+#### 修复
+- **所有模型不显示**：修复 Framework 5-r.5 将 WebGL Shader 拆为外部文件后，构建产物未包含 `Framework/Shaders/WebGL` 导致 `Shader program is not initialized`、模型无法渲染的问题。
+- **Ren 不显示**：修复 `Ren.moc3` 为 MOC3 v6 而旧 Core 仅支持较低 moc 版本导致的加载失败。
+- **桌面透明背景**：修复桌面窗口中 canvas / 页面背景仍显示的问题，桌面模式保持透明。
+- **桌面视线方向**：修正桌面虚拟人物视线跟随方向反向的问题。
+
+#### 验证
+- **前端类型检查**：通过 `npm run test`（`tsc --noEmit`）。
+- **Web 构建**：通过 `npm run build:prod`。
+- **桌面构建**：通过 `npm run build:desktop`。
+- **Docker 构建与启动**：通过 `docker compose build frontend` 和 `docker compose up -d --no-deps frontend`。
+- **桌面打包**：生成修复包 `FrontendProject/TypeScript/AI/release/desktop-core6-shaderfix-20260914-171922/XiaofanAI-mac-arm64-core6-shaderfix.zip`，包内 `app.asar` 已包含 `/dist/Framework/Shaders/WebGL`。
+
 ### 2026-09-10 情绪系统收尾：直播隔离、可视化增强、前端测试、架构文档
 
 #### 新增

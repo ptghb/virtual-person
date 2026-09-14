@@ -6,13 +6,14 @@
 
 ## 核心亮点
 
-- 🪆 **生动Live2D形象**：基于 Cubism SDK 的虚拟角色，支持拖拽、缩放、动画联动，内置 8 款模型
+- 🪆 **生动Live2D形象**：基于 Cubism SDK 的虚拟角色，支持拖拽、缩放、动画联动，内置 8 款模型；已适配 Core 6 / MOC3 v6 模型（如 Ren）
 - 🎛️ **可配置伴侣设定**：可在“隐私与设置”中配置 AI 伴侣称呼、性格和默认虚拟人物
 - 👤 **实时选妃预览**：设置弹窗每次渲染一个真实 Live2D 人物，可点击“下一个”轮换并通过“点他”确认
 - 🧠 **长期记忆管理**：支持当前关系状态、置顶记忆、自动记忆、待跟进事项、每日对话时间线和关系历史的读取与维护
 - 🗣️ **智能对话与语音**：接入OpenAI/智谱AI API，具备上下文记忆、角色人格和 MCP 实时信息工具；集成EasyVoice TTS，实现文本转语音
 - 👋 **“摸摸我”手势互动**：多模态聊天中通过 MediaPipe 同时识别左右手和人脸，小手碰触人物后随机播放 Live2D 动作，人物会看向真实人脸位置
 - 🎭 **多模态交互体验**：支持文字、图片、音频、摄像头视觉和手势互动，动画与音频深度同步
+- 🖥️ **桌面虚拟人物**：Electron 桌面端支持透明无边框人物窗口、鼠标拖动、滚轮缩放、视线跟随和人物切换，切换结果与服务端 companion 关联
 - 🔧 **全栈技术集成**：前端React 19 + TypeScript 5.8 + Vite 6.3，后端FastAPI + LangChain，Docker化TTS服务
 - 🎨 **现代化UI设计**：基于Ant Design 6的精美界面，响应式布局
 
@@ -28,7 +29,7 @@
 
 小凡 AI 是一个集成了 Live2D 虚拟形象的智能对话系统，默认伴侣称呼可在设置中修改，具有以下特点：
 
-- **Live2D虚拟形象**：使用 Live2D Cubism SDK 渲染虚拟角色，支持 8 款模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **Live2D虚拟形象**：使用 Live2D Cubism SDK 渲染虚拟角色，支持 8 款模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko），Core 6 可加载 MOC3 v6 模型
 - **伴侣设定**：称呼和性格均可在“隐私与设置”页面配置并持久化
 - **人物选择**：虚拟人物统一在设置页选择，首页和聊天页固定展示已确认的人物
 - **长期记忆**：支持按伴侣保存和管理当前关系状态、置顶、自动、待跟进、关系历史及每日对话时间线
@@ -44,7 +45,7 @@
 ### 前端技术栈
 
 - **框架**：TypeScript 5.8.3 + Vite 6.3.5
-- **Live2D引擎**：Live2D Cubism SDK for Web（Core + Framework）
+- **Live2D引擎**：Live2D Cubism SDK for Web（Core 6 + Framework 5-r.5），Framework 保持官方源码，兼容逻辑放在应用层
 - **UI框架**：React 19.2.3 + Ant Design 6.2.2
 - **手势与人脸识别**：MediaPipe Hands 0.4.1675469240 + MediaPipe Face Detection
 - **通信协议**：WebSocket（自动重连机制）
@@ -52,6 +53,7 @@
 - **状态管理**：React Hooks + localStorage持久化
 - **代码规范**：ESLint 9.26.0 + Prettier 3.5.3
 - **容器化部署**：Docker + Docker Compose
+- **桌面端**：Electron 38 + electron-builder，支持 macOS / Windows 桌面应用打包
 
 ### 后端技术栈
 
@@ -135,10 +137,12 @@ CubismWebSamples/
 │           │   └── services/              # 服务层目录
 │           │       ├── avatar.service.ts       # 虚拟人物服务（表情切换/动作播放）
 │           │       └── HandGestureService.ts   # 手势识别服务（MediaPipe）
+│           ├── electron/                 # Electron 桌面端入口（透明窗口、拖动、缩放）
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库文件
 │           │   ├── mediapipe/hands/        # 构建时复制的 MediaPipe Hands 本地运行资源
 │           │   ├── mediapipe/face_detection/ # 构建时复制的 MediaPipe Face Detection 本地运行资源
+│           │   ├── Framework/Shaders/      # Cubism Framework 5+ 外部 Shader 文件
 │           │   └── Resources/              # 模型资源文件目录
 │           │       ├── Haru/               # Haru模型
 │           │       ├── Hiyori/             # Hiyori模型
@@ -169,7 +173,8 @@ CubismWebSamples/
 
 ### 1. Live2D虚拟形象
 
-- **多模型支持**：内置 8 款 Live2D 模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko）
+- **多模型支持**：内置 8 款 Live2D 模型（Haru、Hiyori、Mao、Mark、Natori、Ren、Rice、Wanko），已适配 Core 6 / MOC3 v6 模型
+- **Shader 资源外置**：Cubism Framework 5-r.5 的 WebGL Shader 随构建复制到 `Framework/Shaders/WebGL`，避免 `Shader program is not initialized` 导致模型不显示
 - **统一人物设置**：人物切换入口已从首页和聊天页移至“隐私与设置”
 - **实时单人物预览**：“选妃”弹窗直接渲染真实 Live2D 人物，每次只展示一位
 - **轮换确认**：点击“下一个”循环预览人物，点击“点他”保存选择
@@ -264,6 +269,15 @@ CubismWebSamples/
 - **提示层级**：直播控制台 Toast/Message 层级已提升，连接直播间、启动失败等提示不会被 Live2D 舞台或面板遮挡。
 - **Docker部署**：支持通过 Docker Compose 一键部署前端、后端、Nginx 和 TTS；抖音采集能力包含在后端容器中。
 - **统一访问与代理**：前端统一从 `http://localhost/live/console` 操作直播采集；Nginx 只需要代理本项目 `/api/` 和 `/ws/`。
+
+### 8. 桌面虚拟人物
+
+- **透明桌面窗口**：Electron 桌面模式使用透明无边框窗口，只显示 Live2D 人物，不显示网页背景和底部操作按钮。
+- **拖动与缩放**：鼠标拖动人物区域可移动桌面窗口，鼠标滚轮可放大/缩小人物。
+- **视线跟随**：桌面端支持鼠标视线跟随，已修正镜像方向，移动鼠标时人物会自然看向指针。
+- **桌面人物切换**：桌面端可直接切换 Live2D 人物，切换结果写入本地偏好并同步到服务端当前 companion。
+- **服务端关联**：切换人物时调用 `POST /api/companions/current`，让后端记忆、对话和人物身份保持一致。
+- **跨平台打包**：使用 Electron + electron-builder 面向 macOS / Windows 打包；桌面构建会携带 Core、Resources 和 Framework Shader 资源。
 
 ## 快速开始
 
@@ -385,6 +399,26 @@ npm run build:prod
 ```
 
 构建产物将输出到 `dist` 目录
+
+### 桌面端构建与打包
+
+```bash
+cd FrontendProject/TypeScript/AI
+
+# 构建 Electron 桌面端静态资源（file:// 兼容）
+npm run build:desktop
+
+# 使用 electron-builder 打包桌面应用
+npm run desktop:build
+```
+
+如需在本机调试桌面透明窗口：
+
+```bash
+npm run desktop:dev
+```
+
+桌面包会包含 `dist/Core`、`dist/Resources` 和 `dist/Framework/Shaders/WebGL`。如果升级 Core / Framework 或新增模型资源，需重新执行桌面构建与打包。
 
 ### 部署生产环境
 
@@ -838,6 +872,8 @@ docker compose up -d --no-build --force-recreate backend nginx
 
 ### 最新更新亮点
 
+- 🖥️ **桌面虚拟人物**：Electron 桌面端支持透明背景、拖动、滚轮缩放、视线跟随和人物切换
+- 🧩 **Core 6 / MOC3 v6**：已升级 Live2D Core，`Ren` 等 MOC3 v6 模型可正常加载；构建产物会携带 Framework Shader
 - 🎭 **全场景情绪系统**：文字聊天、图片聊天和抖音直播互动统一接入情绪分析，AI 回复自动切换 Live2D 表情和动作
 - 😊 **10 种情绪状态**：开心、害羞、难过、担心、委屈、生气、想安慰、调皮撒娇、困倦、平静，带强度衰减和自然恢复
 - 🔧 **情绪调试面板**：`?debugEmotion=true` 手动切换情绪验证表情映射，原生下拉框避免层级遮挡，内置情绪历史曲线图
