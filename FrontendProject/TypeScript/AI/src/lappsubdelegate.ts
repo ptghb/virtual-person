@@ -130,7 +130,8 @@ export class LAppSubdelegate {
     const gl = this._glManager.getGl();
 
     // 屏幕初始化
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    const isDesktop = Boolean(window.desktop);
+    gl.clearColor(0.0, 0.0, 0.0, isDesktop ? 0.0 : 1.0);
 
     // 启用深度测试
     gl.enable(gl.DEPTH_TEST);

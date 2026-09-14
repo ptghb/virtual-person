@@ -5,6 +5,8 @@ interface DesktopBridge {
   stopBackend: () => Promise<{ ok: boolean; output: string; error: string }>;
   setAlwaysOnTop: (enabled: boolean) => Promise<boolean>;
   setClickThrough: (enabled: boolean) => Promise<boolean>;
+  getPosition: () => Promise<[number, number]>;
+  moveWindow: (x: number, y: number) => Promise<boolean>;
   openChat: () => Promise<void>;
   openSettings: () => Promise<void>;
   minimize: () => Promise<void>;

@@ -79,7 +79,7 @@ function createWindow() {
   });
 
   const target = isDev
-    ? 'http://127.0.0.1:8091/desktop'
+    ? 'http://127.0.0.1:8091/#/desktop'
     : `file://${path.join(__dirname, '../dist/index.html')}#/desktop`;
   if (isDev) {
     mainWindow.loadURL(target);
@@ -121,12 +121,22 @@ app.whenReady().then(() => {
     mainWindow?.setIgnoreMouseEvents(clickThrough, { forward: true });
     return clickThrough;
   });
+  ipcMain.handle('window:get-position', () => {
+    return mainWindow?.getPosition() || [0, 0];
+  });
+  ipcMain.handle('window:move', (_event, x, y) => {
+    if (!mainWindow || clickThrough) return false;
+    const nextX = Number.isFinite(Number(x)) ? Math.round(Number(x)) : 0;
+    const nextY = Number.isFinite(Number(y)) ? Math.round(Number(y)) : 0;
+    mainWindow.setPosition(nextX, nextY);
+    return true;
+  });
   ipcMain.handle('window:open-chat', () => {
-    if (isDev) return mainWindow?.loadURL('http://127.0.0.1:8091/chat');
+    if (isDev) return mainWindow?.loadURL('http://127.0.0.1:8091/#/chat');
     return mainWindow?.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/chat' });
   });
   ipcMain.handle('window:open-settings', () => {
-    if (isDev) return mainWindow?.loadURL('http://127.0.0.1:8091/settings');
+    if (isDev) return mainWindow?.loadURL('http://127.0.0.1:8091/#/settings');
     return mainWindow?.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/settings' });
   });
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());

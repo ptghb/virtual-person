@@ -57,7 +57,7 @@ body.transparent-stage #root {
   min-height: 100vh;
   overflow: hidden;
   background: transparent;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .desktop-page .digital-human-stage {
@@ -74,42 +74,43 @@ body.transparent-stage #root {
   -webkit-app-region: no-drag;
 }
 
-.desktop-toolbar {
+.desktop-avatar-switcher {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 20;
-  display: flex;
+  z-index: 8;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.64);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 10px 30px rgba(63, 35, 54, 0.2);
-  backdrop-filter: blur(16px) saturate(130%);
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  color: rgba(98, 57, 88, 0.9);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 10px 28px rgba(58, 39, 50, 0.12);
   -webkit-app-region: no-drag;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
 }
 
-.desktop-toolbar .ant-btn {
-  width: 32px;
-  height: 32px;
+.desktop-avatar-switcher button {
+  width: 26px;
+  height: 26px;
   padding: 0;
-}
-
-.desktop-status-dot {
-  width: 8px;
-  height: 8px;
-  margin: 0 5px;
+  border: 0;
   border-radius: 50%;
-  background: #d9a23c;
-  box-shadow: 0 0 0 3px rgba(217, 162, 60, 0.16);
+  color: #fff;
+  background: rgba(198, 91, 166, 0.78);
+  cursor: pointer;
 }
 
-.desktop-status-dot.is-online {
-  background: #43a66c;
-  box-shadow: 0 0 0 3px rgba(67, 166, 108, 0.16);
+.desktop-avatar-switcher span {
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
+
 
 button,
 input,

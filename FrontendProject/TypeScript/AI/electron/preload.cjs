@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('desktop', {
   stopBackend: () => ipcRenderer.invoke('backend:stop'),
   setAlwaysOnTop: enabled => ipcRenderer.invoke('window:always-on-top', enabled),
   setClickThrough: enabled => ipcRenderer.invoke('window:click-through', enabled),
+  getPosition: () => ipcRenderer.invoke('window:get-position'),
+  moveWindow: (x, y) => ipcRenderer.invoke('window:move', x, y),
   openChat: () => ipcRenderer.invoke('window:open-chat'),
   openSettings: () => ipcRenderer.invoke('window:open-settings'),
   minimize: () => ipcRenderer.invoke('window:minimize'),

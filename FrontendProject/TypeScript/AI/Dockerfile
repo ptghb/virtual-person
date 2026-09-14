@@ -4,6 +4,9 @@ FROM node:23-alpine AS builder
 # 设置工作目录
 WORKDIR /app
 
+# 浏览器前端镜像不需要 Electron 的本地运行包，避免 npm ci 下载数百 MB 的桌面二进制。
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+
 # 复制 package.json 和 package-lock.json（从构建上下文根目录）
 COPY ./FrontendProject/TypeScript/AI/package*.json ./
 

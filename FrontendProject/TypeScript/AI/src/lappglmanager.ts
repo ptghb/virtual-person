@@ -15,7 +15,11 @@ export class LAppGlManager {
 
   public initialize(canvas: HTMLCanvasElement): boolean {
     // 初始化 gl 上下文
-    this._gl = canvas.getContext('webgl2');
+    this._gl = canvas.getContext('webgl2', {
+      alpha: true,
+      premultipliedAlpha: false,
+      antialias: true
+    });
 
     if (!this._gl) {
       // gl 初始化失败
