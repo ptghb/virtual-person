@@ -6,6 +6,7 @@ WORKDIR /app
 
 # 浏览器前端镜像不需要 Electron 的本地运行包，避免 npm ci 下载数百 MB 的桌面二进制。
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+ENV NODE_ENV=docker
 
 # 复制 package.json 和 package-lock.json（从构建上下文根目录）
 COPY ./FrontendProject/TypeScript/AI/package*.json ./
@@ -19,6 +20,10 @@ COPY ./FrontendProject/TypeScript/AI ./
 
 # 复制 Framework 目录（从构建上下文根目录）
 COPY ./Framework ./Framework
+
+# 复制 Live2D Core 与模型资源；copy_resources.js 在 Docker 构建时会从 /app/Core、/app/Resources 复制到 public。
+COPY ./Core ./Core
+COPY ./FrontendProject/Resources ./Resources
 
 # 构建项目
 RUN npm run build:prod

@@ -29,7 +29,6 @@ import {
 } from '@framework/motion/cubismmotionqueuemanager';
 import { csmMap } from '@framework/type/csmmap';
 import { csmRect } from '@framework/type/csmrectf';
-import { csmString } from '@framework/type/csmstring';
 import { csmVector } from '@framework/type/csmvector';
 import {
   CSM_ASSERT,
@@ -283,20 +282,11 @@ export class LAppModel extends CubismUserModel {
     const setupBreath = (): void => {
       this._breath = CubismBreath.create();
 
-      const breathParameters: csmVector<BreathParameterData> = new csmVector();
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleX, 0.0, 15.0, 6.5345, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleY, 0.0, 8.0, 3.5345, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamAngleZ, 0.0, 10.0, 5.5345, 0.5)
-      );
-      breathParameters.pushBack(
-        new BreathParameterData(this._idParamBodyAngleX, 0.0, 4.0, 15.5345, 0.5)
-      );
-      breathParameters.pushBack(
+      const breathParameters: BreathParameterData[] = [
+        new BreathParameterData(this._idParamAngleX, 0.0, 15.0, 6.5345, 0.5),
+        new BreathParameterData(this._idParamAngleY, 0.0, 8.0, 3.5345, 0.5),
+        new BreathParameterData(this._idParamAngleZ, 0.0, 10.0, 5.5345, 0.5),
+        new BreathParameterData(this._idParamBodyAngleX, 0.0, 4.0, 15.5345, 0.5),
         new BreathParameterData(
           CubismFramework.getIdManager().getId(
             CubismDefaultParameterId.ParamBreath
@@ -306,7 +296,7 @@ export class LAppModel extends CubismUserModel {
           3.2345,
           1
         )
-      );
+      ];
 
       this._breath.setParameters(breathParameters);
       this._state = LoadStep.LoadUserData;
@@ -355,9 +345,7 @@ export class LAppModel extends CubismUserModel {
         this._modelSetting.getEyeBlinkParameterCount();
 
       for (let i = 0; i < eyeBlinkIdCount; ++i) {
-        this._eyeBlinkIds.pushBack(
-          this._modelSetting.getEyeBlinkParameterId(i)
-        );
+        this._eyeBlinkIds[i] = this._modelSetting.getEyeBlinkParameterId(i);
       }
 
       this._state = LoadStep.SetupLipSyncIds;
@@ -371,7 +359,7 @@ export class LAppModel extends CubismUserModel {
       const lipSyncIdCount = this._modelSetting.getLipSyncParameterCount();
 
       for (let i = 0; i < lipSyncIdCount; ++i) {
-        this._lipSyncIds.pushBack(this._modelSetting.getLipSyncParameterId(i));
+        this._lipSyncIds[i] = this._modelSetting.getLipSyncParameterId(i);
       }
       this._state = LoadStep.SetupLayout;
 
@@ -381,7 +369,7 @@ export class LAppModel extends CubismUserModel {
 
     // Layout
     const setupLayout = (): void => {
-      const layout: csmMap<string, number> = new csmMap<string, number>();
+      const layout: Map<string, number> = new Map<string, number>();
 
       if (this._modelSetting == null || this._modelMatrix == null) {
         CubismLogError('Failed to setupLayout().');
@@ -427,7 +415,10 @@ export class LAppModel extends CubismUserModel {
         this._updating = false;
         this._initialized = true;
 
-        this.createRenderer();
+        this.createRenderer(
+          this._subdelegate.getCanvas().width,
+          this._subdelegate.getCanvas().height
+        );
         this.setupTextures();
         this.getRenderer().startUp(this._subdelegate.getGlManager().getGl());
       }
@@ -489,7 +480,10 @@ export class LAppModel extends CubismUserModel {
    */
   public reloadRenderer(): void {
     this.deleteRenderer();
-    this.createRenderer();
+    this.createRenderer(
+      this._subdelegate.getCanvas().width,
+      this._subdelegate.getCanvas().height
+    );
     this.setupTextures();
   }
 
@@ -618,10 +612,10 @@ export class LAppModel extends CubismUserModel {
         value = this._wavFileHandler.getRms();
       }
 
-      for (let i = 0; i < this._lipSyncIds.getSize(); ++i) {
+      for (let i = 0; i < this._lipSyncIds.length; ++i) {
         // 口型由当前音量绝对驱动，不能再叠加动作/表情留下的嘴部值；
         // 否则 ParamMouthOpenY 可能被动作曲线钳制，视觉上完全不动。
-        this._model.setParameterValueById(this._lipSyncIds.at(i), value);
+        this._model.setParameterValueById(this._lipSyncIds[i], value);
       }
     }
 
@@ -797,8 +791,8 @@ export class LAppModel extends CubismUserModel {
   /**
    * 接收事件触发
    */
-  public motionEventFired(eventValue: csmString): void {
-    CubismLogInfo('{0} is fired on LAppModel!!', eventValue.s);
+  public motionEventFired(eventValue: string): void {
+    CubismLogInfo('{0} is fired on LAppModel!!', eventValue);
   }
 
   /**
@@ -893,7 +887,10 @@ export class LAppModel extends CubismUserModel {
             this._updating = false;
             this._initialized = true;
 
-            this.createRenderer();
+            this.createRenderer(
+              this._subdelegate.getCanvas().width,
+              this._subdelegate.getCanvas().height
+            );
             this.setupTextures();
             this.getRenderer().startUp(
               this._subdelegate.getGlManager().getGl()
@@ -1273,8 +1270,8 @@ export class LAppModel extends CubismUserModel {
     this._modelHomeDir = null;
     this._userTimeSeconds = 0.0;
 
-    this._eyeBlinkIds = new csmVector<CubismIdHandle>();
-    this._lipSyncIds = new csmVector<CubismIdHandle>();
+    this._eyeBlinkIds = [];
+    this._lipSyncIds = [];
 
     this._motions = new csmMap<string, ACubismMotion>();
     this._expressions = new csmMap<string, ACubismMotion>();
@@ -1318,6 +1315,9 @@ export class LAppModel extends CubismUserModel {
     this._audioManager = null;
     this._consistency = false;
     this._isMotionEnabled = false; // 默认不播放动画
+    this._lipsync = true;
+    this._dragX = 0.0;
+    this._dragY = 0.0;
     this._armState = { leftRaised: false, rightRaised: false }; // 初始化手臂状态
     this._armStateCallback = null; // 初始化手臂状态回调
   }
@@ -1328,8 +1328,8 @@ export class LAppModel extends CubismUserModel {
   _modelHomeDir: string; // 模型设置所在的目录
   _userTimeSeconds: number; // 增量时间的累积值[秒]
 
-  _eyeBlinkIds: csmVector<CubismIdHandle>; // 模型中设置的眨眼功能参数 ID
-  _lipSyncIds: csmVector<CubismIdHandle>; // 模型中设置的口型同步功能参数 ID
+  _eyeBlinkIds: CubismIdHandle[]; // 模型中设置的眨眼功能参数 ID
+  _lipSyncIds: CubismIdHandle[]; // 模型中设置的口型同步功能参数 ID
 
   _motions: csmMap<string, ACubismMotion>; // 已加载的动画列表
   _expressions: csmMap<string, ACubismMotion>; // 已加载的表情列表
@@ -1353,6 +1353,9 @@ export class LAppModel extends CubismUserModel {
   _audioManager: LAppAudioManager | null; // 外部音频管理器
   _consistency: boolean; // MOC3 一致性检查管理用
   _isMotionEnabled: boolean; // 动画播放控制标志
+  _lipsync: boolean; // 口型同步控制标志
+  _dragX: number; // 指针跟随 X
+  _dragY: number; // 指针跟随 Y
   _motionNo: number; // 播放的动画的序号
   _armState: { leftRaised: boolean; rightRaised: boolean }; // 手臂状态
   _armStateCallback:
