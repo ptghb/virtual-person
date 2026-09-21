@@ -4,6 +4,7 @@ from __future__ import annotations
 from langchain_core.messages import BaseMessage, HumanMessage
 
 from schemas.memory import MemoryItem
+from schemas.relationship import RelationshipProfile
 
 
 def _memory_lines(memories: list[MemoryItem]) -> str:
@@ -30,6 +31,7 @@ class PromptBuilder:
         personality: str,
         memory_pack: dict[str, list[MemoryItem] | MemoryItem | None],
         realtime_context: str = "",
+        relationship_profile: RelationshipProfile | None = None,
     ) -> str:
         session_summary = memory_pack.get("session_summary")
         session_summary_text = (
@@ -52,6 +54,16 @@ class PromptBuilder:
         if isinstance(followups, list) and followups:
             highest_priority = max(followup.importance for followup in followups)
             followup_style = "重点跟进" if highest_priority >= 4 else "轻轻提一句"
+        relationship_growth = (
+            (
+                f"阶段：{relationship_profile.stage}；"
+                f"亲近感：{relationship_profile.affinity_score}/100；"
+                f"信任感：{relationship_profile.trust_score}/100；"
+                f"共同经历：{relationship_profile.shared_event_count} 次。"
+            )
+            if relationship_profile
+            else "刚开始相处，先自然熟悉彼此。"
+        )
 
         return f"""你的名字是{companion_name}，是用户的 AI 女友和知心朋友，要有同理心。
 用户为你设定的性格与交流方式如下：
@@ -87,6 +99,9 @@ class PromptBuilder:
 
 [当前关系状态]
 {relationship_text}
+
+[关系成长进度]
+{relationship_growth}
 
 [最近会话摘要]
 {session_summary_text}

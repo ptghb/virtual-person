@@ -3,6 +3,7 @@ import type {
   CreateMemoryPayload,
   MemoryListResponse,
   MemoryStatus,
+  RelationshipProfileResponse,
   TimelineDayListResponse,
   TimelineListResponse,
   UpdateMemoryPayload
@@ -26,6 +27,27 @@ async function request<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
 }
 
 export const memoryService = {
+  getRelationshipProfile(userId: string, companionId: string) {
+    const search = new URLSearchParams({
+      user_id: userId,
+      companion_id: companionId
+    });
+    return request<RelationshipProfileResponse>(
+      getBackendApiUrl(`/api/relationship-profile?${search.toString()}`)
+    );
+  },
+
+  resetRelationshipProfile(userId: string, companionId: string) {
+    const search = new URLSearchParams({
+      user_id: userId,
+      companion_id: companionId
+    });
+    return request<RelationshipProfileResponse>(
+      getBackendApiUrl(`/api/relationship-profile?${search.toString()}`),
+      { method: 'DELETE' }
+    );
+  },
+
   listMemories(
     userId: string,
     companionId: string,
@@ -75,11 +97,7 @@ export const memoryService = {
     );
   },
 
-  listTimelineEvents(
-    userId: string,
-    companionId: string,
-    eventType?: string
-  ) {
+  listTimelineEvents(userId: string, companionId: string, eventType?: string) {
     const search = new URLSearchParams({
       user_id: userId,
       companion_id: companionId,

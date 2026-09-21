@@ -23,7 +23,11 @@ import { ModelDir } from '../lappdefine';
 import { avatarService } from '../services/avatar.service';
 import { getSelectedAvatarModel } from '../services/avatar-preference.service';
 import { memoryService } from '../services/memory.service';
-import type { MemoryItem, TimelineDaySummary } from '../services/memory.types';
+import type {
+  MemoryItem,
+  RelationshipProfile,
+  TimelineDaySummary
+} from '../services/memory.types';
 import { useUserIdentity } from '../services/user-identity.service';
 
 interface AvatarLivePreviewProps {
@@ -115,6 +119,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     []
   );
   const [timelineDays, setTimelineDays] = useState<TimelineDaySummary[]>([]);
+  const [relationshipProfile, setRelationshipProfile] =
+    useState<RelationshipProfile | null>(null);
   const [memoryDraft, setMemoryDraft] = useState('');
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [editingMemoryType, setEditingMemoryType] = useState<
@@ -144,7 +150,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           allResult,
           archivedFollowupResult,
           relationshipHistoryResult,
-          timelineResult
+          timelineResult,
+          relationshipProfileResult
         ] = await Promise.all([
           memoryService.listMemories(
             identity.userId,
@@ -164,7 +171,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             'relationship',
             'superseded'
           ),
-          memoryService.listTimelineDays(identity.userId, confirmedAvatar)
+          memoryService.listTimelineDays(identity.userId, confirmedAvatar),
+          memoryService.getRelationshipProfile(identity.userId, confirmedAvatar)
         ]);
         if (active) {
           setPinnedMemories(pinnedResult.items);
@@ -174,6 +182,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           setArchivedFollowups(archivedFollowupResult.items);
           setRelationshipHistory(relationshipHistoryResult.items);
           setTimelineDays(timelineResult.items);
+          setRelationshipProfile(relationshipProfileResult.data);
         }
       } catch (error) {
         if (active) {
@@ -201,7 +210,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       allResult,
       archivedFollowupResult,
       relationshipHistoryResult,
-      timelineResult
+      timelineResult,
+      relationshipProfileResult
     ] = await Promise.all([
       memoryService.listMemories(identity.userId, confirmedAvatar, 'pinned'),
       memoryService.listMemories(identity.userId, confirmedAvatar),
@@ -217,7 +227,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         'relationship',
         'superseded'
       ),
-      memoryService.listTimelineDays(identity.userId, confirmedAvatar)
+      memoryService.listTimelineDays(identity.userId, confirmedAvatar),
+      memoryService.getRelationshipProfile(identity.userId, confirmedAvatar)
     ]);
     setPinnedMemories(pinnedResult.items);
     setAutoMemories(
@@ -226,6 +237,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setArchivedFollowups(archivedFollowupResult.items);
     setRelationshipHistory(relationshipHistoryResult.items);
     setTimelineDays(timelineResult.items);
+    setRelationshipProfile(relationshipProfileResult.data);
+  };
+
+  const resetRelationshipGrowth = async () => {
+    try {
+      const result = await memoryService.resetRelationshipProfile(
+        identity.userId,
+        confirmedAvatar
+      );
+      setRelationshipProfile(result.data);
+      void message.success('关系成长进度已重置，历史记忆不会被删除。');
+    } catch (error) {
+      void message.error(
+        error instanceof Error ? error.message : '重置关系成长失败'
+      );
+    }
   };
 
   useEffect(() => {
@@ -688,6 +715,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         ) : null}
         {isMemoryPage ? (
           <>
+            <Card
+              title="关系成长"
+              extra={
+                <Popconfirm
+                  title="重置关系成长进度？"
+                  description="亲近感、信任感和互动计数会清零，历史记忆不会删除。"
+                  okText="重置"
+                  cancelText="取消"
+                  onConfirm={() => void resetRelationshipGrowth()}
+                >
+                  <Button danger type="link">
+                    重置进度
+                  </Button>
+                </Popconfirm>
+              }
+            >
+              <div className="relationship-metric-grid">
+                <div className="relationship-metric-card">
+                  <strong>当前阶段</strong>
+                  <span>{relationshipProfile?.stage || '加载中'}</span>
+                  <small>由稳定互动逐步推进，不会因为单次聊天倒退。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>亲近感</strong>
+                  <span>{relationshipProfile?.affinity_score ?? 0}/100</span>
+                  <small>温暖、共同完成和日常相处会积累。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>信任感</strong>
+                  <span>{relationshipProfile?.trust_score ?? 0}/100</span>
+                  <small>愿意分享真实感受时会缓慢积累。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>共同经历</strong>
+                  <span>{relationshipProfile?.shared_event_count ?? 0} 次</span>
+                  <small>
+                    已互动 {relationshipProfile?.interaction_count ?? 0} 次
+                  </small>
+                </div>
+              </div>
+              <p style={{ margin: '16px 0 0', color: 'var(--muted)' }}>
+                关系成长只影响陪伴语气和可回忆的共同经历，不用于评价、限制或区别对待用户。
+              </p>
+            </Card>
             <Card
               id="memory-relationship"
               title="当前关系状态与置顶记忆"

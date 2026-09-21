@@ -99,6 +99,22 @@ def init_db() -> None:
               FOREIGN KEY (session_id) REFERENCES conversation_sessions(id)
             );
 
+            CREATE TABLE IF NOT EXISTS relationship_profiles (
+              user_id TEXT NOT NULL,
+              companion_id TEXT NOT NULL,
+              stage TEXT NOT NULL DEFAULT '初识',
+              affinity_score INTEGER NOT NULL DEFAULT 0,
+              trust_score INTEGER NOT NULL DEFAULT 0,
+              interaction_count INTEGER NOT NULL DEFAULT 0,
+              shared_event_count INTEGER NOT NULL DEFAULT 0,
+              last_interaction_at TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (user_id, companion_id),
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              FOREIGN KEY (companion_id) REFERENCES companions(id)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sessions_user_companion
             ON conversation_sessions(user_id, companion_id, updated_at DESC);
 

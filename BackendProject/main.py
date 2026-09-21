@@ -21,6 +21,7 @@ from domain.memory_extractor import memory_extractor
 from domain.memory_retriever import memory_retriever
 from domain.memory_service import memory_service
 from domain.prompt_builder import prompt_builder
+from domain.relationship_service import relationship_service
 from domain.timeline_service import timeline_service
 from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
@@ -766,6 +767,10 @@ def memory_item_to_dict(memory_item) -> dict:
     return payload
 
 
+def relationship_profile_to_dict(profile) -> dict:
+    return asdict(profile)
+
+
 async def update_memories_after_reply(
     identity: ResolvedIdentity,
     user_message: str,
@@ -798,6 +803,12 @@ async def update_memories_after_reply(
                 timeline_service.record_memory(memory_service.create_memory(followup))
         if extracted.relationship and extracted.relationship.content.strip():
             timeline_service.record_memory(memory_service.create_memory(extracted.relationship))
+        relationship_service.record_interaction(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            user_message=user_message,
+            has_shared_event=bool(extracted.events),
+        )
     except Exception as error:
         print(f"[memory] 更新记忆失败: {error}")
 
@@ -904,6 +915,46 @@ async def list_memories(
         "items": [memory_item_to_dict(item) for item in items],
         "total": len(items),
     }
+
+
+@app.get("/api/relationship-profile")
+async def get_relationship_profile(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+):
+    """返回用户可见、可重置的陪伴关系进度。"""
+    user_id = clean_identifier(user_id, "user_default")
+    companion_id = clean_identifier(companion_id, DEFAULT_COMPANION_ID)
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+    return {"data": relationship_profile_to_dict(
+        relationship_service.get_profile(user_id, companion_id)
+    )}
+
+
+@app.delete("/api/relationship-profile")
+async def reset_relationship_profile(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+):
+    """仅重置关系成长数值；历史记忆由用户在记忆管理中单独控制。"""
+    user_id = clean_identifier(user_id, "user_default")
+    companion_id = clean_identifier(companion_id, DEFAULT_COMPANION_ID)
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+    return {"data": relationship_profile_to_dict(
+        relationship_service.reset_profile(user_id, companion_id)
+    )}
 
 
 @app.get("/api/timeline-events")
@@ -1849,6 +1900,10 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             personality=profile["personality"],
             memory_pack=memory_pack,
             realtime_context=realtime_context,
+            relationship_profile=relationship_service.get_profile(
+                identity.user_id,
+                identity.companion_id,
+            ),
         ) + build_emotion_prompt_context(emotion_state)
         message_history = manager.get_message_history(identity.session_id)
         messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)
