@@ -982,4 +982,5 @@ docker compose up -d --no-build --force-recreate backend nginx
 
 也可以通过 [爱发电支持小凡 AI](https://afdian.com/a/xiaofanai)。
 
-<img src="./weixinpay.jpg" alt="微信支付" width="200" /> <img src="./alipay.jpg" alt="支付宝支付" width="200" />
+<img src="./weixinpay.jpg" alt="微信支付" width="200" />
+<img src="./support-qr-blue.jpg" alt="支付宝支付" width="200" />
