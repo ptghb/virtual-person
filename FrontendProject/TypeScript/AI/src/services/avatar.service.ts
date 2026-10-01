@@ -12,6 +12,8 @@ class AvatarService {
   private streamingReplyId = '';
   private streamingGeneration = 0;
   private processingStreamingQueue = false;
+  private observedAudioPlaying = false;
+  private audioStoppedAt = -Infinity;
 
   private getManager() {
     const delegate = LAppDelegate.getInstance();
@@ -140,9 +142,28 @@ class AvatarService {
       const audioManager = this.getManager().getAudioManager();
       await audioManager.loadAudioFromArrayBuffer(await response.arrayBuffer());
       audioManager.play();
+      this.observedAudioPlaying = true;
     } catch (error) {
       console.error('[AvatarService] 播放回复语音失败:', error);
     }
+  }
+
+  public isAudioPlaying(): boolean {
+    try {
+      const playing = this.getManager().getAudioManager().isPlaying();
+      if (this.observedAudioPlaying && !playing) {
+        this.audioStoppedAt = performance.now();
+      }
+      this.observedAudioPlaying = playing;
+      return playing;
+    } catch {
+      return false;
+    }
+  }
+
+  public isInAudioCooldown(cooldownMs = 500): boolean {
+    const playing = this.isAudioPlaying();
+    return !playing && performance.now() - this.audioStoppedAt < cooldownMs;
   }
 
   public enqueueStreamingAudio(
@@ -182,6 +203,8 @@ class AvatarService {
         await this.getManager()
           .getAudioManager()
           .playStreamingAudio(item.audio);
+        this.observedAudioPlaying = false;
+        this.audioStoppedAt = performance.now();
       }
     } catch (error) {
       console.error('[AvatarService] 流式语音播放失败:', error);
@@ -204,6 +227,8 @@ class AvatarService {
     this.streamingQueue = [];
     try {
       this.getManager().getAudioManager().stop();
+      this.observedAudioPlaying = false;
+      this.audioStoppedAt = performance.now();
     } catch (error) {
       console.error('[AvatarService] 停止语音失败:', error);
     }

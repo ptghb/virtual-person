@@ -9,6 +9,7 @@ interface DesktopBridge {
   moveWindow: (x: number, y: number) => Promise<boolean>;
   openChat: () => Promise<void>;
   openSettings: () => Promise<void>;
+  showNotification: (title: string, body: string) => Promise<boolean>;
   minimize: () => Promise<void>;
   close: () => Promise<void>;
 }

@@ -1,14 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { avatarService } from '../services/avatar.service';
 import { DigitalHumanStage } from '../components/DigitalHumanStage';
 import { useCompanionProfile } from '../services/companion-profile.service';
 import { ModelDir } from '../lappdefine';
 import { useSelectedAvatarModel } from '../services/avatar-preference.service';
 import { syncCompanionToServer } from '../services/companion-server.service';
+import { getUserIdentity } from '../services/user-identity.service';
+import { proactiveService, type ProactiveCheckIn } from '../services/proactive.service';
+import {
+  getProactivePreferences,
+  isProactiveQuietHour
+} from '../services/proactive-preference.service';
 
 export const DesktopPage: React.FC = () => {
   const { profile } = useCompanionProfile();
   const selectedAvatar = useSelectedAvatarModel();
+  const [checkIn, setCheckIn] = useState<ProactiveCheckIn | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startScreenX: number;
@@ -102,6 +109,37 @@ export const DesktopPage: React.FC = () => {
     });
   }, [profile.name, profile.personality, selectedAvatar]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const preferences = getProactivePreferences();
+      const hour = new Date().getHours();
+      if (!preferences.enabled || isProactiveQuietHour(hour, preferences)) return;
+      const identity = getUserIdentity();
+      void proactiveService
+        .getCheckIn(
+          identity.userId,
+          selectedAvatar,
+          hour,
+          preferences.cooldownHours
+        )
+        .then(async result => {
+          if (!result.data) return;
+          setCheckIn(result.data);
+          await proactiveService.acknowledge(result.data.id, 'displayed');
+          if (preferences.desktopNotifications) {
+            await window.desktop?.showNotification(
+              `${profile.name}想和你说`,
+              result.data.content
+            );
+          }
+        })
+        .catch(error =>
+          console.warn('[DesktopPage] 主动关心加载失败:', error)
+        );
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [profile.name, selectedAvatar]);
+
   const switchAvatar = (direction: 1 | -1): void => {
     const currentIndex = ModelDir.indexOf(selectedAvatar);
     const safeIndex = currentIndex >= 0 ? currentIndex : 0;
@@ -116,6 +154,30 @@ export const DesktopPage: React.FC = () => {
   return (
     <main className="desktop-page">
       <DigitalHumanStage transparent subtitle={`${profile.name}正在陪着你`} />
+      {checkIn && (
+        <div className="desktop-check-in" data-testid="desktop-check-in">
+          <button
+            type="button"
+            aria-label="关闭主动关心"
+            onClick={() => {
+              setCheckIn(null);
+              void proactiveService.acknowledge(checkIn.id, 'dismissed');
+            }}
+          >
+            ×
+          </button>
+          <p>{checkIn.content}</p>
+          <a
+            href="#/chat"
+            onClick={() => {
+              setCheckIn(null);
+              void window.desktop?.openChat();
+            }}
+          >
+            和我聊聊
+          </a>
+        </div>
+      )}
       <div className="desktop-avatar-switcher" aria-label="切换桌面虚拟人物">
         <button
           type="button"

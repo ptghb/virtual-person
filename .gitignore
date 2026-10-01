@@ -6,6 +6,8 @@ node_modules/
 # Build files
 build/
 dist/
+test-results/
+playwright-report/
 # Other files
 temp/
 .vs/

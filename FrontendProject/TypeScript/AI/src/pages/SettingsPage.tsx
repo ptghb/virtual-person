@@ -29,6 +29,23 @@ import type {
   TimelineDaySummary
 } from '../services/memory.types';
 import { useUserIdentity } from '../services/user-identity.service';
+import {
+  saveProactivePreferences,
+  useProactivePreferences
+} from '../services/proactive-preference.service';
+import {
+  saveVadPreferences,
+  useVadPreferences
+} from '../services/vad-preference.service';
+import {
+  saveMicrophonePreferences,
+  useMicrophonePreferences
+} from '../services/microphone-preference.service';
+import {
+  resetVoiceMetrics,
+  summarizeVoiceMetrics,
+  useVoiceMetrics
+} from '../services/voice-metrics.service';
 
 interface AvatarLivePreviewProps {
   active: boolean;
@@ -103,6 +120,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     useCompanionProfile();
   const location = useLocation();
   const { identity } = useUserIdentity();
+  const proactivePreferences = useProactivePreferences();
+  const vadPreferences = useVadPreferences();
+  const microphonePreferences = useMicrophonePreferences();
+  const voiceMetrics = summarizeVoiceMetrics(useVoiceMetrics());
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneStatus, setMicrophoneStatus] = useState('尚未检测');
+  const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [name, setName] = useState(profile.name);
   const [personality, setPersonality] = useState(profile.personality);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -139,6 +163,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setName(profile.name);
     setPersonality(profile.personality);
   }, [profile]);
+
+  useEffect(() => {
+    let active = true;
+    const loadMicrophones = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      try {
+        const devices = (
+          await navigator.mediaDevices.enumerateDevices()
+        ).filter(device => device.kind === 'audioinput');
+        if (active) setMicrophones(devices);
+      } catch {
+        // 未授权时由“检测并授权”按钮展示明确状态。
+      }
+    };
+    void loadMicrophones();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -295,6 +338,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const saveProfile = () => {
     setCompanionProfile({ name, personality });
     void message.success('角色设定已保存');
+  };
+
+  const detectMicrophones = async () => {
+    setMicrophoneLoading(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
+        device => device.kind === 'audioinput'
+      );
+      setMicrophones(devices);
+      setMicrophoneStatus(
+        devices.length ? `已授权，发现 ${devices.length} 个设备` : '已授权，但未发现设备'
+      );
+    } catch (error) {
+      setMicrophoneStatus(
+        error instanceof DOMException && error.name === 'NotAllowedError'
+          ? '权限被拒绝，请在浏览器或系统设置中允许'
+          : '无法访问麦克风'
+      );
+    } finally {
+      setMicrophoneLoading(false);
+    }
   };
 
   const resetProfile = () => {
@@ -694,6 +760,201 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               <div className="setting-row">
                 <span>回答时播放动作</span>
                 <Switch defaultChecked />
+              </div>
+            </Card>
+            <Card title="主动关心" data-testid="proactive-settings">
+              <div className="setting-row">
+                <span>允许主动关心</span>
+                <Switch
+                  checked={proactivePreferences.enabled}
+                  onChange={enabled =>
+                    saveProactivePreferences({ enabled })
+                  }
+                />
+              </div>
+              <div className="setting-row">
+                <span>桌面系统通知</span>
+                <Switch
+                  checked={proactivePreferences.desktopNotifications}
+                  disabled={!proactivePreferences.enabled}
+                  onChange={desktopNotifications =>
+                    saveProactivePreferences({ desktopNotifications })
+                  }
+                />
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="proactive-quiet-start">安静时段</label>
+                <Space>
+                  <select
+                    id="proactive-quiet-start"
+                    aria-label="安静时段开始"
+                    value={proactivePreferences.quietStart}
+                    onChange={event =>
+                      saveProactivePreferences({
+                        quietStart: Number(event.target.value)
+                      })
+                    }
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>
+                        {String(hour).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span>至</span>
+                  <select
+                    aria-label="安静时段结束"
+                    value={proactivePreferences.quietEnd}
+                    onChange={event =>
+                      saveProactivePreferences({
+                        quietEnd: Number(event.target.value)
+                      })
+                    }
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>
+                        {String(hour).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                </Space>
+                <span>安静时段不会弹出网页气泡或桌面系统通知。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="proactive-frequency">提醒频率</label>
+                <select
+                  id="proactive-frequency"
+                  aria-label="主动关心频率"
+                  value={proactivePreferences.cooldownHours}
+                  onChange={event =>
+                    saveProactivePreferences({
+                      cooldownHours: Number(event.target.value)
+                    })
+                  }
+                >
+                  <option value={6}>最多每 6 小时一次</option>
+                  <option value={12}>最多每 12 小时一次</option>
+                  <option value={24}>最多每天一次</option>
+                  <option value={48}>最多每两天一次</option>
+                </select>
+              </div>
+            </Card>
+            <Card title="麦克风与自动聆听" data-testid="voice-settings">
+              <div className="profile-setting-field">
+                <label htmlFor="microphone-device">输入设备</label>
+                <Space>
+                  <select
+                    id="microphone-device"
+                    aria-label="麦克风输入设备"
+                    value={microphonePreferences.deviceId}
+                    onChange={event =>
+                      saveMicrophonePreferences({
+                        deviceId: event.target.value
+                      })
+                    }
+                  >
+                    <option value="">系统默认麦克风</option>
+                    {microphonePreferences.deviceId &&
+                      !microphones.some(
+                        device =>
+                          device.deviceId === microphonePreferences.deviceId
+                      ) && (
+                        <option value={microphonePreferences.deviceId}>
+                          已选择的麦克风
+                        </option>
+                      )}
+                    {microphones.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `麦克风 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                  <Button loading={microphoneLoading} onClick={detectMicrophones}>
+                    检测并授权
+                  </Button>
+                </Space>
+                <span>{microphoneStatus}</span>
+              </div>
+              <div className="setting-row">
+                <span>语音检测灵敏度</span>
+                <select
+                  aria-label="语音检测灵敏度"
+                  value={vadPreferences.sensitivity}
+                  onChange={event =>
+                    saveVadPreferences({
+                      sensitivity: event.target.value as
+                        | 'low'
+                        | 'balanced'
+                        | 'high'
+                    })
+                  }
+                >
+                  <option value="low">低，减少环境噪声触发</option>
+                  <option value="balanced">平衡</option>
+                  <option value="high">高，更容易检测轻声</option>
+                </select>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="vad-minimum-speech">最短有效语音</label>
+                <select
+                  id="vad-minimum-speech"
+                  aria-label="最短有效语音"
+                  value={vadPreferences.minimumSpeechMs}
+                  onChange={event =>
+                    saveVadPreferences({
+                      minimumSpeechMs: Number(event.target.value)
+                    })
+                  }
+                >
+                  <option value={200}>0.2 秒</option>
+                  <option value={320}>0.32 秒</option>
+                  <option value={500}>0.5 秒</option>
+                  <option value={800}>0.8 秒</option>
+                </select>
+                <span>低于此时长的声音会被当作噪声丢弃。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="vad-silence">静音多久结束录音</label>
+                <select
+                  id="vad-silence"
+                  aria-label="静音多久结束录音"
+                  value={vadPreferences.silenceMs}
+                  onChange={event =>
+                    saveVadPreferences({ silenceMs: Number(event.target.value) })
+                  }
+                >
+                  <option value={500}>0.5 秒</option>
+                  <option value={800}>0.8 秒</option>
+                  <option value={1200}>1.2 秒</option>
+                  <option value={1600}>1.6 秒</option>
+                </select>
+                <span>较长的时间适合停顿多、语速慢的表达。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label>本机语音质量统计</label>
+                <span>
+                  VAD 丢弃率 {(voiceMetrics.vadDiscardRate * 100).toFixed(1)}%
+                  （{voiceMetrics.vadDiscarded}/
+                  {voiceMetrics.vadAccepted + voiceMetrics.vadDiscarded}）
+                </span>
+                <span>
+                  ASR 失败率 {(voiceMetrics.asrFailureRate * 100).toFixed(1)}%
+                  （{voiceMetrics.asrFailed}/
+                  {voiceMetrics.asrSucceeded + voiceMetrics.asrFailed}）
+                </span>
+                <span>
+                  ASR 耗时 P50 {voiceMetrics.asrP50 ?? '--'} ms / P95{' '}
+                  {voiceMetrics.asrP95 ?? '--'} ms
+                </span>
+                <span>ASR 超时恢复 {voiceMetrics.asrTimeouts} 次</span>
+                <span>
+                  打断延迟 P50 {voiceMetrics.interruptP50 ?? '--'} ms / P95{' '}
+                  {voiceMetrics.interruptP95 ?? '--'} ms
+                </span>
+                <span>已忽略过期 ASR 响应 {voiceMetrics.staleAsrResponses} 次</span>
+                <Button size="small" onClick={resetVoiceMetrics}>
+                  清空统计
+                </Button>
               </div>
             </Card>
             <Card title="虚拟人物">

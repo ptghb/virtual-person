@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert, Button, Space } from 'antd';
 import { AppShell } from '../components/AppShell';
 import { ConversationPanel } from '../components/ConversationPanel';
 import { DigitalHumanStage } from '../components/DigitalHumanStage';
@@ -30,11 +31,33 @@ export const BasicChatPage: React.FC = () => {
         onClear={session.clearMessages}
         title="对话记录"
         statusStrip={
-          <MemoryStatusStrip
-            relationship={session.memorySnapshot.relationship}
-            followups={session.memorySnapshot.followups}
-            refreshing={session.memorySnapshot.refreshing}
-          />
+          <>
+            {session.proactiveCheckIn && (
+              <Alert
+                type="info"
+                showIcon
+                closable
+                onClose={session.dismissProactiveCheckIn}
+                message={session.proactiveCheckIn.content}
+                action={
+                  <Space>
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={session.respondToProactiveCheckIn}
+                    >
+                      聊聊
+                    </Button>
+                  </Space>
+                }
+              />
+            )}
+            <MemoryStatusStrip
+              relationship={session.memorySnapshot.relationship}
+              followups={session.memorySnapshot.followups}
+              refreshing={session.memorySnapshot.refreshing}
+            />
+          </>
         }
       />
     </AppShell>

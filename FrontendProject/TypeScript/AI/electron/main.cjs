@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Notification, screen, Tray } = require('electron');
 const { execFile } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -138,6 +138,20 @@ app.whenReady().then(() => {
   ipcMain.handle('window:open-settings', () => {
     if (isDev) return mainWindow?.loadURL('http://127.0.0.1:8091/#/settings');
     return mainWindow?.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/settings' });
+  });
+  ipcMain.handle('notification:show', (_event, payload = {}) => {
+    if (!Notification.isSupported()) return false;
+    const notification = new Notification({
+      title: String(payload.title || '小凡 AI'),
+      body: String(payload.body || '')
+    });
+    notification.on('click', () => {
+      mainWindow?.show();
+      if (isDev) mainWindow?.loadURL('http://127.0.0.1:8091/#/chat');
+      else mainWindow?.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/chat' });
+    });
+    notification.show();
+    return true;
   });
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:close', () => mainWindow?.hide());

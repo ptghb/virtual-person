@@ -2,6 +2,10 @@
  * WebSocket管理器
  * 负责管理WebSocket连接、消息收发和状态管理
  */
+import {
+  resolveAssistantDecision,
+  type AssistantDecision
+} from './services/assistant-decision';
 
 // 连接状态
 export type ConnectionState =
@@ -26,6 +30,7 @@ export type ProtocolMessageType =
 export type ControlAction =
   | 'start_audio_stream'
   | 'stop_audio_stream'
+  | 'interrupt_assistant'
   | 'update_companion_profile'
   | 'livestream_set_auto_reply'
   | 'livestream_update_policy'
@@ -61,6 +66,7 @@ export interface ProtocolMessageData {
   user_id?: string;
   session_id?: string;
   companion_id?: string;
+  audio_turn_id?: string;
 
   // Live2D相关
   model?: string;
@@ -104,7 +110,16 @@ export interface DisplayMessage {
   isError?: boolean; // 是否为错误消息
   replyId?: string;
   sequence?: number;
-  streamEvent?: 'start' | 'delta' | 'complete' | 'audio' | 'error';
+  streamEvent?:
+    | 'start'
+    | 'delta'
+    | 'complete'
+    | 'audio'
+    | 'interrupted'
+    | 'error';
+  protocolEvent?: string;
+  audioTurnId?: string;
+  errorCode?: string;
 }
 
 export class WebSocketManager {
@@ -238,6 +253,10 @@ export class WebSocketManager {
               emotion_reason?: string;
               should_take_photo?: boolean;
               prompt?: string;
+              protocol_version?: string;
+              decision?: Partial<AssistantDecision>;
+              audio_turn_id?: string;
+              code?: string;
               [key: string]: unknown;
             };
           };
@@ -277,7 +296,9 @@ export class WebSocketManager {
               type: 'sent',
               content: parsedData.data.content,
               timestamp: new Date(),
-              contentType: 'text'
+              contentType: 'text',
+              protocolEvent: 'speech.transcription',
+              audioTurnId: parsedData.data.audio_turn_id
             });
             return;
           }
@@ -290,37 +311,38 @@ export class WebSocketManager {
             const replyId = streamData.reply_id ?? '';
 
             if (parsedData.type === 'assistant.meta') {
-              if (typeof streamData.animation_index === 'number') {
+              const decision = resolveAssistantDecision(streamData);
+              if (typeof decision.animation_index === 'number') {
                 window.dispatchEvent(
                   new CustomEvent('change-animation', {
                     detail: {
-                      animationIndex: streamData.animation_index
+                      animationIndex: decision.animation_index
                     }
                   })
                 );
               }
               if (
-                typeof streamData.emotion === 'string' ||
-                typeof streamData.expression === 'string'
+                typeof decision.emotion === 'string' ||
+                typeof decision.expression === 'string'
               ) {
                 window.dispatchEvent(
                   new CustomEvent('companion-emotion', {
                     detail: {
-                      emotion: streamData.emotion,
-                      emotionLabel: streamData.emotion_label,
-                      intensity: streamData.emotion_intensity,
-                      reason: streamData.emotion_reason,
-                      expression: streamData.expression ?? null
+                      emotion: decision.emotion,
+                      emotionLabel: decision.emotion_label,
+                      intensity: decision.emotion_intensity,
+                      reason: decision.emotion_reason,
+                      expression: decision.expression ?? null
                     }
                   })
                 );
               }
-              if (streamData.should_take_photo === true) {
+              if (decision.should_take_photo === true) {
                 window.dispatchEvent(
                   new CustomEvent('should-take-photo', {
                     detail: {
                       shouldTakePhoto: true,
-                      prompt: streamData.prompt
+                      prompt: decision.prompt
                     }
                   })
                 );
@@ -335,6 +357,7 @@ export class WebSocketManager {
                 : eventType === 'start' ||
                     eventType === 'delta' ||
                     eventType === 'complete' ||
+                    eventType === 'interrupted' ||
                     eventType === 'error'
                   ? eventType
                   : undefined;
@@ -355,6 +378,17 @@ export class WebSocketManager {
                 streamEvent
               });
             }
+            return;
+          }
+
+          // 控制指令和音频分片的成功回执仅用于协议状态同步，
+          // 不应作为普通聊天内容展示。错误回执仍继续下发给界面和录音钩子。
+          if (
+            parsedData.type === 'response' &&
+            parsedData.data?.status === 'success' &&
+            (parsedData.data.request_type === 'control' ||
+              parsedData.data.request_type === 'audio')
+          ) {
             return;
           }
 
@@ -390,7 +424,17 @@ export class WebSocketManager {
             audioUrl: parsedData.audio,
             isError:
               parsedData.type === 'response' &&
-              parsedData.data?.status === 'error'
+              parsedData.data?.status === 'error',
+            protocolEvent:
+              typeof parsedData.type === 'string' ? parsedData.type : undefined,
+            audioTurnId:
+              typeof parsedData.data?.audio_turn_id === 'string'
+                ? parsedData.data.audio_turn_id
+                : undefined,
+            errorCode:
+              typeof parsedData.data?.code === 'string'
+                ? parsedData.data.code
+                : undefined
           };
           this._emitMessage(message);
           if (parsedData.animation_index !== undefined) {
@@ -660,6 +704,13 @@ export class WebSocketManager {
    */
   public getClientId(): string {
     return this._clientId;
+  }
+
+  public interruptAssistant(): boolean {
+    return this.send({
+      type: 'control',
+      data: { action: 'interrupt_assistant' }
+    });
   }
 
     public setIdentity(identity: {

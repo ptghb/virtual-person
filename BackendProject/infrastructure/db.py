@@ -152,6 +152,25 @@ def init_db() -> None:
               updated_at REAL NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS proactive_checkins (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              companion_id TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              content TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'offered',
+              source_type TEXT NOT NULL,
+              source_ref TEXT,
+              created_at TEXT NOT NULL,
+              displayed_at TEXT,
+              dismissed_at TEXT,
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              FOREIGN KEY (companion_id) REFERENCES companions(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_proactive_user_companion
+            ON proactive_checkins(user_id, companion_id, created_at DESC);
+
             CREATE INDEX IF NOT EXISTS idx_memory_active
             ON memory_items(user_id, companion_id, status, memory_type, updated_at DESC);
 

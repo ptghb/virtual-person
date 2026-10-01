@@ -10,7 +10,8 @@
 - 🎛️ **可配置伴侣设定**：可在“隐私与设置”中配置 AI 伴侣称呼、性格和默认虚拟人物
 - 👤 **实时选妃预览**：设置弹窗每次渲染一个真实 Live2D 人物，可点击“下一个”轮换并通过“点他”确认
 - 🧠 **长期记忆管理**：支持当前关系状态、置顶记忆、自动记忆、待跟进事项、每日对话时间线和关系历史的读取与维护
-- 🗣️ **智能对话与语音**：接入OpenAI/智谱AI API，具备上下文记忆、角色人格和 MCP 实时信息工具；集成EasyVoice TTS，实现文本转语音
+- 💌 **主动关心闭环**：根据待跟进记忆或久未互动状态生成自然问候，支持安静时段、冷却时间、展示回执、桌面气泡和系统通知
+- 🗣️ **智能对话与语音**：接入 OpenAI/智谱 AI API，具备上下文记忆、角色人格和 MCP 实时信息工具；支持流式回复、实时打断、自适应 VAD、ASR 轮次隔离和 EasyVoice TTS
 - 👋 **“摸摸我”手势互动**：多模态聊天中通过 MediaPipe 同时识别左右手和人脸，小手碰触人物后随机播放 Live2D 动作，人物会看向真实人脸位置
 - 🎭 **多模态交互体验**：支持文字、图片、音频、摄像头视觉和手势互动，动画与音频深度同步
 - 🖥️ **桌面虚拟人物**：Electron 桌面端支持透明无边框人物窗口、鼠标拖动、滚轮缩放、视线跟随和人物切换，切换结果与服务端 companion 关联
@@ -38,6 +39,9 @@
 - **动画控制**：支持多种动画播放模式和音频联动，智能选择动画
 - **打字机效果**：AI回复采用打字机效果逐字显示，支持完成回调
 - **多模态消息**：支持文字、图片、音频等多种消息类型，消息历史记录最多保存100条
+- **实时回复控制**：每个客户端只保留一个活动回复任务，新输入或语音抢话可以中断旧回复，避免多轮语音和文本交叉播放
+- **自动聆听**：升级模式支持持续监听、环境底噪学习、有效语音过滤、自然停顿保护和助手播放回声抑制
+- **主动关心**：根据待跟进事项或长时间未互动生成提醒，并支持展示、进入话题和忽略
 - **摄像头互动**：多模态聊天页提供“让我看看”和“摸摸我”，支持拍照分析、本地双手识别互动，以及开启“摸摸我”时的人脸视线跟随
 
 ## 技术架构
@@ -93,7 +97,11 @@ CubismWebSamples/
 │   │   ├── audio_handler.py    # 音频消息处理（语音识别）
 │   │   └── image_handler.py    # 图片消息处理（GLM-4V分析）
 │   ├── domain/                  # 领域服务（记忆、时间线、Prompt 构建等）
+│   │   ├── assistant_decision_service.py # 统一回复决策
+│   │   ├── proactive_service.py          # 主动关心策略
+│   │   └── reply_task_service.py         # 可取消回复任务
 │   ├── repositories/            # 数据访问层（记忆、会话、时间线等）
+│   │   └── proactive_repository.py       # 主动关心持久化
 │   ├── schemas/                 # 数据结构定义
 │   ├── mcp_servers/             # 内置 MCP stdio server
 │   │   └── realtime_server.py   # 当前日期时间与实时天气工具
@@ -136,7 +144,15 @@ CubismWebSamples/
 │           │   ├── emotion.ts                 # 情绪类型定义与表情映射
 │           │   └── services/              # 服务层目录
 │           │       ├── avatar.service.ts       # 虚拟人物服务（表情切换/动作播放）
+│           │       ├── assistant-decision.ts   # 回复决策协议兼容
+│           │       ├── asr-turn-tracker.ts     # ASR 轮次与超时跟踪
+│           │       ├── microphone-preference.service.ts # 麦克风选择
+│           │       ├── proactive.service.ts    # 主动关心接口
+│           │       ├── vad-detector.ts         # 自适应 VAD
+│           │       ├── vad-preference.service.ts # VAD 参数持久化
+│           │       ├── voice-metrics.service.ts # 语音质量指标
 │           │       └── HandGestureService.ts   # 手势识别服务（MediaPipe）
+│           ├── e2e/                      # Playwright 浏览器端测试
 │           ├── electron/                 # Electron 桌面端入口（透明窗口、拖动、缩放）
 │           ├── public/
 │           │   ├── Core/                   # Live2D Core库文件
@@ -205,6 +221,9 @@ CubismWebSamples/
 - **情绪调试面板**：访问聊天页时追加 `?debugEmotion=true`，可手动切换情绪、调整强度并验证当前角色的表情和动作映射。调试面板使用原生 `<select>` 下拉框，避免被 Live2D 舞台层级遮挡。面板内置情绪历史曲线图（SVG 折线图），展示最近 20 条情绪变化，每 5 秒自动刷新。
 - **直播情绪隔离**：直播互动使用专属 `livestream_session` 情绪 key，与普通聊天会话完全隔离。直播停止时自动清除直播情绪状态，避免残留影响下次直播。
 - **情绪历史查询 API**：新增 `GET /api/debug/emotion/{session_id}/history` 端点，返回最近情绪变化记录，用于调试面板绘制曲线图。
+- **统一回复决策协议**：回复开始前统一确定情绪、强度、表情、动作和拍照指令；`assistant.meta` 与 `assistant.complete` 共享同一份 `decision`，并通过 `protocol_version` 保持协议兼容。
+- **可取消流式回复**：服务端按客户端管理回复任务；新消息或 `interrupt_assistant` 会取消旧回复，并发送 `assistant.interrupted`，前端同步停止本地 TTS。
+- **主动关心策略**：优先根据活跃待跟进记忆生成追问；没有待跟进事项时，可在超过 36 小时未互动后生成久别问候。
 
 ### 3. 隐私、设置与记忆
 
@@ -218,6 +237,10 @@ CubismWebSamples/
 - **每日对话时间线**：按天汇总会话摘要，并合并当天重要事件、待跟进和关系变化作为重点 highlights
 - **记忆接口**：后端提供 `GET/POST /api/memories` 与 `PATCH/DELETE /api/memories/{memory_id}`
 - **时间线接口**：后端提供 `GET /api/timeline-days` 用于每日总结，`GET /api/timeline-events` 用于原始时间线事件
+- **主动关心设置**：支持总开关、桌面通知、安静时段和 6/12/24/48 小时冷却频率。
+- **麦克风设置**：支持申请权限、枚举输入设备并选择默认麦克风；手动录音和自动聆听共用该设置。
+- **VAD 设置**：支持调整检测灵敏度、最短有效语音时长和静音结束时间。
+- **语音质量指标**：本地展示 VAD 接受/丢弃、ASR 成功/失败/超时、过期响应和打断延迟 P50/P95，可一键清空。
 
 ### 4. WebSocket实时通信
 
@@ -228,6 +251,9 @@ CubismWebSamples/
 - **音频流处理**：支持实时音频流传输和语音识别（PCM格式）
 - **消息格式**：JSON格式，包含clientId、message、modelName、isAudio、should_take_photo等字段
 - **图片消息音频**：支持图片消息转语音功能，可配置音频开关
+- **回复生命周期事件**：支持 `assistant.start`、`assistant.delta`、`assistant.audio_segment`、`assistant.complete`、`assistant.interrupted` 和 `assistant.error`。
+- **ASR 轮次隔离**：每次录音携带唯一 `audio_turn_id`；后端拒绝过期音频，前端忽略错轮次响应并在 20 秒超时后自动恢复。
+- **协议消息降噪**：音频流启动、音频分片接收和无实际打断等成功回执只用于状态同步，不显示在聊天记录中。
 
 ### 5. 动画控制系统
 
@@ -248,8 +274,12 @@ CubismWebSamples/
 - **数据加载**：支持从ArrayBuffer加载音频数据
 - **口型同步**：RMS值放大5.0倍，通过ParamMouthOpenY参数实现精确口型同步
 - **TTS集成**：集成EasyVoice TTS服务，支持文本转语音（Docker部署）
-- **语音识别**：集成SiliconFlow SenseVoiceSmall，支持语音转文字（WAV格式）
-- **音频流处理**：支持实时音频流传输，格式为PCM，包含sample_rate、channels等参数
+- **语音识别**：集成 SiliconFlow SenseVoiceSmall，浏览器通过 MediaRecorder 录制 WebM/Opus 并提交识别
+- **自动聆听 VAD**：动态学习环境底噪并计算启停阈值，过滤短促噪声；候选起音阶段即缓存录音，避免丢失句首
+- **停顿保护**：默认持续静音 1200ms 才结束一句话，降低换气和自然停顿造成的半句识别
+- **回声抑制与抢话**：助手播放期间提高触发阈值并延长确认时间，播放结束后冷却 500ms；持续清晰说话仍可打断助手
+- **空语音处理**：空转写返回 `no_speech_detected`，自动聆听静默恢复，不把 VAD 误触发显示为识别服务故障
+- **单轮处理**：ASR 处理中最多保留最新一轮录音，避免连续输入造成请求堆积
 - **图片音频**：支持图片消息转语音功能，可配置音频开关
 
 ### 7. 抖音直播互动
@@ -319,6 +349,14 @@ docker compose logs -f
 - 后端服务：http://localhost:8000
 - TTS服务：http://localhost:3000
 - 抖音直播控制台通过后端 Python 直接采集，无需 dycast 地址或转发地址
+
+### 最近两日更新（2026-09-30 至 2026-10-01）
+
+- 完成自适应 VAD、麦克风选择、语音质量指标和 ASR 轮次/超时控制。
+- 完成用户抢话中断：停止本地语音并取消服务端正在生成的回复。
+- 增加连续起音、助手回声抑制、播放结束冷却、句首缓存和 1200ms 自然停顿保护。
+- 空语音改为静默恢复，协议成功回执不再污染聊天记录。
+- 已通过 48 项前端单元测试、21 项后端测试、4 项 Playwright E2E、TypeScript 检查和生产构建，并完成本地 Docker 部署。
 
 > 💡 提示：Nginx 监听 80 端口作为统一入口，直接服务 `FrontendProject/TypeScript/AI/dist` 静态产物；前端开发容器仍可保留用于构建/预览，但本地访问入口以 Nginx 挂载的 `dist` 为准。
 >
