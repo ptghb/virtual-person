@@ -111,6 +111,42 @@ body.transparent-stage #root {
   text-align: center;
 }
 
+.desktop-check-in {
+  position: fixed;
+  top: 24px;
+  left: 20px;
+  right: 20px;
+  z-index: 30;
+  padding: 14px 38px 12px 16px;
+  border: 1px solid rgb(255 255 255 / 55%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 12px 34px rgb(45 37 73 / 20%);
+  color: #443a57;
+  backdrop-filter: blur(14px);
+}
+
+.desktop-check-in p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.desktop-check-in > button {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  border: 0;
+  background: transparent;
+  color: #796f88;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.desktop-check-in a {
+  color: #7657c8;
+  font-weight: 600;
+}
+
 
 button,
 input,

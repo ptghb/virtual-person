@@ -36,5 +36,9 @@ export default defineConfig((env: ConfigEnv): UserConfig => {
       outDir: './dist',
       sourcemap: env.mode == 'development',
     },
+    test: {
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+      exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+    },
   };
 });

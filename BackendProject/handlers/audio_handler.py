@@ -14,11 +14,13 @@ class AudioProcessor:
         self.audio_buffers: Dict[str, List[bytes]] = {}
         self.is_recording: Dict[str, bool] = {}
         self.audio_formats: Dict[str, str] = {}
+        self.audio_turn_ids: Dict[str, str] = {}
 
-    def start_audio_stream(self, client_id: str):
+    def start_audio_stream(self, client_id: str, audio_turn_id: str = ""):
         self.audio_buffers[client_id] = []
         self.is_recording[client_id] = True
         self.audio_formats[client_id] = "webm"
+        self.audio_turn_ids[client_id] = audio_turn_id
         print(f"[AudioProcessor] 开始处理客户端 {client_id} 的音频流")
 
     def stop_audio_stream(self, client_id: str):
@@ -30,6 +32,14 @@ class AudioProcessor:
         try:
             if not self.is_recording.get(client_id, False):
                 return {"status": "error", "message": "音频流未启动"}
+            audio_turn_id = audio_data.get("audio_turn_id", "")
+            active_turn_id = self.audio_turn_ids.get(client_id, "")
+            if active_turn_id and audio_turn_id != active_turn_id:
+                return {
+                    "status": "error",
+                    "message": "音频轮次已过期",
+                    "audio_turn_id": audio_turn_id,
+                }
 
             audio_chunk_base64 = audio_data.get("chunk", "")
             is_final = audio_data.get("is_final", False)
@@ -48,14 +58,20 @@ class AudioProcessor:
             return {
                 "status": "success",
                 "message": f"接收到音频块，大小: {len(audio_bytes)} 字节",
-                "is_final": is_final
+                "is_final": is_final,
+                "audio_turn_id": audio_turn_id,
             }
 
         except Exception as e:
             return {"status": "error", "message": f"音频处理失败: {str(e)}"}
 
-    async def _process_complete_audio(self, client_id: str):
+    async def _process_complete_audio(
+        self, client_id: str, audio_turn_id: str = ""
+    ):
         print("[AudioProcessor] 处理完整音频")
+        active_turn_id = self.audio_turn_ids.get(client_id, "")
+        if active_turn_id and audio_turn_id != active_turn_id:
+            return None
         if client_id not in self.audio_buffers or not self.audio_buffers[client_id]:
             return
         all_audio_data = b''.join(self.audio_buffers[client_id])

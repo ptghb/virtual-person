@@ -90,3 +90,20 @@ export interface TimelineDayListResponse {
   items: TimelineDaySummary[];
   total: number;
 }
+
+export interface RelationshipProfile {
+  user_id: string;
+  companion_id: string;
+  stage: '初识' | '熟悉' | '信任' | '默契';
+  affinity_score: number;
+  trust_score: number;
+  interaction_count: number;
+  shared_event_count: number;
+  last_interaction_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RelationshipProfileResponse {
+  data: RelationshipProfile;
+}

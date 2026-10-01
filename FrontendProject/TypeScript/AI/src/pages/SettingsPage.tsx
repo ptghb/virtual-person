@@ -23,8 +23,29 @@ import { ModelDir } from '../lappdefine';
 import { avatarService } from '../services/avatar.service';
 import { getSelectedAvatarModel } from '../services/avatar-preference.service';
 import { memoryService } from '../services/memory.service';
-import type { MemoryItem, TimelineDaySummary } from '../services/memory.types';
+import type {
+  MemoryItem,
+  RelationshipProfile,
+  TimelineDaySummary
+} from '../services/memory.types';
 import { useUserIdentity } from '../services/user-identity.service';
+import {
+  saveProactivePreferences,
+  useProactivePreferences
+} from '../services/proactive-preference.service';
+import {
+  saveVadPreferences,
+  useVadPreferences
+} from '../services/vad-preference.service';
+import {
+  saveMicrophonePreferences,
+  useMicrophonePreferences
+} from '../services/microphone-preference.service';
+import {
+  resetVoiceMetrics,
+  summarizeVoiceMetrics,
+  useVoiceMetrics
+} from '../services/voice-metrics.service';
 
 interface AvatarLivePreviewProps {
   active: boolean;
@@ -99,6 +120,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     useCompanionProfile();
   const location = useLocation();
   const { identity } = useUserIdentity();
+  const proactivePreferences = useProactivePreferences();
+  const vadPreferences = useVadPreferences();
+  const microphonePreferences = useMicrophonePreferences();
+  const voiceMetrics = summarizeVoiceMetrics(useVoiceMetrics());
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneStatus, setMicrophoneStatus] = useState('尚未检测');
+  const [microphoneLoading, setMicrophoneLoading] = useState(false);
   const [name, setName] = useState(profile.name);
   const [personality, setPersonality] = useState(profile.personality);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
@@ -115,6 +143,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     []
   );
   const [timelineDays, setTimelineDays] = useState<TimelineDaySummary[]>([]);
+  const [relationshipProfile, setRelationshipProfile] =
+    useState<RelationshipProfile | null>(null);
   const [memoryDraft, setMemoryDraft] = useState('');
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [editingMemoryType, setEditingMemoryType] = useState<
@@ -136,6 +166,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   useEffect(() => {
     let active = true;
+    const loadMicrophones = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      try {
+        const devices = (
+          await navigator.mediaDevices.enumerateDevices()
+        ).filter(device => device.kind === 'audioinput');
+        if (active) setMicrophones(devices);
+      } catch {
+        // 未授权时由“检测并授权”按钮展示明确状态。
+      }
+    };
+    void loadMicrophones();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const loadMemories = async () => {
       setMemoryLoading(true);
       try {
@@ -144,7 +193,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           allResult,
           archivedFollowupResult,
           relationshipHistoryResult,
-          timelineResult
+          timelineResult,
+          relationshipProfileResult
         ] = await Promise.all([
           memoryService.listMemories(
             identity.userId,
@@ -164,7 +214,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             'relationship',
             'superseded'
           ),
-          memoryService.listTimelineDays(identity.userId, confirmedAvatar)
+          memoryService.listTimelineDays(identity.userId, confirmedAvatar),
+          memoryService.getRelationshipProfile(identity.userId, confirmedAvatar)
         ]);
         if (active) {
           setPinnedMemories(pinnedResult.items);
@@ -174,6 +225,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           setArchivedFollowups(archivedFollowupResult.items);
           setRelationshipHistory(relationshipHistoryResult.items);
           setTimelineDays(timelineResult.items);
+          setRelationshipProfile(relationshipProfileResult.data);
         }
       } catch (error) {
         if (active) {
@@ -201,7 +253,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       allResult,
       archivedFollowupResult,
       relationshipHistoryResult,
-      timelineResult
+      timelineResult,
+      relationshipProfileResult
     ] = await Promise.all([
       memoryService.listMemories(identity.userId, confirmedAvatar, 'pinned'),
       memoryService.listMemories(identity.userId, confirmedAvatar),
@@ -217,7 +270,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         'relationship',
         'superseded'
       ),
-      memoryService.listTimelineDays(identity.userId, confirmedAvatar)
+      memoryService.listTimelineDays(identity.userId, confirmedAvatar),
+      memoryService.getRelationshipProfile(identity.userId, confirmedAvatar)
     ]);
     setPinnedMemories(pinnedResult.items);
     setAutoMemories(
@@ -226,6 +280,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setArchivedFollowups(archivedFollowupResult.items);
     setRelationshipHistory(relationshipHistoryResult.items);
     setTimelineDays(timelineResult.items);
+    setRelationshipProfile(relationshipProfileResult.data);
+  };
+
+  const resetRelationshipGrowth = async () => {
+    try {
+      const result = await memoryService.resetRelationshipProfile(
+        identity.userId,
+        confirmedAvatar
+      );
+      setRelationshipProfile(result.data);
+      void message.success('关系成长进度已重置，历史记忆不会被删除。');
+    } catch (error) {
+      void message.error(
+        error instanceof Error ? error.message : '重置关系成长失败'
+      );
+    }
   };
 
   useEffect(() => {
@@ -268,6 +338,29 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const saveProfile = () => {
     setCompanionProfile({ name, personality });
     void message.success('角色设定已保存');
+  };
+
+  const detectMicrophones = async () => {
+    setMicrophoneLoading(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
+        device => device.kind === 'audioinput'
+      );
+      setMicrophones(devices);
+      setMicrophoneStatus(
+        devices.length ? `已授权，发现 ${devices.length} 个设备` : '已授权，但未发现设备'
+      );
+    } catch (error) {
+      setMicrophoneStatus(
+        error instanceof DOMException && error.name === 'NotAllowedError'
+          ? '权限被拒绝，请在浏览器或系统设置中允许'
+          : '无法访问麦克风'
+      );
+    } finally {
+      setMicrophoneLoading(false);
+    }
   };
 
   const resetProfile = () => {
@@ -669,6 +762,201 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 <Switch defaultChecked />
               </div>
             </Card>
+            <Card title="主动关心" data-testid="proactive-settings">
+              <div className="setting-row">
+                <span>允许主动关心</span>
+                <Switch
+                  checked={proactivePreferences.enabled}
+                  onChange={enabled =>
+                    saveProactivePreferences({ enabled })
+                  }
+                />
+              </div>
+              <div className="setting-row">
+                <span>桌面系统通知</span>
+                <Switch
+                  checked={proactivePreferences.desktopNotifications}
+                  disabled={!proactivePreferences.enabled}
+                  onChange={desktopNotifications =>
+                    saveProactivePreferences({ desktopNotifications })
+                  }
+                />
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="proactive-quiet-start">安静时段</label>
+                <Space>
+                  <select
+                    id="proactive-quiet-start"
+                    aria-label="安静时段开始"
+                    value={proactivePreferences.quietStart}
+                    onChange={event =>
+                      saveProactivePreferences({
+                        quietStart: Number(event.target.value)
+                      })
+                    }
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>
+                        {String(hour).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span>至</span>
+                  <select
+                    aria-label="安静时段结束"
+                    value={proactivePreferences.quietEnd}
+                    onChange={event =>
+                      saveProactivePreferences({
+                        quietEnd: Number(event.target.value)
+                      })
+                    }
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>
+                        {String(hour).padStart(2, '0')}:00
+                      </option>
+                    ))}
+                  </select>
+                </Space>
+                <span>安静时段不会弹出网页气泡或桌面系统通知。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="proactive-frequency">提醒频率</label>
+                <select
+                  id="proactive-frequency"
+                  aria-label="主动关心频率"
+                  value={proactivePreferences.cooldownHours}
+                  onChange={event =>
+                    saveProactivePreferences({
+                      cooldownHours: Number(event.target.value)
+                    })
+                  }
+                >
+                  <option value={6}>最多每 6 小时一次</option>
+                  <option value={12}>最多每 12 小时一次</option>
+                  <option value={24}>最多每天一次</option>
+                  <option value={48}>最多每两天一次</option>
+                </select>
+              </div>
+            </Card>
+            <Card title="麦克风与自动聆听" data-testid="voice-settings">
+              <div className="profile-setting-field">
+                <label htmlFor="microphone-device">输入设备</label>
+                <Space>
+                  <select
+                    id="microphone-device"
+                    aria-label="麦克风输入设备"
+                    value={microphonePreferences.deviceId}
+                    onChange={event =>
+                      saveMicrophonePreferences({
+                        deviceId: event.target.value
+                      })
+                    }
+                  >
+                    <option value="">系统默认麦克风</option>
+                    {microphonePreferences.deviceId &&
+                      !microphones.some(
+                        device =>
+                          device.deviceId === microphonePreferences.deviceId
+                      ) && (
+                        <option value={microphonePreferences.deviceId}>
+                          已选择的麦克风
+                        </option>
+                      )}
+                    {microphones.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `麦克风 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                  <Button loading={microphoneLoading} onClick={detectMicrophones}>
+                    检测并授权
+                  </Button>
+                </Space>
+                <span>{microphoneStatus}</span>
+              </div>
+              <div className="setting-row">
+                <span>语音检测灵敏度</span>
+                <select
+                  aria-label="语音检测灵敏度"
+                  value={vadPreferences.sensitivity}
+                  onChange={event =>
+                    saveVadPreferences({
+                      sensitivity: event.target.value as
+                        | 'low'
+                        | 'balanced'
+                        | 'high'
+                    })
+                  }
+                >
+                  <option value="low">低，减少环境噪声触发</option>
+                  <option value="balanced">平衡</option>
+                  <option value="high">高，更容易检测轻声</option>
+                </select>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="vad-minimum-speech">最短有效语音</label>
+                <select
+                  id="vad-minimum-speech"
+                  aria-label="最短有效语音"
+                  value={vadPreferences.minimumSpeechMs}
+                  onChange={event =>
+                    saveVadPreferences({
+                      minimumSpeechMs: Number(event.target.value)
+                    })
+                  }
+                >
+                  <option value={200}>0.2 秒</option>
+                  <option value={320}>0.32 秒</option>
+                  <option value={500}>0.5 秒</option>
+                  <option value={800}>0.8 秒</option>
+                </select>
+                <span>低于此时长的声音会被当作噪声丢弃。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label htmlFor="vad-silence">静音多久结束录音</label>
+                <select
+                  id="vad-silence"
+                  aria-label="静音多久结束录音"
+                  value={vadPreferences.silenceMs}
+                  onChange={event =>
+                    saveVadPreferences({ silenceMs: Number(event.target.value) })
+                  }
+                >
+                  <option value={500}>0.5 秒</option>
+                  <option value={800}>0.8 秒</option>
+                  <option value={1200}>1.2 秒</option>
+                  <option value={1600}>1.6 秒</option>
+                </select>
+                <span>较长的时间适合停顿多、语速慢的表达。</span>
+              </div>
+              <div className="profile-setting-field">
+                <label>本机语音质量统计</label>
+                <span>
+                  VAD 丢弃率 {(voiceMetrics.vadDiscardRate * 100).toFixed(1)}%
+                  （{voiceMetrics.vadDiscarded}/
+                  {voiceMetrics.vadAccepted + voiceMetrics.vadDiscarded}）
+                </span>
+                <span>
+                  ASR 失败率 {(voiceMetrics.asrFailureRate * 100).toFixed(1)}%
+                  （{voiceMetrics.asrFailed}/
+                  {voiceMetrics.asrSucceeded + voiceMetrics.asrFailed}）
+                </span>
+                <span>
+                  ASR 耗时 P50 {voiceMetrics.asrP50 ?? '--'} ms / P95{' '}
+                  {voiceMetrics.asrP95 ?? '--'} ms
+                </span>
+                <span>ASR 超时恢复 {voiceMetrics.asrTimeouts} 次</span>
+                <span>
+                  打断延迟 P50 {voiceMetrics.interruptP50 ?? '--'} ms / P95{' '}
+                  {voiceMetrics.interruptP95 ?? '--'} ms
+                </span>
+                <span>已忽略过期 ASR 响应 {voiceMetrics.staleAsrResponses} 次</span>
+                <Button size="small" onClick={resetVoiceMetrics}>
+                  清空统计
+                </Button>
+              </div>
+            </Card>
             <Card title="虚拟人物">
               <div className="avatar-setting-summary">
                 <div>
@@ -688,6 +976,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         ) : null}
         {isMemoryPage ? (
           <>
+            <Card
+              title="关系成长"
+              extra={
+                <Popconfirm
+                  title="重置关系成长进度？"
+                  description="亲近感、信任感和互动计数会清零，历史记忆不会删除。"
+                  okText="重置"
+                  cancelText="取消"
+                  onConfirm={() => void resetRelationshipGrowth()}
+                >
+                  <Button danger type="link">
+                    重置进度
+                  </Button>
+                </Popconfirm>
+              }
+            >
+              <div className="relationship-metric-grid">
+                <div className="relationship-metric-card">
+                  <strong>当前阶段</strong>
+                  <span>{relationshipProfile?.stage || '加载中'}</span>
+                  <small>由稳定互动逐步推进，不会因为单次聊天倒退。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>亲近感</strong>
+                  <span>{relationshipProfile?.affinity_score ?? 0}/100</span>
+                  <small>温暖、共同完成和日常相处会积累。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>信任感</strong>
+                  <span>{relationshipProfile?.trust_score ?? 0}/100</span>
+                  <small>愿意分享真实感受时会缓慢积累。</small>
+                </div>
+                <div className="relationship-metric-card">
+                  <strong>共同经历</strong>
+                  <span>{relationshipProfile?.shared_event_count ?? 0} 次</span>
+                  <small>
+                    已互动 {relationshipProfile?.interaction_count ?? 0} 次
+                  </small>
+                </div>
+              </div>
+              <p style={{ margin: '16px 0 0', color: 'var(--muted)' }}>
+                关系成长只影响陪伴语气和可回忆的共同经历，不用于评价、限制或区别对待用户。
+              </p>
+            </Card>
             <Card
               id="memory-relationship"
               title="当前关系状态与置顶记忆"

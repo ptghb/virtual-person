@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('desktop', {
   moveWindow: (x, y) => ipcRenderer.invoke('window:move', x, y),
   openChat: () => ipcRenderer.invoke('window:open-chat'),
   openSettings: () => ipcRenderer.invoke('window:open-settings'),
+  showNotification: (title, body) =>
+    ipcRenderer.invoke('notification:show', { title, body }),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close')
 });

@@ -99,6 +99,22 @@ def init_db() -> None:
               FOREIGN KEY (session_id) REFERENCES conversation_sessions(id)
             );
 
+            CREATE TABLE IF NOT EXISTS relationship_profiles (
+              user_id TEXT NOT NULL,
+              companion_id TEXT NOT NULL,
+              stage TEXT NOT NULL DEFAULT '初识',
+              affinity_score INTEGER NOT NULL DEFAULT 0,
+              trust_score INTEGER NOT NULL DEFAULT 0,
+              interaction_count INTEGER NOT NULL DEFAULT 0,
+              shared_event_count INTEGER NOT NULL DEFAULT 0,
+              last_interaction_at TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (user_id, companion_id),
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              FOREIGN KEY (companion_id) REFERENCES companions(id)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sessions_user_companion
             ON conversation_sessions(user_id, companion_id, updated_at DESC);
 
@@ -135,6 +151,25 @@ def init_db() -> None:
               decay_turns INTEGER NOT NULL DEFAULT 0,
               updated_at REAL NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS proactive_checkins (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              companion_id TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              content TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'offered',
+              source_type TEXT NOT NULL,
+              source_ref TEXT,
+              created_at TEXT NOT NULL,
+              displayed_at TEXT,
+              dismissed_at TEXT,
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              FOREIGN KEY (companion_id) REFERENCES companions(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_proactive_user_companion
+            ON proactive_checkins(user_id, companion_id, created_at DESC);
 
             CREATE INDEX IF NOT EXISTS idx_memory_active
             ON memory_items(user_id, companion_id, status, memory_type, updated_at DESC);

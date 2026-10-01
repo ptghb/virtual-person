@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebSocketManager } from '../websocketmanager';
+import {
+  microphoneAudioConstraints,
+  useMicrophonePreferences
+} from '../services/microphone-preference.service';
+import {
+  recordAsrLatency,
+  recordVoiceMetric
+} from '../services/voice-metrics.service';
+import { AsrTurnTracker } from '../services/asr-turn-tracker';
 
 export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -7,6 +16,17 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
   const chunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState('');
+  const microphonePreferences = useMicrophonePreferences();
+  const processingRef = useRef(false);
+  const activeTurnIdRef = useRef('');
+  const trackerRef = useRef<AsrTurnTracker | null>(null);
+  trackerRef.current ??= new AsrTurnTracker(20_000, completion => {
+    processingRef.current = false;
+    recordVoiceMetric('asrFailed');
+    recordVoiceMetric('asrTimeouts');
+    recordAsrLatency(completion.durationMs);
+    setError('语音识别超时，请重试');
+  });
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach(track => track.stop());
@@ -23,13 +43,11 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
     if (!enabled || manager.getState() !== 'connected') return;
     setError('');
     try {
+      manager.interruptAssistant();
+      const audioTurnId = crypto.randomUUID();
+      activeTurnIdRef.current = audioTurnId;
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
+        audio: microphoneAudioConstraints(microphonePreferences.deviceId)
       });
       streamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -44,7 +62,8 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
         data: {
           action: 'start_audio_stream',
           client_id: manager.getClientId(),
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          audio_turn_id: audioTurnId
         }
       });
 
@@ -90,7 +109,8 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
                 chunk: btoa(binary),
                 is_final: true,
                 client_id: manager.getClientId(),
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                audio_turn_id: audioTurnId
               }
             });
             manager.send({
@@ -98,9 +118,12 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
               data: {
                 action: 'stop_audio_stream',
                 client_id: manager.getClientId(),
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                audio_turn_id: audioTurnId
               }
             });
+            processingRef.current = true;
+            trackerRef.current?.start(audioTurnId);
           } catch (reason) {
             setError(
               reason instanceof Error ? reason.message : '录音数据处理失败'
@@ -118,7 +141,36 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
         reason instanceof Error ? reason.message : '无法访问麦克风，请检查权限'
       );
     }
-  }, [enabled, manager, stopTracks]);
+  }, [enabled, manager, microphonePreferences.deviceId, stopTracks]);
+
+  useEffect(
+    () =>
+      manager.subscribeMessage(message => {
+        if (!processingRef.current) return;
+        if (
+          message.audioTurnId &&
+          !trackerRef.current?.isCurrent(message.audioTurnId)
+        ) {
+          recordVoiceMetric('staleAsrResponses');
+          return;
+        }
+        if (message.protocolEvent === 'speech.transcription') {
+          processingRef.current = false;
+          const completion = trackerRef.current?.finish('success');
+          if (completion) recordAsrLatency(completion.durationMs);
+          recordVoiceMetric('asrSucceeded');
+        } else if (
+          message.protocolEvent === 'response' &&
+          message.isError
+        ) {
+          processingRef.current = false;
+          const completion = trackerRef.current?.finish('failure');
+          if (completion) recordAsrLatency(completion.durationMs);
+          recordVoiceMetric('asrFailed');
+        }
+      }),
+    [manager]
+  );
 
   useEffect(
     () => () => {
@@ -128,6 +180,7 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
         recorder.stop();
       }
       stopTracks();
+      trackerRef.current?.cancel();
     },
     [stopTracks]
   );

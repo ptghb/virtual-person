@@ -6,6 +6,14 @@ import { useCompanionProfile } from '../services/companion-profile.service';
 import { memoryService } from '../services/memory.service';
 import type { MemoryItem } from '../services/memory.types';
 import {
+  proactiveService,
+  type ProactiveCheckIn
+} from '../services/proactive.service';
+import {
+  getProactivePreferences,
+  isProactiveQuietHour
+} from '../services/proactive-preference.service';
+import {
   getUserIdentity,
   rotateSessionId
 } from '../services/user-identity.service';
@@ -44,6 +52,8 @@ export function useConversationSession(
   const [isThinking, setIsThinking] = useState(false);
   const [isStreamingReply, setIsStreamingReply] = useState(false);
   const [latestAssistantText, setLatestAssistantText] = useState('');
+  const [proactiveCheckIn, setProactiveCheckIn] =
+    useState<ProactiveCheckIn | null>(null);
   const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot>({
     relationship: null,
     followups: [],
@@ -84,9 +94,37 @@ export function useConversationSession(
     }
   }, []);
 
+  const loadProactiveCheckIn = useCallback(async () => {
+    try {
+      const preferences = getProactivePreferences();
+      const localHour = new Date().getHours();
+      if (!preferences.enabled || isProactiveQuietHour(localHour, preferences)) {
+        return;
+      }
+      const result = await proactiveService.getCheckIn(
+        identityRef.current.userId,
+        getSelectedAvatarModel(),
+        localHour,
+        preferences.cooldownHours
+      );
+      if (!result.data) return;
+      setProactiveCheckIn(result.data);
+      if (window.desktop && preferences.desktopNotifications) {
+        void window.desktop.showNotification('小凡想和你说', result.data.content);
+      }
+      await proactiveService.acknowledge(result.data.id, 'displayed');
+    } catch (error) {
+      console.warn('[useConversationSession] 加载主动关心失败', error);
+    }
+  }, []);
+
   useEffect(() => {
     manager.clearMessages();
     const unsubscribeMessage = manager.subscribeMessage(message => {
+      // 自动 VAD 偶发提交到纯静音时只恢复监听，不污染聊天记录。
+      if (message.errorCode === 'no_speech_detected') {
+        return;
+      }
       if (message.streamEvent === 'start' && message.replyId) {
         setMessages(previous => [
           ...previous.slice(-99),
@@ -164,6 +202,24 @@ export function useConversationSession(
         return;
       }
 
+      if (message.streamEvent === 'interrupted') {
+        avatarService.stopAudio();
+        setMessages(previous =>
+          previous.map(item =>
+            item.replyId === message.replyId
+              ? {
+                  ...item,
+                  content: message.content || item.content,
+                  streaming: false
+                }
+              : item
+          )
+        );
+        setIsStreamingReply(false);
+        setIsThinking(false);
+        return;
+      }
+
       if (message.streamEvent === 'error') {
         setIsStreamingReply(false);
         setIsThinking(false);
@@ -191,6 +247,9 @@ export function useConversationSession(
     });
     manager.connect(getWebSocketUrl(clientId));
       void refreshMemorySnapshot();
+      window.setTimeout(() => {
+        void loadProactiveCheckIn();
+      }, 800);
 
     return () => {
       unsubscribeMessage();
@@ -198,7 +257,13 @@ export function useConversationSession(
       avatarService.stopAudio();
       manager.disconnect();
     };
-    }, [appendMessage, clientPrefix, manager, refreshMemorySnapshot]);
+    }, [
+      appendMessage,
+      clientPrefix,
+      loadProactiveCheckIn,
+      manager,
+      refreshMemorySnapshot
+    ]);
 
   useEffect(() => {
     if (connectionState !== 'connected') return;
@@ -223,6 +288,7 @@ export function useConversationSession(
       const content = text.trim();
       if (!content || connectionState !== 'connected') return false;
       avatarService.stopAudio();
+      manager.interruptAssistant();
       const sent = manager.send({
         text: content,
         model: avatarService.getCurrentModelName(),
@@ -304,6 +370,25 @@ export function useConversationSession(
     if (!enabled) avatarService.stopAudio();
   }, []);
 
+  const dismissProactiveCheckIn = useCallback(() => {
+    const current = proactiveCheckIn;
+    setProactiveCheckIn(null);
+    if (current) {
+      void proactiveService
+        .acknowledge(current.id, 'dismissed')
+        .catch(error =>
+          console.warn('[useConversationSession] 忽略主动关心失败', error)
+        );
+    }
+  }, [proactiveCheckIn]);
+
+  const respondToProactiveCheckIn = useCallback(() => {
+    const current = proactiveCheckIn;
+    if (!current) return false;
+    setProactiveCheckIn(null);
+    return sendText(`关于你刚才关心的“${current.content}”，我想和你聊聊。`);
+  }, [proactiveCheckIn, sendText]);
+
   return {
     manager,
     messages,
@@ -312,12 +397,15 @@ export function useConversationSession(
     isThinking,
     isStreamingReply,
     latestAssistantText,
+      proactiveCheckIn,
       memorySnapshot,
     audioEnabled,
     setAudioEnabled: changeAudioEnabled,
     sendText,
     sendImage,
       clearMessages,
+      dismissProactiveCheckIn,
+      respondToProactiveCheckIn,
       refreshMemorySnapshot
   };
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Modal, Tag } from 'antd';
-import { AudioOutlined, StopOutlined } from '@ant-design/icons';
+import { Alert, Button, Modal, Progress, Tag } from 'antd';
+import { AudioOutlined, CustomerServiceOutlined, StopOutlined } from '@ant-design/icons';
 import { AppShell } from '../components/AppShell';
 import { ConversationPanel } from '../components/ConversationPanel';
 import { DigitalHumanStage } from '../components/DigitalHumanStage';
@@ -10,11 +10,13 @@ import HandGestureControls from '../components/HandGestureControls';
 import { useConversationSession } from '../hooks/useConversationSession';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { useCompanionProfile } from '../services/companion-profile.service';
+import { useVoiceActivityRecorder } from '../hooks/useVoiceActivityRecorder';
 
 export const AdvancedPage: React.FC = () => {
   const session = useConversationSession('advanced_user', true);
   const { profile } = useCompanionProfile();
   const voice = useVoiceRecorder(session.manager, session.isConnected);
+  const vad = useVoiceActivityRecorder(session.manager, session.isConnected);
   const [cameraOpenSignal, setCameraOpenSignal] = useState(0);
   const [requestedPrompt, setRequestedPrompt] = useState<string | null>(null);
   const [permissionRequestOpen, setPermissionRequestOpen] = useState(false);
@@ -41,7 +43,7 @@ export const AdvancedPage: React.FC = () => {
       danger={voice.isRecording}
       type={voice.isRecording ? 'primary' : 'default'}
       icon={voice.isRecording ? <StopOutlined /> : <AudioOutlined />}
-      disabled={!session.isConnected}
+      disabled={!session.isConnected || vad.state !== 'off'}
       onClick={() =>
         voice.isRecording ? voice.stopRecording() : void voice.startRecording()
       }
@@ -56,7 +58,21 @@ export const AdvancedPage: React.FC = () => {
         mode="advanced"
         connectionState={session.connectionState}
         statusItems={
-          <>{voice.isRecording && <Tag color="red">正在录音</Tag>}</>
+          <>
+            {voice.isRecording && <Tag color="red">正在录音</Tag>}
+            {vad.state !== 'off' && (
+              <Tag color={vad.state === 'speaking' ? 'red' : 'blue'}>
+                {vad.state === 'speaking'
+                  ? '检测到说话'
+                  : vad.state === 'processing'
+                    ? '正在识别'
+                    : '等待你说话'}
+              </Tag>
+            )}
+            {vad.interruptLatencyMs !== null && (
+              <Tag>打断 {vad.interruptLatencyMs}ms</Tag>
+            )}
+          </>
         }
         stage={
           <DigitalHumanStage
@@ -67,6 +83,13 @@ export const AdvancedPage: React.FC = () => {
         }
       >
         <div className="advanced-workspace">
+          {(voice.error || vad.error) && (
+            <Alert
+              type="error"
+              showIcon
+              message={voice.error || vad.error}
+            />
+          )}
           <ConversationPanel
             messages={session.messages}
             connected={session.isConnected}
@@ -77,15 +100,59 @@ export const AdvancedPage: React.FC = () => {
             onClear={session.clearMessages}
             title="多模态聊天"
             statusStrip={
-              <MemoryStatusStrip
-                relationship={session.memorySnapshot.relationship}
-                followups={session.memorySnapshot.followups}
-                refreshing={session.memorySnapshot.refreshing}
-              />
+              <>
+                {session.proactiveCheckIn && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    closable
+                    onClose={session.dismissProactiveCheckIn}
+                    message={session.proactiveCheckIn.content}
+                    action={
+                      <Button
+                        size="small"
+                        type="primary"
+                        onClick={session.respondToProactiveCheckIn}
+                      >
+                        聊聊
+                      </Button>
+                    }
+                  />
+                )}
+                <MemoryStatusStrip
+                  relationship={session.memorySnapshot.relationship}
+                  followups={session.memorySnapshot.followups}
+                  refreshing={session.memorySnapshot.refreshing}
+                />
+              </>
             }
             footerExtras={
               <div className="quick-capability-row">
                 {voiceButton}
+                <Button
+                  type={vad.state === 'off' ? 'default' : 'primary'}
+                  icon={
+                    vad.state === 'off' ? (
+                      <CustomerServiceOutlined />
+                    ) : (
+                      <StopOutlined />
+                    )
+                  }
+                  disabled={!session.isConnected || voice.isRecording}
+                  onClick={() =>
+                    vad.state === 'off' ? void vad.start() : vad.stop()
+                  }
+                >
+                  {vad.state === 'off' ? '自动聆听' : '停止聆听'}
+                </Button>
+                {vad.state !== 'off' && (
+                  <Progress
+                    percent={Math.round(vad.level * 100)}
+                    showInfo={false}
+                    size="small"
+                    style={{ width: 80 }}
+                  />
+                )}
                 <VisionControl
                   connected={session.isConnected}
                   openSignal={cameraOpenSignal}

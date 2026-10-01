@@ -20,7 +20,11 @@ from pydantic import BaseModel
 from domain.memory_extractor import memory_extractor
 from domain.memory_retriever import memory_retriever
 from domain.memory_service import memory_service
+from domain.assistant_decision_service import assistant_decision_service
+from domain.proactive_service import proactive_service
 from domain.prompt_builder import prompt_builder
+from domain.reply_task_service import reply_task_service
+from domain.relationship_service import relationship_service
 from domain.timeline_service import timeline_service
 from handlers.audio_handler import audio_processor, message_parser
 from handlers.image_handler import image_processor
@@ -146,6 +150,10 @@ class DebugEmotionRequest(BaseModel):
     reason: str = "开发调试面板手动设置"
 
 
+class ProactiveAcknowledgeRequest(BaseModel):
+    action: str = "displayed"
+
+
 # 配置 CORS
 app.add_middleware(
     CORSMiddleware,
@@ -175,6 +183,7 @@ class ConnectionManager:
         print(f"[ConnectionManager] 客户端 {client_id} 已连接")
 
     def disconnect(self, websocket: WebSocket, client_id: str):
+        reply_task_service.cancel(client_id)
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         if client_id in self.client_connections:
@@ -766,6 +775,10 @@ def memory_item_to_dict(memory_item) -> dict:
     return payload
 
 
+def relationship_profile_to_dict(profile) -> dict:
+    return asdict(profile)
+
+
 async def update_memories_after_reply(
     identity: ResolvedIdentity,
     user_message: str,
@@ -798,6 +811,12 @@ async def update_memories_after_reply(
                 timeline_service.record_memory(memory_service.create_memory(followup))
         if extracted.relationship and extracted.relationship.content.strip():
             timeline_service.record_memory(memory_service.create_memory(extracted.relationship))
+        relationship_service.record_interaction(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            user_message=user_message,
+            has_shared_event=bool(extracted.events),
+        )
     except Exception as error:
         print(f"[memory] 更新记忆失败: {error}")
 
@@ -904,6 +923,93 @@ async def list_memories(
         "items": [memory_item_to_dict(item) for item in items],
         "total": len(items),
     }
+
+
+@app.get("/api/relationship-profile")
+async def get_relationship_profile(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+):
+    """返回用户可见、可重置的陪伴关系进度。"""
+    user_id = clean_identifier(user_id, "user_default")
+    companion_id = clean_identifier(companion_id, DEFAULT_COMPANION_ID)
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+    return {"data": relationship_profile_to_dict(
+        relationship_service.get_profile(user_id, companion_id)
+    )}
+
+
+@app.get("/api/proactive/check-in")
+async def get_proactive_check_in(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+    local_hour: int = Query(..., ge=0, le=23),
+    cooldown_hours: int = Query(12, ge=1, le=72),
+):
+    """返回当前适合展示的一条主动关心；安静时段和冷却期返回空。"""
+    user_id = clean_identifier(user_id, "user_default")
+    companion_id = clean_identifier(companion_id, DEFAULT_COMPANION_ID)
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+    item, reason = proactive_service.get_or_create(
+        user_id=user_id,
+        companion_id=companion_id,
+        local_hour=local_hour,
+        relationship_profile=relationship_service.get_profile(
+            user_id,
+            companion_id,
+        ),
+        cooldown_hours=cooldown_hours,
+    )
+    return {
+        "data": asdict(item) if item else None,
+        "reason": reason,
+    }
+
+
+@app.post("/api/proactive/check-ins/{check_in_id}/ack")
+async def acknowledge_proactive_check_in(
+    check_in_id: str,
+    payload: ProactiveAcknowledgeRequest,
+):
+    try:
+        item = proactive_service.acknowledge(check_in_id, payload.action)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if not item:
+        raise HTTPException(status_code=404, detail="主动关心记录不存在")
+    return {"data": asdict(item)}
+
+
+@app.delete("/api/relationship-profile")
+async def reset_relationship_profile(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+):
+    """仅重置关系成长数值；历史记忆由用户在记忆管理中单独控制。"""
+    user_id = clean_identifier(user_id, "user_default")
+    companion_id = clean_identifier(companion_id, DEFAULT_COMPANION_ID)
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+    return {"data": relationship_profile_to_dict(
+        relationship_service.reset_profile(user_id, companion_id)
+    )}
 
 
 @app.get("/api/timeline-events")
@@ -1196,7 +1302,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     await handle_audio_message(websocket, client_id, msg_data)
                     continue
                 elif msg_type == "text":
-                    await handle_text_message(websocket, client_id, msg_data)
+                    reply_task_service.start(
+                        client_id,
+                        handle_text_message(websocket, client_id, msg_data),
+                    )
                     continue
                 elif msg_type == "image":
                     await handle_image_message(websocket, client_id, msg_data)
@@ -1221,22 +1330,28 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
     print(f"[handle_control_message] 接收到控制消息，客户端: {client_id}, 动作: {action}")
 
     if action == "start_audio_stream":
-        audio_processor.start_audio_stream(client_id)
+        reply_task_service.cancel(client_id)
+        audio_turn_id = str(msg_data.get("audio_turn_id", ""))
+        audio_processor.start_audio_stream(client_id, audio_turn_id)
         response = {
             "type": "response",
             "data": {
                 "status": "success",
                 "message": "音频流已启动",
-                "request_type": "control"
+                "request_type": "control",
+                "audio_turn_id": audio_turn_id,
             }
         }
         print(f"[handle_control_message] 发送响应: {response}")
         await websocket.send_text(json.dumps(response))
 
     elif action == "stop_audio_stream":
+        audio_turn_id = str(msg_data.get("audio_turn_id", ""))
         # 先处理完整音频，获取识别结果
         transcription = (
-            await audio_processor._process_complete_audio(client_id)
+            await audio_processor._process_complete_audio(
+                client_id, audio_turn_id
+            )
         ) or ""
 
         audio_processor.stop_audio_stream(client_id)
@@ -1247,6 +1362,7 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "type": "speech.transcription",
                 "data": {
                     "content": transcription,
+                    "audio_turn_id": audio_turn_id,
                 },
             }))
 
@@ -1255,21 +1371,40 @@ async def handle_control_message(websocket: WebSocket, client_id: str, msg_data:
                 "content": transcription,
                 "model": "Hiyori",
                 "is_audio": True,
+                "audio_turn_id": audio_turn_id,
                 **manager.get_companion_profile(client_id),
             }
-            await handle_text_message(websocket, client_id, text_msg_data)
+            reply_task_service.start(
+                client_id,
+                handle_text_message(websocket, client_id, text_msg_data),
+            )
         else:
             response = {
                 "type": "response",
                 "data": {
                     "status": "error",
-                    "message": "语音识别失败，请检查麦克风录音、网络或语音识别服务状态",
+                    "code": "no_speech_detected",
+                    "message": "没有检测到清晰语音",
                     "request_type": "control",
-                    "transcription": ""
+                    "transcription": "",
+                    "audio_turn_id": audio_turn_id,
                 }
             }
             print(f"[handle_control_message] 发送响应: {response}")
             await websocket.send_text(json.dumps(response))
+
+    elif action == "interrupt_assistant":
+        interrupted = await reply_task_service.cancel_and_wait(client_id)
+        await websocket.send_text(json.dumps({
+            "type": "response",
+            "data": {
+                "status": "success",
+                "message": "已停止当前回复" if interrupted else "当前没有正在生成的回复",
+                "request_type": "control",
+                "action": action,
+                "interrupted": interrupted,
+            },
+        }))
 
     elif action == "livestream_set_auto_reply":
         enabled = bool(msg_data.get("enabled", True))
@@ -1355,7 +1490,10 @@ async def handle_audio_message(websocket: WebSocket, client_id: str, msg_data: d
             "status": result["status"],
             "message": result["message"],
             "request_type": "audio",
-            "is_final": result.get("is_final", False)
+            "is_final": result.get("is_final", False),
+            "audio_turn_id": result.get(
+                "audio_turn_id", msg_data.get("audio_turn_id", "")
+            ),
         }
     }
     print(f"[handle_audio_message] 发送响应: {response}")
@@ -1849,10 +1987,25 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
             personality=profile["personality"],
             memory_pack=memory_pack,
             realtime_context=realtime_context,
+            relationship_profile=relationship_service.get_profile(
+                identity.user_id,
+                identity.companion_id,
+            ),
         ) + build_emotion_prompt_context(emotion_state)
         message_history = manager.get_message_history(identity.session_id)
         messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)
         reply_id = f"reply_{uuid.uuid4().hex}"
+        decision = assistant_decision_service.build(
+            reply_id=reply_id,
+            prompt=text,
+            model_name=model,
+            mode=identity.mode,
+            has_image=bool(has_image),
+            emotion_state=emotion_state,
+            animation_selector=select_animation_by_emotion,
+            expression_selector=select_expression_by_emotion,
+            photo_selector=should_request_photo,
+        )
         audio_requested = bool(is_audio) and os.getenv(
             "ISAUDIO", "false"
         ).lower() in {"1", "true", "yes", "on"}
@@ -1866,27 +2019,7 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         }))
         await websocket.send_text(json.dumps({
             "type": "assistant.meta",
-            "data": {
-                "reply_id": reply_id,
-                "animation_index": select_animation_by_emotion(
-                    emotion_state["emotion"],
-                    model,
-                ),
-                "emotion": emotion_state["emotion"],
-                "emotion_label": emotion_state["emotion_label"],
-                "emotion_intensity": emotion_state["intensity"],
-                "emotion_reason": emotion_state["reason"],
-                "expression": select_expression_by_emotion(
-                    emotion_state["emotion"],
-                    model,
-                ),
-                "should_take_photo": (
-                        identity.mode == "advanced"
-                    and not has_image
-                    and should_request_photo(text)
-                ),
-                "prompt": text,
-            },
+            "data": decision.to_legacy_meta(),
         }))
 
         response_parts = []
@@ -1958,9 +2091,21 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
                 "reply_id": reply_id,
                 "content": ai_response,
                 "audio_segments": segment_sequence,
+                "decision": decision.to_dict(),
+                "protocol_version": decision.protocol_version,
             },
         }))
 
+    except asyncio.CancelledError:
+        await websocket.send_text(json.dumps({
+            "type": "assistant.interrupted",
+            "data": {
+                "reply_id": locals().get("reply_id"),
+                "content": "".join(locals().get("response_parts", [])).strip(),
+                "reason": "user_interruption",
+            },
+        }))
+        raise
     except Exception as e:
         response_msg = {
             "type": "assistant.error",

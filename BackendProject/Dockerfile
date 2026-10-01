@@ -23,8 +23,8 @@ RUN apt-get update && \
 COPY requirements.txt .
 
 # 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt && \
-    playwright install --with-deps chromium
+# 仅安装 Python 依赖；浏览器二进制可按需单独安装，避免部署时因外网下载 Chromium 超时失败。
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY . .
