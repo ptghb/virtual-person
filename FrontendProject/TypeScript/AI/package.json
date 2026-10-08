@@ -61,6 +61,7 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "antd": "^6.2.2",
+    "dayjs": "^1.11.23",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.13.0"

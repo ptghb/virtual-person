@@ -43,10 +43,14 @@ export interface CreateMemoryPayload {
   user_id: string;
   companion_id: string;
   session_id?: string;
-  memory_type: Extract<MemoryType, 'pinned'>;
+  memory_type: Extract<
+    MemoryType,
+    'pinned' | 'fact' | 'preference' | 'boundary'
+  >;
   title?: string;
   content: string;
   importance?: number;
+  confidence?: number;
 }
 
 export interface UpdateMemoryPayload {

@@ -45,6 +45,12 @@ export function useVoiceActivityRecorder(
   const [interruptLatencyMs, setInterruptLatencyMs] = useState<number | null>(
     null
   );
+  const [diagnostics, setDiagnostics] = useState({
+    noiseFloor: 0,
+    startThreshold: 0,
+    stopThreshold: 0,
+    recordingMs: 0
+  });
   trackerRef.current ??= new AsrTurnTracker(20_000, completion => {
     recordVoiceMetric('asrFailed');
     recordVoiceMetric('asrTimeouts');
@@ -142,7 +148,10 @@ export function useVoiceActivityRecorder(
     setError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: microphoneAudioConstraints(microphonePreferences.deviceId)
+        audio: microphoneAudioConstraints(
+          microphonePreferences.deviceId,
+          microphonePreferences
+        )
       });
       const context = new AudioContext();
       const analyser = context.createAnalyser();
@@ -169,13 +178,20 @@ export function useVoiceActivityRecorder(
         const assistantAudioPlaying = avatarService.isAudioPlaying();
         const assistantAudioCoolingDown =
           !assistantAudioPlaying && avatarService.isInAudioCooldown(500);
-        const decision = detectorRef.current.sample(
+        const snapshot = detectorRef.current.sample(
           assistantAudioCoolingDown ? 0 : rms,
           now,
           assistantAudioPlaying
             ? { startThresholdScale: 2.2, speechStartMs: 600 }
             : undefined
-        ).decision;
+        );
+        const decision = snapshot.decision;
+        setDiagnostics({
+          noiseFloor: snapshot.noiseFloor,
+          startThreshold: snapshot.startThreshold,
+          stopThreshold: snapshot.stopThreshold,
+          recordingMs: snapshot.speechDurationMs
+        });
 
         if (decision === 'speech-candidate' && !recorderRef.current) {
           chunksRef.current = [];
@@ -254,7 +270,7 @@ export function useVoiceActivityRecorder(
   }, [
     enabled,
     manager,
-    microphonePreferences.deviceId,
+    microphonePreferences,
     sendRecording,
     stop,
     vadPreferences
@@ -308,5 +324,13 @@ export function useVoiceActivityRecorder(
   );
 
   useEffect(() => stop, [stop]);
-  return { state, level, error, interruptLatencyMs, start, stop };
+  return {
+    state,
+    level,
+    error,
+    interruptLatencyMs,
+    diagnostics,
+    start,
+    stop
+  };
 }

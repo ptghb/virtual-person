@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import dayjs from 'dayjs';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   Tooltip,
   message,
   Modal,
+  DatePicker,
   Space,
   Switch
 } from 'antd';
@@ -25,6 +27,7 @@ import { getSelectedAvatarModel } from '../services/avatar-preference.service';
 import { memoryService } from '../services/memory.service';
 import type {
   MemoryItem,
+  MemoryStatus,
   RelationshipProfile,
   TimelineDaySummary
 } from '../services/memory.types';
@@ -46,6 +49,11 @@ import {
   summarizeVoiceMetrics,
   useVoiceMetrics
 } from '../services/voice-metrics.service';
+import {
+  reminderService,
+  type Reminder,
+  type ReminderRecurrence
+} from '../services/reminder.service';
 
 interface AvatarLivePreviewProps {
   active: boolean;
@@ -138,6 +146,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   );
   const [pinnedMemories, setPinnedMemories] = useState<MemoryItem[]>([]);
   const [autoMemories, setAutoMemories] = useState<MemoryItem[]>([]);
+  const [pendingMemories, setPendingMemories] = useState<MemoryItem[]>([]);
   const [archivedFollowups, setArchivedFollowups] = useState<MemoryItem[]>([]);
   const [relationshipHistory, setRelationshipHistory] = useState<MemoryItem[]>(
     []
@@ -152,6 +161,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   >(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memorySaving, setMemorySaving] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderTitle, setReminderTitle] = useState('');
+  const [reminderDueAt, setReminderDueAt] = useState<string | null>(null);
+  const [reminderRecurrence, setReminderRecurrence] =
+    useState<ReminderRecurrence>('none');
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<
+    NotificationPermission | 'unsupported'
+  >(() => {
+    if (window.desktop) return 'granted';
+    return 'Notification' in window ? Notification.permission : 'unsupported';
+  });
   const highlightedMemoryId =
     new URLSearchParams(location.search).get('highlight') || null;
   const [activeHighlightedId, setActiveHighlightedId] = useState<string | null>(
@@ -183,6 +204,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
   }, []);
 
+
   useEffect(() => {
     let active = true;
     const loadMemories = async () => {
@@ -191,6 +213,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         const [
           pinnedResult,
           allResult,
+          pendingResult,
           archivedFollowupResult,
           relationshipHistoryResult,
           timelineResult,
@@ -202,6 +225,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             'pinned'
           ),
           memoryService.listMemories(identity.userId, confirmedAvatar),
+          memoryService.listMemories(
+            identity.userId,
+            confirmedAvatar,
+            undefined,
+            'pending_confirm'
+          ),
           memoryService.listMemories(
             identity.userId,
             confirmedAvatar,
@@ -222,6 +251,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           setAutoMemories(
             allResult.items.filter(item => item.memory_type !== 'pinned')
           );
+          setPendingMemories(pendingResult.items);
           setArchivedFollowups(archivedFollowupResult.items);
           setRelationshipHistory(relationshipHistoryResult.items);
           setTimelineDays(timelineResult.items);
@@ -247,10 +277,51 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     };
   }, [confirmedAvatar, identity.userId]);
 
+  const reloadReminders = async () => {
+    const result = await reminderService.list(
+      identity.userId,
+      confirmedAvatar
+    );
+    setReminders(result.items);
+  };
+
+  useEffect(() => {
+    if (isMemoryPage) return;
+    void reloadReminders().catch((error): void => {
+      void message.error(
+        error instanceof Error ? error.message : '读取提醒失败'
+      );
+    });
+  }, [confirmedAvatar, identity.userId, isMemoryPage]);
+
+  const createReminder = async () => {
+    if (!reminderTitle.trim() || !reminderDueAt) return;
+    setReminderSaving(true);
+    try {
+      await reminderService.create({
+        user_id: identity.userId,
+        companion_id: confirmedAvatar,
+        title: reminderTitle.trim(),
+        due_at: reminderDueAt,
+        recurrence: reminderRecurrence
+      });
+      setReminderTitle('');
+      setReminderDueAt(null);
+      setReminderRecurrence('none');
+      await reloadReminders();
+      void message.success('提醒已创建');
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : '创建提醒失败');
+    } finally {
+      setReminderSaving(false);
+    }
+  };
+
   const reloadMemories = async () => {
     const [
       pinnedResult,
       allResult,
+      pendingResult,
       archivedFollowupResult,
       relationshipHistoryResult,
       timelineResult,
@@ -258,6 +329,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     ] = await Promise.all([
       memoryService.listMemories(identity.userId, confirmedAvatar, 'pinned'),
       memoryService.listMemories(identity.userId, confirmedAvatar),
+      memoryService.listMemories(
+        identity.userId,
+        confirmedAvatar,
+        undefined,
+        'pending_confirm'
+      ),
       memoryService.listMemories(
         identity.userId,
         confirmedAvatar,
@@ -277,6 +354,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setAutoMemories(
       allResult.items.filter(item => item.memory_type !== 'pinned')
     );
+    setPendingMemories(pendingResult.items);
     setArchivedFollowups(archivedFollowupResult.items);
     setRelationshipHistory(relationshipHistoryResult.items);
     setTimelineDays(timelineResult.items);
@@ -470,7 +548,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const updateMemoryStatus = async (
     memoryId: string,
-    status: 'archived' | 'active',
+    status: Extract<MemoryStatus, 'archived' | 'active' | 'deleted'>,
     successText: string
   ) => {
     try {
@@ -484,6 +562,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       void message.error(
         error instanceof Error ? error.message : '更新记忆状态失败'
       );
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (window.desktop) {
+      setNotificationPermission('granted');
+      void message.success('桌面版已使用系统通知');
+      return;
+    }
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      void message.warning('当前浏览器不支持系统通知');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    if (permission === 'granted') {
+      void message.success('提醒通知已开启');
+    } else {
+      void message.warning('未获得通知权限，到期提醒会保留为未通知状态');
     }
   };
 
@@ -839,6 +937,122 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </select>
               </div>
             </Card>
+            <Card title="提醒与待办" data-testid="reminder-settings">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space wrap>
+                  <Tag
+                    color={
+                      notificationPermission === 'granted'
+                        ? 'success'
+                        : notificationPermission === 'denied'
+                          ? 'error'
+                          : 'warning'
+                    }
+                  >
+                    {notificationPermission === 'granted'
+                      ? '通知已开启'
+                      : notificationPermission === 'denied'
+                        ? '通知已被拒绝'
+                        : notificationPermission === 'unsupported'
+                          ? '当前环境不支持通知'
+                          : '通知尚未授权'}
+                  </Tag>
+                  {notificationPermission !== 'granted' &&
+                  notificationPermission !== 'unsupported' ? (
+                    <Button
+                      size="small"
+                      onClick={() => void requestNotificationPermission()}
+                    >
+                      开启到期通知
+                    </Button>
+                  ) : null}
+                </Space>
+                <Input
+                  aria-label="提醒内容"
+                  value={reminderTitle}
+                  placeholder="例如：吃药、开会、给家里打电话"
+                  onChange={event => setReminderTitle(event.target.value)}
+                />
+                <Space wrap>
+                  <DatePicker
+                    showTime
+                    aria-label="提醒时间"
+                    value={reminderDueAt ? dayjs(reminderDueAt) : null}
+                    onChange={value =>
+                      setReminderDueAt(value?.toISOString() ?? null)
+                    }
+                    placeholder="选择提醒时间"
+                  />
+                  <select
+                    aria-label="重复规则"
+                    value={reminderRecurrence}
+                    onChange={event =>
+                      setReminderRecurrence(
+                        event.target.value as ReminderRecurrence
+                      )
+                    }
+                  >
+                    <option value="none">不重复</option>
+                    <option value="daily">每天</option>
+                    <option value="weekly">每周</option>
+                    <option value="monthly">每月</option>
+                  </select>
+                  <Button
+                    type="primary"
+                    loading={reminderSaving}
+                    disabled={!reminderTitle.trim() || !reminderDueAt}
+                    onClick={() => void createReminder()}
+                  >
+                    新增提醒
+                  </Button>
+                </Space>
+                <List
+                  size="small"
+                  bordered
+                  locale={{ emptyText: '暂无提醒，也可以在聊天中说“明天晚上8点提醒我吃药”。' }}
+                  dataSource={reminders}
+                  renderItem={item => (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key="complete"
+                          type="link"
+                          onClick={async () => {
+                            await reminderService.complete(item.id);
+                            await reloadReminders();
+                          }}
+                        >
+                          完成
+                        </Button>,
+                        <Button
+                          key="delete"
+                          danger
+                          type="link"
+                          onClick={async () => {
+                            await reminderService.remove(item.id);
+                            await reloadReminders();
+                          }}
+                        >
+                          删除
+                        </Button>
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={item.title}
+                        description={`${new Date(item.due_at).toLocaleString()} · ${
+                          {
+                            none: '不重复',
+                            daily: '每天',
+                            weekly: '每周',
+                            monthly: '每月'
+                          }[item.recurrence]
+                        }`}
+                      />
+                    </List.Item>
+                  )}
+                />
+              </Space>
+            </Card>
             <Card title="麦克风与自动聆听" data-testid="voice-settings">
               <div className="profile-setting-field">
                 <label htmlFor="microphone-device">输入设备</label>
@@ -874,6 +1088,33 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   </Button>
                 </Space>
                 <span>{microphoneStatus}</span>
+              </div>
+              <div className="setting-row">
+                <span>回声消除</span>
+                <Switch
+                  checked={microphonePreferences.echoCancellation}
+                  onChange={echoCancellation =>
+                    saveMicrophonePreferences({ echoCancellation })
+                  }
+                />
+              </div>
+              <div className="setting-row">
+                <span>环境降噪</span>
+                <Switch
+                  checked={microphonePreferences.noiseSuppression}
+                  onChange={noiseSuppression =>
+                    saveMicrophonePreferences({ noiseSuppression })
+                  }
+                />
+              </div>
+              <div className="setting-row">
+                <span>自动增益</span>
+                <Switch
+                  checked={microphonePreferences.autoGainControl}
+                  onChange={autoGainControl =>
+                    saveMicrophonePreferences({ autoGainControl })
+                  }
+                />
               </div>
               <div className="setting-row">
                 <span>语音检测灵敏度</span>
@@ -1608,6 +1849,81 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               />
             </Card>
             <Card title="自动记忆">
+              <List
+                bordered
+                loading={memoryLoading}
+                style={{ marginBottom: 16 }}
+                header={<strong>待确认记忆</strong>}
+                locale={{
+                  emptyText: '暂无需要确认的记忆。'
+                }}
+                dataSource={pendingMemories}
+                renderItem={item => (
+                  <List.Item
+                    id={`memory-item-${item.id}`}
+                    actions={[
+                      <Button
+                        key="confirm"
+                        type="link"
+                        onClick={() =>
+                          void updateMemoryStatus(
+                            item.id,
+                            'active',
+                            '已确认并启用这条记忆'
+                          )
+                        }
+                      >
+                        确认
+                      </Button>,
+                      <Button
+                        key="ignore"
+                        danger
+                        type="link"
+                        onClick={() =>
+                          void updateMemoryStatus(
+                            item.id,
+                            'deleted',
+                            '已忽略这条记忆'
+                          )
+                        }
+                      >
+                        忽略
+                      </Button>
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={
+                        <Space size="small" wrap>
+                          <span>{item.title || '待确认记忆'}</span>
+                          <Tag color="warning">待确认</Tag>
+                          <Tag>
+                            {memoryTypeLabel[item.memory_type] ||
+                              item.memory_type}
+                          </Tag>
+                          <Tag>
+                            置信度 {(item.confidence * 100).toFixed(0)}%
+                          </Tag>
+                          <Tag>
+                            来源：
+                            {sourceTypeLabel[item.source_type] ||
+                              item.source_type}
+                          </Tag>
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <div>{item.content}</div>
+                          {item.normalized_json?.conflict_detected ? (
+                            <div style={{ marginTop: 6, color: 'var(--muted)' }}>
+                              检测到与既有记忆冲突，确认后将采用这条新内容。
+                            </div>
+                          ) : null}
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
               <List
                 bordered
                 loading={memoryLoading}

@@ -36,6 +36,22 @@ class MemoryService:
         payload.content = normalize_memory_content(payload.content)
         if payload.title:
             payload.title = payload.title.strip()
+        payload.normalized_json = dict(payload.normalized_json or {})
+
+        # 低置信度内容先进入待确认区，不直接影响 Prompt 和主动关心。
+        if (
+            payload.source_type != "manual"
+            and payload.confidence < 0.68
+            and payload.memory_type
+            in {
+                MemoryType.FACT,
+                MemoryType.PREFERENCE,
+                MemoryType.BOUNDARY,
+                MemoryType.FOLLOWUP,
+            }
+        ):
+            payload.status = MemoryStatus.PENDING_CONFIRM
+            payload.normalized_json["quality_reason"] = "low_confidence"
 
         if payload.memory_type == MemoryType.SUMMARY and payload.session_id:
             previous_summary = self.repository.find_active_summary(
@@ -63,6 +79,34 @@ class MemoryService:
                 self.repository.update_status_by_id(
                     previous_relationship.id,
                     MemoryStatus.SUPERSEDED,
+                )
+
+        # 同类型、同标题但内容发生变化，视为新旧信息冲突。保留来源，
+        # 让新信息生效，同时把旧信息标记为 superseded，避免 Prompt 同时注入矛盾事实。
+        if payload.memory_type in {
+            MemoryType.FACT,
+            MemoryType.PREFERENCE,
+            MemoryType.BOUNDARY,
+        }:
+            previous = self.repository.find_latest_active_by_title(
+                payload.user_id,
+                payload.companion_id,
+                payload.memory_type,
+                payload.title,
+            )
+            if previous and previous.content != payload.content:
+                payload.normalized_json["supersedes_memory_id"] = previous.id
+                payload.normalized_json["conflict_detected"] = True
+                self.repository.update(
+                    previous.id,
+                    MemoryUpdateInput(
+                        status=MemoryStatus.SUPERSEDED,
+                        normalized_json={
+                            **(previous.normalized_json or {}),
+                            "superseded_by_content": payload.content,
+                            "conflict_detected": True,
+                        },
+                    ),
                 )
 
         duplicate = self.repository.find_duplicate(

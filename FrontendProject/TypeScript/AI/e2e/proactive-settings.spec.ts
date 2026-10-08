@@ -61,3 +61,33 @@ test('可以授权并选择模拟麦克风', async ({ page }) => {
     'mock-microphone'
   );
 });
+
+test('提醒页可以授权浏览器通知', async ({ page }) => {
+  await page.addInitScript(() => {
+    class MockNotification {
+      static permission: NotificationPermission = 'default';
+
+      static async requestPermission(): Promise<NotificationPermission> {
+        MockNotification.permission = 'granted';
+        return 'granted';
+      }
+    }
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: MockNotification
+    });
+  });
+  await page.route('**/api/reminders?**', route =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0 })
+    })
+  );
+
+  await page.goto('/settings');
+  const card = page.getByTestId('reminder-settings');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('通知尚未授权')).toBeVisible();
+  await card.getByRole('button', { name: '开启到期通知' }).click();
+  await expect(card.getByText('通知已开启')).toBeVisible();
+});

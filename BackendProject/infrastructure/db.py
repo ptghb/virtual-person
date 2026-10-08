@@ -171,6 +171,26 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_proactive_user_companion
             ON proactive_checkins(user_id, companion_id, created_at DESC);
 
+            CREATE TABLE IF NOT EXISTS reminders (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              companion_id TEXT NOT NULL,
+              title TEXT NOT NULL,
+              due_at TEXT NOT NULL,
+              recurrence TEXT NOT NULL DEFAULT 'none',
+              status TEXT NOT NULL DEFAULT 'active',
+              source_type TEXT NOT NULL DEFAULT 'manual',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              completed_at TEXT,
+              last_notified_at TEXT,
+              FOREIGN KEY (user_id) REFERENCES users(id),
+              FOREIGN KEY (companion_id) REFERENCES companions(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reminders_due
+            ON reminders(user_id, companion_id, status, due_at);
+
             CREATE INDEX IF NOT EXISTS idx_memory_active
             ON memory_items(user_id, companion_id, status, memory_type, updated_at DESC);
 

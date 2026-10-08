@@ -47,7 +47,10 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
       const audioTurnId = crypto.randomUUID();
       activeTurnIdRef.current = audioTurnId;
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: microphoneAudioConstraints(microphonePreferences.deviceId)
+          audio: microphoneAudioConstraints(
+            microphonePreferences.deviceId,
+            microphonePreferences
+          )
       });
       streamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -141,7 +144,7 @@ export function useVoiceRecorder(manager: WebSocketManager, enabled: boolean) {
         reason instanceof Error ? reason.message : '无法访问麦克风，请检查权限'
       );
     }
-  }, [enabled, manager, microphonePreferences.deviceId, stopTracks]);
+  }, [enabled, manager, microphonePreferences, stopTracks]);
 
   useEffect(
     () =>

@@ -2,10 +2,18 @@ import { useSyncExternalStore } from 'react';
 
 export interface MicrophonePreferences {
   deviceId: string;
+  echoCancellation: boolean;
+  noiseSuppression: boolean;
+  autoGainControl: boolean;
 }
 
 const KEY = 'xiaofan.microphone-preferences.v1';
-const DEFAULTS: MicrophonePreferences = { deviceId: '' };
+const DEFAULTS: MicrophonePreferences = {
+  deviceId: '',
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true
+};
 const listeners = new Set<() => void>();
 let snapshot = read();
 
@@ -46,13 +54,15 @@ export function useMicrophonePreferences() {
 }
 
 export function microphoneAudioConstraints(
-  deviceId = snapshot.deviceId
+  deviceId = snapshot.deviceId,
+  preferences = snapshot
 ): MediaTrackConstraints {
   return {
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     sampleRate: 16000,
     channelCount: 1,
-    echoCancellation: true,
-    noiseSuppression: true
+    echoCancellation: preferences.echoCancellation,
+    noiseSuppression: preferences.noiseSuppression,
+    autoGainControl: preferences.autoGainControl
   };
 }

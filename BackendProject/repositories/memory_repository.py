@@ -231,6 +231,39 @@ class MemoryRepository:
             row = cursor.fetchone()
         return row_to_memory_item(row) if row else None
 
+    def find_latest_active_by_title(
+        self,
+        user_id: str,
+        companion_id: str,
+        memory_type: MemoryType,
+        title: str | None,
+    ) -> MemoryItem | None:
+        if not title:
+            return None
+        with db_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT *
+                FROM memory_items
+                WHERE user_id = ?
+                  AND companion_id = ?
+                  AND memory_type = ?
+                  AND status = ?
+                  AND title = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (
+                    user_id,
+                    companion_id,
+                    memory_type.value,
+                    MemoryStatus.ACTIVE.value,
+                    title,
+                ),
+            )
+            row = cursor.fetchone()
+        return row_to_memory_item(row) if row else None
+
     def update_status_by_id(
         self,
         memory_id: str,

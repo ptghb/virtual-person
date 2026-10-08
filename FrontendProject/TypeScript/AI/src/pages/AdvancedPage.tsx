@@ -72,6 +72,12 @@ export const AdvancedPage: React.FC = () => {
             {vad.interruptLatencyMs !== null && (
               <Tag>打断 {vad.interruptLatencyMs}ms</Tag>
             )}
+            {vad.state !== 'off' && (
+              <Tag>
+                阈值 {vad.diagnostics.startThreshold.toFixed(3)} / 底噪{' '}
+                {vad.diagnostics.noiseFloor.toFixed(3)}
+              </Tag>
+            )}
           </>
         }
         stage={

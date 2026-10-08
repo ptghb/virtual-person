@@ -13,6 +13,7 @@ import { LiveConsolePage } from './pages/LiveConsolePage';
 import { LiveStagePage } from './pages/LiveStagePage';
 import { ModeSelectPage } from './pages/ModeSelectPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { useReminderMonitor } from './hooks/useReminderMonitor';
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -37,6 +38,7 @@ const AppRoutes: React.FC = () => (
 
 const App: React.FC = () => {
   const Router = window.desktop ? HashRouter : BrowserRouter;
+  useReminderMonitor();
   return (
     <Router>
       <AppRoutes />

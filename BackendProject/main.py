@@ -24,6 +24,7 @@ from domain.assistant_decision_service import assistant_decision_service
 from domain.proactive_service import proactive_service
 from domain.prompt_builder import prompt_builder
 from domain.reply_task_service import reply_task_service
+from domain.reminder_service import reminder_service
 from domain.relationship_service import relationship_service
 from domain.timeline_service import timeline_service
 from handlers.audio_handler import audio_processor, message_parser
@@ -115,6 +116,7 @@ class CreateMemoryRequest(BaseModel):
     content: str
     title: Optional[str] = None
     importance: int = 5
+    confidence: float = 1.0
 
 
 class UpdateMemoryRequest(BaseModel):
@@ -152,6 +154,21 @@ class DebugEmotionRequest(BaseModel):
 
 class ProactiveAcknowledgeRequest(BaseModel):
     action: str = "displayed"
+
+
+class CreateReminderRequest(BaseModel):
+    user_id: str
+    companion_id: str = DEFAULT_COMPANION_ID
+    title: str
+    due_at: str
+    recurrence: str = "none"
+
+
+class UpdateReminderRequest(BaseModel):
+    title: Optional[str] = None
+    due_at: Optional[str] = None
+    recurrence: Optional[str] = None
+    status: Optional[str] = None
 
 
 # 配置 CORS
@@ -768,6 +785,16 @@ def register_identity_context(identity: ResolvedIdentity, profile: Dict[str, str
     )
 
 
+def ensure_user_and_companion(user_id: str, companion_id: str) -> None:
+    user_repository.upsert_user(user_id)
+    default_profile = manager.get_companion_profile("manual_seed")
+    upsert_companion_record(
+        companion_id,
+        default_profile["name"],
+        default_profile["personality"],
+    )
+
+
 def memory_item_to_dict(memory_item) -> dict:
     payload = asdict(memory_item)
     payload["memory_type"] = memory_item.memory_type.value
@@ -992,6 +1019,99 @@ async def acknowledge_proactive_check_in(
     return {"data": asdict(item)}
 
 
+@app.get("/api/reminders")
+async def list_reminders(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+    status: str = Query("active"),
+):
+    items = reminder_service.repository.list(
+        clean_identifier(user_id, "user_default"),
+        clean_identifier(companion_id, DEFAULT_COMPANION_ID),
+        status=status,
+    )
+    return {"items": [asdict(item) for item in items], "total": len(items)}
+
+
+@app.get("/api/reminders/due")
+async def list_due_reminders(
+    user_id: str = Query(...),
+    companion_id: str = Query(DEFAULT_COMPANION_ID),
+):
+    items = reminder_service.due(
+        clean_identifier(user_id, "user_default"),
+        clean_identifier(companion_id, DEFAULT_COMPANION_ID),
+    )
+    return {"items": [asdict(item) for item in items], "total": len(items)}
+
+
+@app.post("/api/reminders")
+async def create_reminder(payload: CreateReminderRequest):
+    user_id = clean_identifier(payload.user_id, "user_default")
+    companion_id = clean_identifier(
+        payload.companion_id,
+        DEFAULT_COMPANION_ID,
+    )
+    ensure_user_and_companion(user_id, companion_id)
+    try:
+        item = reminder_service.create(
+            user_id=user_id,
+            companion_id=companion_id,
+            title=payload.title,
+            due_at=payload.due_at,
+            recurrence=payload.recurrence,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"data": asdict(item)}
+
+
+@app.patch("/api/reminders/{reminder_id}")
+async def update_reminder(reminder_id: str, payload: UpdateReminderRequest):
+    changes = {
+        key: value
+        for key, value in payload.model_dump().items()
+        if value is not None
+    }
+    if "recurrence" in changes and changes["recurrence"] not in reminder_service.RECURRENCES:
+        raise HTTPException(status_code=400, detail="不支持的重复规则")
+    if "due_at" in changes:
+        try:
+            changes["due_at"] = reminder_service._parse_datetime(
+                changes["due_at"]
+            ).isoformat()
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="提醒时间格式错误") from error
+    item = reminder_service.repository.update(reminder_id, **changes)
+    if not item:
+        raise HTTPException(status_code=404, detail="提醒不存在")
+    return {"data": asdict(item)}
+
+
+@app.post("/api/reminders/{reminder_id}/complete")
+async def complete_reminder(reminder_id: str):
+    item = reminder_service.complete(reminder_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="提醒不存在")
+    return {"data": asdict(item)}
+
+
+@app.post("/api/reminders/{reminder_id}/notified")
+async def mark_reminder_notified(reminder_id: str):
+    item = reminder_service.repository.get(reminder_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="提醒不存在")
+    updated = reminder_service.mark_notified(item)
+    return {"data": asdict(updated)}
+
+
+@app.delete("/api/reminders/{reminder_id}")
+async def delete_reminder(reminder_id: str):
+    if not reminder_service.repository.delete(reminder_id):
+        raise HTTPException(status_code=404, detail="提醒不存在")
+    return {"id": reminder_id, "status": "deleted"}
+
+
 @app.delete("/api/relationship-profile")
 async def reset_relationship_profile(
     user_id: str = Query(...),
@@ -1054,8 +1174,13 @@ async def create_memory(payload: CreateMemoryRequest):
         memory_type = MemoryType(payload.memory_type)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    if memory_type != MemoryType.PINNED:
-        raise HTTPException(status_code=400, detail="Phase 1 仅支持手动创建 pinned 记忆")
+    if memory_type not in {
+        MemoryType.PINNED,
+        MemoryType.FACT,
+        MemoryType.PREFERENCE,
+        MemoryType.BOUNDARY,
+    }:
+        raise HTTPException(status_code=400, detail="不支持手动创建该类型记忆")
     user_repository.upsert_user(payload.user_id)
     default_profile = manager.get_companion_profile("manual_seed")
     upsert_companion_record(
@@ -1070,14 +1195,29 @@ async def create_memory(payload: CreateMemoryRequest):
             companion_id=payload.companion_id,
             mode="chat",
         )
-    item = memory_service.upsert_pinned_memory(
-        user_id=payload.user_id,
-        companion_id=payload.companion_id,
-        content=payload.content,
-        title=payload.title,
-        session_id=payload.session_id,
-        importance=payload.importance,
-    )
+    if memory_type == MemoryType.PINNED:
+        item = memory_service.upsert_pinned_memory(
+            user_id=payload.user_id,
+            companion_id=payload.companion_id,
+            content=payload.content,
+            title=payload.title,
+            session_id=payload.session_id,
+            importance=payload.importance,
+        )
+    else:
+        item = memory_service.create_memory(
+            MemoryCreateInput(
+                user_id=payload.user_id,
+                companion_id=payload.companion_id,
+                session_id=payload.session_id,
+                memory_type=memory_type,
+                content=payload.content,
+                title=payload.title,
+                importance=payload.importance,
+                confidence=payload.confidence,
+                source_type="manual",
+            )
+        )
     return {"id": item.id, "status": item.status.value}
 
 
@@ -1959,6 +2099,11 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
         return
 
     try:
+        created_reminder = reminder_service.extract_from_text(
+            user_id=identity.user_id,
+            companion_id=identity.companion_id,
+            text=text,
+        )
         memory_pack = memory_retriever.retrieve(
             user_id=identity.user_id,
             companion_id=identity.companion_id,
@@ -1992,6 +2137,14 @@ async def handle_text_message(websocket: WebSocket, client_id: str, msg_data: di
                 identity.companion_id,
             ),
         ) + build_emotion_prompt_context(emotion_state)
+        if created_reminder:
+            local_due = reminder_service._parse_datetime(created_reminder.due_at)
+            system_prompt += (
+                "\n\n[提醒已创建]\n"
+                f"已为用户创建提醒：{created_reminder.title}，"
+                f"时间为 {local_due.strftime('%Y-%m-%d %H:%M')}。"
+                "请在回复中简短确认，不要重复创建。"
+            )
         message_history = manager.get_message_history(identity.session_id)
         messages: List[BaseMessage] = prompt_builder.build_messages(message_history, text)
         reply_id = f"reply_{uuid.uuid4().hex}"
